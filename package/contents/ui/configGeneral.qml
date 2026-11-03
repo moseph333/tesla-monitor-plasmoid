@@ -13,6 +13,7 @@ KCM.SimpleKCM {
     property alias cfg_imperial: imperial.checked
     property alias cfg_rangeType: rangeType.currentIndex
     property alias cfg_refreshSeconds: refreshSeconds.value
+    property alias cfg_showPanelPercentage: showPanelPercentage.checked
 
     Kirigami.FormLayout {
         Kirigami.Separator {
@@ -89,6 +90,12 @@ KCM.SimpleKCM {
             to: 600
             textFromValue: (value) => i18np("%1 second", "%1 seconds", value)
             valueFromText: (text) => parseInt(text)
+        }
+
+        QQC2.CheckBox {
+            id: showPanelPercentage
+            Kirigami.FormData.label: i18n("Panel:")
+            text: i18n("Show battery percentage next to the icon")
         }
     }
 }

@@ -1,6 +1,6 @@
 # Tesla Monitor
 
-A KDE Plasma 6 widget that shows a Tesla's status from [TeslaMate](https://docs.teslamate.org) over MQTT. On the desktop it's a full card. In a panel it's a battery icon and percentage that opens the card when clicked.
+A KDE Plasma 6 widget that shows a Tesla's status from [TeslaMate](https://docs.teslamate.org) over MQTT. On the desktop it's a full card. In a panel it's a Model 3-shaped battery icon and percentage that opens the card when clicked. It's drawn like Plasma's battery icon: a thin outline with a solid fill that grows from left to right, and a bolt while charging.
 
 The card shows:
 
@@ -31,6 +31,7 @@ Then add **Tesla Monitor** to a panel or the desktop and open its settings:
 | Host, Port | Your MQTT broker |
 | Username, Password | A broker account, if the broker requires one |
 | Topic prefix | `teslamate/cars/1`, or `teslamate/<namespace>/cars/1` if TeslaMate sets `MQTT_NAMESPACE` |
+| Show battery percentage | On by default. Turn it off to show only the car in the panel. Hovering over the car still shows the percentage |
 
 Each copy of the widget keeps its own settings.
 
