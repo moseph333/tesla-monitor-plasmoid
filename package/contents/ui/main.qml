@@ -334,30 +334,6 @@ PlasmoidItem {
                         }
                     }
                 }
-
-                Kirigami.Icon {
-                    source: Logic.bool(root.car, "locked") ? "object-locked" : "object-unlocked"
-                    color: Logic.bool(root.car, "locked") ? Kirigami.Theme.textColor : Kirigami.Theme.neutralTextColor
-                    isMask: true
-                    Layout.preferredWidth: Kirigami.Units.iconSizes.small
-                    Layout.preferredHeight: Kirigami.Units.iconSizes.small
-                    HoverHandler { id: lockHover }
-                    PlasmaComponents3.ToolTip {
-                        visible: lockHover.hovered
-                        text: Logic.bool(root.car, "locked") ? i18n("Locked") : i18n("Unlocked")
-                    }
-                }
-
-                Kirigami.Icon {
-                    visible: Logic.bool(root.car, "sentry_mode")
-                    source: "camera-web-symbolic"
-                    color: Kirigami.Theme.negativeTextColor
-                    isMask: true
-                    Layout.preferredWidth: Kirigami.Units.iconSizes.small
-                    Layout.preferredHeight: Kirigami.Units.iconSizes.small
-                    HoverHandler { id: sentryHover }
-                    PlasmaComponents3.ToolTip { visible: sentryHover.hovered; text: i18n("Sentry Mode on") }
-                }
             }
 
             // Battery + charging
@@ -500,34 +476,17 @@ PlasmoidItem {
 
             Kirigami.Separator { Layout.fillWidth: true }
 
-            // Tires + vehicle status
-            RowLayout {
+            // Tires, doors, windows, openings, lock and Sentry on one car
+            CarStatus {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.minimumHeight: Kirigami.Units.gridUnit * 5
-                spacing: Kirigami.Units.largeSpacing
-
-                TireDiagram {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    Layout.preferredWidth: 1
-                    Layout.minimumWidth: implicitWidth
-                    fl: root.tire("fl")
-                    fr: root.tire("fr")
-                    rl: root.tire("rl")
-                    rr: root.tire("rr")
-                }
-
-                Kirigami.Separator {
-                    Layout.fillHeight: true
-                }
-
-                VehicleStatus {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    Layout.preferredWidth: 1
-                    car: root.car
-                }
+                car: root.car
+                rightHandDrive: root.cfg.rightHandDrive
+                fl: root.tire("fl")
+                fr: root.tire("fr")
+                rl: root.tire("rl")
+                rr: root.tire("rr")
             }
 
             // Footer

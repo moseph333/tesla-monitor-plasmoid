@@ -6,8 +6,7 @@ The card shows:
 
 - Battery level, range and charge limit, plus power, energy added and time left while charging
 - Inside and outside temperature, climate and odometer
-- Tire pressures
-- Doors, windows, trunk, frunk, charge port and Sentry
+- A top-down drawing of the car with each tire's pressure, each door and window, the trunk, frunk and charge port, the lock and Sentry. Open doors swing out, anything open turns orange, the charge cable shows while plugged in, and Sentry draws a red glow around the car. Hover over the car to see the same status as text
 - Software version and available updates
 
 The widget runs `mosquitto_sub` every 15 seconds by default and reads TeslaMate's retained messages from the broker. It never talks to the car.
@@ -32,6 +31,7 @@ Then add **Tesla Monitor** to a panel or the desktop and open its settings:
 | Username, Password | A broker account, if the broker requires one |
 | Topic prefix | `teslamate/cars/1`, or `teslamate/<namespace>/cars/1` if TeslaMate sets `MQTT_NAMESPACE` |
 | Show battery percentage | On by default. Turn it off to show only the car in the panel. Hovering over the car still shows the percentage |
+| Right-hand drive | Off by default. TeslaMate names doors and windows by driver and passenger side, so turn this on if the steering wheel is on the right |
 
 Each copy of the widget keeps its own settings.
 

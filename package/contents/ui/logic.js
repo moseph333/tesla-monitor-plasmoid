@@ -34,6 +34,16 @@ function triState(car, key) {
     return car[key] === "true";
 }
 
+// One door or window: true/false from its own topic (e.g. driver_front_door_open). TeslaMate
+// versions without per-part topics only report the total (doors_open), so then this is
+// "some" while that says something is open, false when all are closed, and null if unknown.
+function partOpen(car, key, totalKey) {
+    var own = triState(car, key);
+    if (own !== null) return own;
+    var total = triState(car, totalKey);
+    return total === true ? "some" : total;
+}
+
 function distance(km, imperial) {
     if (km === null) return null;
     return imperial ? km * 0.621371 : km;
