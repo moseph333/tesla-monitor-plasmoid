@@ -31,6 +31,7 @@ Then add **Tesla Monitor** to a panel or the desktop and open its settings:
 | Host, Port | Your MQTT broker |
 | Username, Password | A broker account, if the broker requires one |
 | Topic prefix | `teslamate/cars/1`, or `teslamate/<namespace>/cars/1` if TeslaMate sets `MQTT_NAMESPACE` |
+| Show battery percentage | On by default. Turn it off to show only the car in the panel. Hovering over the car still shows the percentage |
 
 Each copy of the widget keeps its own settings.
 

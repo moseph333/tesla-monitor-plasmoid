@@ -28,5 +28,8 @@
         <entry name="refreshSeconds" type="Int">
             <default>15</default>
         </entry>
+        <entry name="showPanelPercentage" type="Bool">
+            <default>true</default>
+        </entry>
     </group>
 </kcfg>

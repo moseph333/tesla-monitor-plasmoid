@@ -236,7 +236,7 @@ PlasmoidItem {
             }
 
             PlasmaComponents3.Label {
-                visible: compact.horizontal && root.level >= 0
+                visible: compact.horizontal && root.level >= 0 && root.cfg.showPanelPercentage
                 text: root.level + "%"
                 font.features: { "tnum": 1 }
             }
