@@ -234,22 +234,9 @@ Item {
             anchors.fill: parent
             preferredRendererType: Shape.CurveRenderer
 
-            // Sentry: a red glow around the body
             ShapePath {
                 fillColor: "transparent"
-                strokeColor: status.sentry
-                    ? Qt.rgba(Kirigami.Theme.negativeTextColor.r, Kirigami.Theme.negativeTextColor.g,
-                              Kirigami.Theme.negativeTextColor.b, 0.35)
-                    : "transparent"
-                strokeWidth: Kirigami.Units.smallSpacing * 1.5
-                joinStyle: ShapePath.RoundJoin
-                scale: drawing.pathScale
-                PathSvg { path: drawing.bodyPath }
-            }
-
-            ShapePath {
-                fillColor: "transparent"
-                strokeColor: status.sentry ? Kirigami.Theme.negativeTextColor : status.lineColor
+                strokeColor: status.lineColor
                 strokeWidth: 1.5
                 joinStyle: ShapePath.RoundJoin
                 scale: drawing.pathScale
@@ -344,6 +331,18 @@ Item {
                  : "transparent"
             border.width: status.pluggedIn || status.portOpen ? 0 : 1
             border.color: status.lineColor
+        }
+
+        // Sentry: the camera icon on the windshield
+        Kirigami.Icon {
+            visible: status.sentry
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: status.u(160) - height / 2
+            width: Math.min(Kirigami.Units.iconSizes.small, status.u(60))
+            height: width
+            source: "camera-web-symbolic"
+            color: Kirigami.Theme.negativeTextColor
+            isMask: true
         }
 
         Kirigami.Icon {

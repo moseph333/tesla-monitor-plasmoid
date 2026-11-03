@@ -6,7 +6,7 @@ The card shows:
 
 - Battery level, range and charge limit, plus power, energy added and time left while charging
 - Inside and outside temperature, climate and odometer
-- A top-down drawing of the car with each tire's pressure, each door and window, the trunk, frunk and charge port, the lock and Sentry. Open doors swing out, anything open turns orange, the charge cable shows while plugged in, and Sentry draws a red glow around the car. Hover over the car to see the same status as text
+- A top-down drawing of the car with each tire's pressure, each door and window, the trunk, frunk and charge port, the lock and Sentry. Open doors swing out, anything open turns orange, the charge cable shows while plugged in, and a red camera on the windshield means Sentry is on. Hover over the car to see the same status as text
 - Software version and available updates
 
 The widget runs `mosquitto_sub` every 15 seconds by default and reads TeslaMate's retained messages from the broker. It never talks to the car.
