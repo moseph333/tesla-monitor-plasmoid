@@ -10,8 +10,9 @@ import "logic.js" as Logic
 // Top-down Model 3, nose up, showing everything about the car's body at once: a pressure
 // reading beside each wheel, doors that swing out when open, windows, frunk, trunk,
 // charge port, lock and Sentry. Hovering lists the same status as text.
-// The drawing uses the car's real proportions: 1 unit = 10 mm, the body is 185 × 469.4
-// and starts 12 units in from the left so the mirrors fit.
+// The body, mirrors and axles use the car's real dimensions: 1 unit = 10 mm, the body is
+// 185 × 469.4 and starts 12 units in from the left so the mirrors fit. The wheels sit
+// further out than the real track so they stay visible from above.
 Item {
     id: status
 
@@ -72,16 +73,16 @@ Item {
         return open === null ? "—" : (open ? i18n("Open") : i18n("Closed"))
     }
 
-    // "Closed", "Driver front, Passenger rear open", "Open" (total only) or "—".
+    // "Closed", "driver front, passenger rear open", "At least one open" (total only) or "—".
     function partsText(states) {
         const names = {
-            driver_front: i18n("Driver front"), driver_rear: i18n("Driver rear"),
-            passenger_front: i18n("Passenger front"), passenger_rear: i18n("Passenger rear")
+            driver_front: i18n("driver front"), driver_rear: i18n("driver rear"),
+            passenger_front: i18n("passenger front"), passenger_rear: i18n("passenger rear")
         }
         const open = Object.keys(names).filter(k => states[k] === true).map(k => names[k])
         if (open.length > 0) return i18n("%1 open", open.join(", "))
         const values = Object.keys(names).map(k => states[k])
-        if (values.indexOf("some") >= 0) return i18n("Open")
+        if (values.indexOf("some") >= 0) return i18n("At least one open")
         if (values.every(v => v === false)) return i18n("Closed")
         return "—"
     }
@@ -136,23 +137,25 @@ Item {
         color: warn ? Kirigami.Theme.negativeTextColor : status.lineColor
     }
 
+    // Filled when this window is open. When TeslaMate only reports that some window is open,
+    // all four get an orange outline but no fill.
     component Window: Rectangle {
         property bool onLeft
         property real startY
         property real endY
         property var open
-        readonly property bool shown: open === true || open === "some"
         x: status.u(status.ox + (onLeft ? 17 : 154))
         y: status.u(startY)
         width: status.u(14)
         height: status.u(endY - startY)
         radius: width * 0.4
-        color: shown ? status.openFill : status.glassColor
+        color: open === true ? status.openFill : status.glassColor
         border.width: 1
         border.color: status.edgeColor(open)
     }
 
-    // Hinged at its front edge. Swings out only when TeslaMate says which door is open.
+    // Hinged at its front edge. Swings out and fills only when TeslaMate says which door is
+    // open; when it only reports that some door is open, all four get an orange outline.
     component Door: Rectangle {
         id: door
         property bool onLeft
@@ -169,7 +172,7 @@ Item {
         width: status.u(13)
         height: status.u(endY - startY)
         radius: width * 0.35
-        color: shown ? status.openFill : "transparent"
+        color: open === true ? status.openFill : "transparent"
         border.width: 1
         // Closed doors are faint seams so the side doesn't read as three parallel lines.
         border.color: shown ? status.openColor : open === null ? "transparent" : status.faintColor
@@ -179,6 +182,9 @@ Item {
             angle: door.onLeft ? door.swing : -door.swing
         }
     }
+
+    // The tooltip covers the whole row: the readings and any swung-open door, not just the car.
+    HoverHandler { id: hover }
 
     // ---------- tire readings ----------
 
@@ -224,15 +230,22 @@ Item {
         // From the port on the left rear, out to the side
         readonly property string cablePath: "M 14 422 C 6 423 0 432 -2 450"
 
-        HoverHandler { id: hover }
         PlasmaComponents3.ToolTip {
             visible: hover.hovered
             text: status.summary()
         }
 
+        // Not Shape.CurveRenderer: on Qt 6.7 and 6.8 it can keep showing the paths at an old
+        // scale when the row is resized several times in a row while the card lays out
+        // (QTBUG-133267). A multisampled layer gives the same smooth edges. Its source rect is
+        // padded so strokes on the edge of the drawing (the nose, the cable) aren't clipped.
         Shape {
             anchors.fill: parent
-            preferredRendererType: Shape.CurveRenderer
+            layer.enabled: true
+            layer.samples: 4
+            layer.sourceRect: Qt.rect(-Kirigami.Units.smallSpacing, -Kirigami.Units.smallSpacing,
+                                      width + 2 * Kirigami.Units.smallSpacing,
+                                      height + 2 * Kirigami.Units.smallSpacing)
 
             ShapePath {
                 fillColor: "transparent"
@@ -322,7 +335,8 @@ Item {
         Rectangle {
             visible: status.pluggedIn || status.portOpen !== null
             x: status.u(status.ox + 8) - width / 2
-            y: status.u(422) - height / 2
+            // Keep clear of the rear wheel (it ends at 404.5) when the minimum size kicks in.
+            y: Math.max(status.u(422) - height / 2, status.u(404.5) + 1)
             width: Math.max(status.u(11), Kirigami.Units.smallSpacing * 1.5)
             height: width
             radius: width / 2

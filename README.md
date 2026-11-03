@@ -41,6 +41,7 @@ Plasma stores the password in plain text and the widget passes it to `mosquitto_
 
 - TeslaMate creates its MQTT publishers only for cars that exist when it starts. Restart TeslaMate after adding a car, or the broker stays empty.
 - After a restart, values appear on the car's next state change. Some, such as tire pressures, need the car to be awake.
+- TeslaMate reports each door separately from 1.30 and each window from 4.1.1. With older versions it only says that some door or window is open, so the card outlines all four in orange and the doors don't swing out.
 
 ## Development
 
