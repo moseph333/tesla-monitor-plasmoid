@@ -225,10 +225,13 @@ PlasmoidItem {
             height: parent.height
             spacing: Kirigami.Units.smallSpacing
 
-            Kirigami.Icon {
-                Layout.preferredWidth: compact.horizontal ? compact.height : compact.width
-                Layout.preferredHeight: Layout.preferredWidth
-                source: Plasmoid.icon
+            CarBattery {
+                readonly property real fitHeight: compact.horizontal ? Math.round(compact.height * 0.8) : compact.width / aspect
+
+                Layout.preferredHeight: fitHeight
+                Layout.preferredWidth: fitHeight * aspect
+                value: root.level >= 0 ? root.level / 100 : -1
+                charging: root.charging
                 active: compact.containsMouse
             }
 
