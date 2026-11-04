@@ -343,3 +343,45 @@ test("mqttError passes other failures through, or names the exit code", () => {
     assert.deepEqual(L.mqttError(3, "", false), { kind: "exit", detail: "3" });
     assert.deepEqual(L.mqttError(255, "Error: weird", false), { kind: "other", detail: "weird" });
 });
+
+test("parseCars finds cars with and without a namespace", () => {
+    const out = [
+        "teslamate/cars/1/display_name Red",
+        "teslamate/home/cars/3/display_name Blue",
+        "teslamate/cars/1/battery_level 72",
+        "teslamate/cars/1/display_name/extra x",
+        "other/cars/4/display_name Nope",
+    ].join("\n");
+    assert.deepEqual(L.parseCars(out), [
+        { prefix: "teslamate/cars/1", name: "Red" },
+        { prefix: "teslamate/home/cars/3", name: "Blue" },
+    ]);
+});
+
+test("parseCars sorts by namespace, then by car id as a number", () => {
+    const out = [
+        "teslamate/b/cars/1/display_name B1",
+        "teslamate/cars/10/display_name Ten",
+        "teslamate/a/cars/2/display_name A2",
+        "teslamate/cars/2/display_name Two",
+        "teslamate/cars/x/display_name X",
+        "teslamate/cars/9b/display_name Nine",
+    ].join("\n");
+    assert.deepEqual(L.parseCars(out).map(c => c.prefix), [
+        "teslamate/cars/2",
+        "teslamate/cars/10",
+        "teslamate/cars/9b",
+        "teslamate/cars/x",
+        "teslamate/a/cars/2",
+        "teslamate/b/cars/1",
+    ]);
+});
+
+test("parseCars keeps a car with an empty name and handles no output", () => {
+    assert.deepEqual(L.parseCars("teslamate/cars/1/display_name (null)\n"),
+        [{ prefix: "teslamate/cars/1", name: "" }]);
+    assert.deepEqual(L.parseCars("teslamate/cars/1/display_name"),
+        [{ prefix: "teslamate/cars/1", name: "" }]);
+    assert.deepEqual(L.parseCars(""), []);
+    assert.deepEqual(L.parseCars(undefined), []);
+});

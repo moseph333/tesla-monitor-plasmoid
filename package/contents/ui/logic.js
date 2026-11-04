@@ -209,3 +209,27 @@ function mqttError(code, stderr, hasOutput) {
     if (e) return result("other", plain);
     return result("exit", String(code));
 }
+
+// The cars a "Find Cars" subscription to teslamate/cars/+/display_name and
+// teslamate/+/cars/+/display_name turned up, as [{prefix, name}]. Sorted by namespace and
+// then by car id as a number, so car 2 comes before car 10. TeslaMate's ids are numbers;
+// anything else goes after them in text order, which keeps the order consistent.
+function parseCars(out) {
+    var all = parseMqtt(out, "");
+    var re = /^(teslamate\/(?:([^\/]+)\/)?cars\/([^\/]+))\/display_name$/;
+    var found = [];
+    for (var topic in all) {
+        var m = re.exec(topic);
+        if (m) found.push({ prefix: m[1], name: all[topic], ns: m[2] || "", id: m[3] });
+    }
+    found.sort(function (a, b) {
+        if (a.ns !== b.ns) return a.ns < b.ns ? -1 : 1;
+        var an = /^\d+$/.test(a.id), bn = /^\d+$/.test(b.id);
+        if (an !== bn) return an ? -1 : 1;
+        if (an && Number(a.id) !== Number(b.id)) return Number(a.id) - Number(b.id);
+        return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+    });
+    var cars = [];
+    for (var i = 0; i < found.length; i++) cars.push({ prefix: found[i].prefix, name: found[i].name });
+    return cars;
+}

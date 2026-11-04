@@ -40,6 +40,8 @@ Then add **Tesla Monitor** to a panel or the desktop and open its settings.
 | Topic prefix | `teslamate/cars/1`, or `teslamate/<namespace>/cars/1` if TeslaMate sets `MQTT_NAMESPACE` |
 | Refresh every | 15 seconds by default |
 
+**Test Connection** tries the values on the page before you apply them, and says what went wrong if it can't read TeslaMate's data. **Find Cars** lists the cars TeslaMate publishes on the broker and fills in the topic prefix, or lets you choose when there are several.
+
 **Display**
 
 | Setting | Value |

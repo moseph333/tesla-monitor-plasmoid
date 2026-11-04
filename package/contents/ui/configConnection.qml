@@ -19,6 +19,93 @@ KCM.SimpleKCM {
     property alias cfg_topicPrefix: topicPrefix.text
     property alias cfg_refreshSeconds: refreshSeconds.value
 
+    // The cars the last Find Cars run turned up, for the picker.
+    property var cars: []
+    // "test" or "find", whichever button started the running check.
+    property string pendingCheck: ""
+    readonly property bool canCheck: Logic.parseBrokerHost(brokerHost.text).host !== "" && !fetch.busy
+
+    function formPrefix() {
+        return topicPrefix.text.trim().replace(/\/+$/, "") || "teslamate/cars/1"
+    }
+
+    // A result describes the values it ran with, so it goes away as soon as one of them
+    // changes, and a check still running is dropped. result.visible is always assigned,
+    // never bound, because the message's close button assigns it as well.
+    function formEdited() {
+        result.visible = false
+        fetch.cancel()
+    }
+
+    // Cars found on one broker mean nothing for another.
+    function brokerEdited() {
+        cars = []
+        formEdited()
+    }
+
+    function showResult(type, text) {
+        result.type = type
+        result.text = text
+        result.visible = true
+    }
+
+    // Both buttons try the values on the page, before they're applied.
+    function runCheck(kind) {
+        result.visible = false
+        pendingCheck = kind
+        const started = fetch.run({
+            host: brokerHost.text,
+            port: brokerPort.value,
+            user: brokerUser.text,
+            password: brokerPassword.text,
+            tls: useTls.checked,
+            caFile: caFile.text,
+            topics: kind === "find"
+                ? ["teslamate/cars/+/display_name", "teslamate/+/cars/+/display_name"]
+                : [formPrefix() + "/#"],
+            wait: 3
+        })
+        if (!started) showResult(Kirigami.MessageType.Error, i18n("Enter the broker's host name or address."))
+    }
+
+    function checkFinished(out, err) {
+        if (pendingCheck === "find") carsFound(out, err)
+        else connectionTested(out, err)
+    }
+
+    function connectionTested(out, err) {
+        const prefix = String(fetch.options.topics[0]).replace(/\/#$/, "")
+        const values = Logic.parseMqtt(out, prefix)
+        const n = Object.keys(values).length
+        if (n > 0 && values.display_name)
+            showResult(Kirigami.MessageType.Positive, i18np("Found %2, %1 value", "Found %2, %1 values", n, values.display_name))
+        else if (n > 0)
+            showResult(Kirigami.MessageType.Positive, i18np("Found %1 value", "Found %1 values", n))
+        else if (err)
+            showResult(Kirigami.MessageType.Error, err)
+        else
+            showResult(Kirigami.MessageType.Warning, i18n("Connected, but there's no TeslaMate data on %1/#. Try Find Cars, or check that MQTT is enabled in TeslaMate.", prefix))
+    }
+
+    function carsFound(out, err) {
+        const found = Logic.parseCars(out)
+        cars = found
+        if (found.length === 1) {
+            // Set before the message, since editing the prefix hides it.
+            topicPrefix.text = found[0].prefix
+            showResult(Kirigami.MessageType.Positive, found[0].name
+                ? i18n("Found %1. Topic prefix set to %2.", found[0].name, found[0].prefix)
+                : i18n("Found a car. Topic prefix set to %1.", found[0].prefix))
+        } else if (found.length > 1) {
+            carPicker.currentIndex = -1
+            showResult(Kirigami.MessageType.Information, i18np("Found %1 car. Choose one:", "Found %1 cars. Choose one:", found.length))
+        } else if (err) {
+            showResult(Kirigami.MessageType.Error, err)
+        } else {
+            showResult(Kirigami.MessageType.Warning, i18n("No TeslaMate cars found. Check that MQTT is enabled in TeslaMate and that this account may read teslamate/#."))
+        }
+    }
+
     Kirigami.FormLayout {
         Kirigami.Separator {
             Kirigami.FormData.isSection: true
@@ -30,6 +117,7 @@ KCM.SimpleKCM {
             Kirigami.FormData.label: i18n("Host:")
             placeholderText: "192.168.1.x or mqtt.moseph.net"
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            onTextChanged: page.brokerEdited()
             // People paste whatever their broker's docs show, such as
             // mqtts://user:pw@host:8883/. mosquitto_sub only takes a bare host, so the rest
             // moves to the fields it belongs in. Credentials never overwrite what's typed.
@@ -52,6 +140,7 @@ KCM.SimpleKCM {
             editable: true
             textFromValue: (value) => String(value)
             valueFromText: (text) => parseInt(text)
+            onValueModified: page.brokerEdited()
         }
 
         QQC2.TextField {
@@ -59,6 +148,7 @@ KCM.SimpleKCM {
             Kirigami.FormData.label: i18n("Username:")
             placeholderText: i18n("Optional")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            onTextChanged: page.brokerEdited()
         }
 
         Kirigami.PasswordField {
@@ -66,6 +156,7 @@ KCM.SimpleKCM {
             Kirigami.FormData.label: i18n("Password:")
             placeholderText: i18n("Optional")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            onTextChanged: page.brokerEdited()
         }
 
         QQC2.CheckBox {
@@ -77,6 +168,7 @@ KCM.SimpleKCM {
             onToggled: {
                 if (checked && brokerPort.value === 1883) brokerPort.value = 8883
                 else if (!checked && brokerPort.value === 8883) brokerPort.value = 1883
+                page.brokerEdited()
             }
         }
 
@@ -90,6 +182,7 @@ KCM.SimpleKCM {
                 id: caFile
                 Layout.fillWidth: true
                 placeholderText: i18n("System certificates")
+                onTextChanged: page.brokerEdited()
             }
 
             QQC2.Button {
@@ -126,6 +219,7 @@ KCM.SimpleKCM {
             Kirigami.FormData.label: i18n("Topic prefix:")
             placeholderText: "teslamate/cars/1"
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            onTextChanged: page.formEdited()
         }
 
         QQC2.Label {
@@ -134,6 +228,53 @@ KCM.SimpleKCM {
             font: Kirigami.Theme.smallFont
             opacity: 0.7
             text: i18n("If TeslaMate sets MQTT_NAMESPACE, use teslamate/<namespace>/cars/1.")
+        }
+
+        RowLayout {
+            spacing: Kirigami.Units.smallSpacing
+
+            QQC2.Button {
+                text: i18n("Test Connection")
+                icon.name: "network-connect"
+                enabled: page.canCheck
+                onClicked: page.runCheck("test")
+            }
+
+            QQC2.Button {
+                text: i18n("Find Cars")
+                icon.name: "edit-find"
+                enabled: page.canCheck
+                onClicked: page.runCheck("find")
+            }
+
+            QQC2.BusyIndicator {
+                Layout.preferredWidth: Kirigami.Units.iconSizes.smallMedium
+                Layout.preferredHeight: Kirigami.Units.iconSizes.smallMedium
+                running: fetch.busy
+                visible: running
+            }
+
+            MqttFetch {
+                id: fetch
+                onFinished: (out, err) => page.checkFinished(out, err)
+            }
+        }
+
+        Kirigami.InlineMessage {
+            id: result
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            visible: false
+            showCloseButton: true
+        }
+
+        QQC2.ComboBox {
+            id: carPicker
+            Kirigami.FormData.label: i18n("Car:")
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            visible: page.cars.length > 1
+            model: page.cars.map(c => c.name ? i18nc("car name (topic prefix)", "%1 (%2)", c.name, c.prefix) : c.prefix)
+            displayText: currentIndex < 0 ? i18n("Choose a car…") : currentText
+            onActivated: (index) => topicPrefix.text = page.cars[index].prefix
         }
 
         Kirigami.Separator {
