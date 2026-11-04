@@ -240,6 +240,8 @@ Item {
         // (QTBUG-133267). A multisampled layer gives the same smooth edges. It sits on a slightly
         // larger item so strokes on the edge of the drawing (the nose, the cable) aren't
         // clipped, and the paths keep their exact size and line up with the wheels and doors.
+        // The software renderer draws nothing for a Shape inside a layer at scale factors
+        // above 1, and doesn't need one (it anti-aliases on its own), so it skips it.
         Item {
             id: pathLayer
             readonly property real pad: Kirigami.Units.smallSpacing
@@ -247,7 +249,7 @@ Item {
             y: -pad
             width: drawing.width + 2 * pad
             height: drawing.height + 2 * pad
-            layer.enabled: true
+            layer.enabled: GraphicsInfo.api !== GraphicsInfo.Software
             layer.samples: 4
 
             Shape {

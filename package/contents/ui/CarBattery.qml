@@ -32,6 +32,8 @@ Item {
     // lays out (QTBUG-133267) and leave the car undrawn or at an old size. The icon is drawn
     // into a multisampled layer instead. The layer sits on a slightly larger item so the
     // outline isn't clipped at the edges, and the shapes keep their exact size and position.
+    // The software renderer draws nothing for a Shape inside a layer at scale factors above
+    // 1, and doesn't need one (it anti-aliases and has no curve renderer), so it skips it.
     Item {
         id: canvas
         readonly property real pad: Kirigami.Units.smallSpacing
@@ -39,7 +41,7 @@ Item {
         y: -pad
         width: car.width + 2 * pad
         height: car.height + 2 * pad
-        layer.enabled: true
+        layer.enabled: GraphicsInfo.api !== GraphicsInfo.Software
         layer.samples: 4
 
         Item {

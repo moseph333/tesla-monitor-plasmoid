@@ -231,7 +231,11 @@ PlasmoidItem {
             spacing: Kirigami.Units.smallSpacing
 
             CarBattery {
-                readonly property real fitHeight: compact.horizontal ? Math.round(compact.height * 0.8) : compact.width / aspect
+                // Plasma's small icon size, so it sits near the system tray's battery icon (whose
+                // battery shape is 12 px tall) instead of growing with the panel. Thinner panels
+                // and vertical panels shrink it to fit.
+                readonly property real fitHeight: Math.min(Kirigami.Units.iconSizes.small,
+                                                           compact.horizontal ? compact.height : compact.width / aspect)
 
                 Layout.preferredHeight: fitHeight
                 Layout.preferredWidth: fitHeight * aspect
