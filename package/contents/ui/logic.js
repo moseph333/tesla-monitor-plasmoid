@@ -1,10 +1,12 @@
 .pragma library
 
 // Parse `mosquitto_sub -v` output ("topic payload" per line) into { key: payload }
-// where key is the topic with the prefix stripped, e.g. "battery_level".
+// where key is the topic with the prefix stripped, e.g. "battery_level". An empty
+// prefix keeps the full topics.
 function parseMqtt(out, prefix) {
     var map = {};
-    var pre = String(prefix).replace(/\/+$/, "") + "/";
+    var base = String(prefix || "").replace(/\/+$/, "");
+    var pre = base ? base + "/" : "";
     var lines = String(out || "").split("\n");
     for (var i = 0; i < lines.length; i++) {
         var line = lines[i].replace(/\r$/, "");
@@ -12,8 +14,10 @@ function parseMqtt(out, prefix) {
         var sp = line.indexOf(" ");
         var topic = sp < 0 ? line : line.slice(0, sp);
         var payload = sp < 0 ? "" : line.slice(sp + 1);
-        if (topic.indexOf(pre) !== 0) continue;
-        map[topic.slice(pre.length)] = payload;
+        if (topic.indexOf(pre) !== 0 || topic.length === pre.length) continue;
+        // mosquitto_sub prints an empty publish, which is how TeslaMate clears a value,
+        // as "(null)". It must read as missing rather than show up as text.
+        map[topic.slice(pre.length)] = payload === "(null)" ? "" : payload;
     }
     return map;
 }

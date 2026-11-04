@@ -2,7 +2,7 @@ PLUGIN_OUT := dist/tesla-monitor.plasmoid
 # Set PACKAGE_ROOT to install somewhere other than the user's Plasma widgets folder.
 KPT := kpackagetool6 -t Plasma/Applet $(if $(PACKAGE_ROOT),-p $(PACKAGE_ROOT))
 
-.PHONY: build install reload clean
+.PHONY: build install reload clean test
 
 build:
 	@mkdir -p dist
@@ -18,3 +18,6 @@ reload:
 
 clean:
 	rm -rf dist
+
+test:
+	@node --test tests/*.test.mjs
