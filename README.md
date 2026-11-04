@@ -12,6 +12,8 @@ The card shows:
 - One warning that lists everything that needs attention: open doors, windows, frunk, trunk, sunroof or charge port, the car unlocked with nobody inside, low tire pressure, service mode, and TeslaMate having trouble reaching the car. The panel icon's tooltip lists the same
 - Software version, available updates and their download and install progress
 
+It can also send desktop notifications when charging finishes or stops early, when something is left open or the car is unlocked with nobody inside, when a tire's pressure is low, and when a software update is available. See [Notifications](#notifications).
+
 The widget runs `mosquitto_sub` every 15 seconds by default, and every 2 minutes while the car sleeps and the popup is closed, to read TeslaMate's retained messages from the broker. It never talks to the car. Opening the popup, or pressing the refresh button in its header, updates right away. If the broker stops answering, the card keeps the last data, the panel icon dims and its tooltip says when the data was last updated.
 
 ## Requirements
@@ -57,7 +59,14 @@ Then add **Tesla Monitor** to a panel or the desktop and open its settings.
 | While charging, show the time to full | Off by default. While the car charges, the panel shows the time left to reach the charge limit, instead of the range when Text includes it |
 | Right-hand drive | Off by default. TeslaMate names doors and windows by driver and passenger side, so turn this on if the steering wheel is on the right |
 | Show the destination and arrival while driving | Off by default. While the car follows a route, the card shows the destination, the time to arrival with any traffic delay, the distance left and the battery level on arrival. Needs TeslaMate 1.29 or newer |
-| Unlocked is OK at | TeslaMate geofence names, separated by commas, such as `Home, Work`. There an unlocked car isn't shown as a warning, for a garage or home where you leave it unlocked on purpose |
+| Unlocked is OK at | TeslaMate geofence names, separated by commas, such as `Home, Work`. There an unlocked car isn't shown as a warning or notified, for a garage or home where you leave it unlocked on purpose |
+
+**Notifications**
+
+| Setting | Value |
+| ------- | ----- |
+| Notify when | Charging finishes, charging stops early or the charger loses power, something is left open, the car is unlocked with nobody inside, a tire's pressure is low, or a software update is available. All are on by default. See [Notifications](#notifications) |
+| For at least | 10 minutes by default. How long something has to stay open, or the car unlocked with nobody inside, before the widget notifies |
 
 Each copy of the widget keeps its own settings.
 
@@ -70,6 +79,19 @@ Turn on **Use TLS** for a broker that encrypts its connections. TLS brokers usua
 - Leave **CA file** empty to trust the system's certificates. This needs mosquitto 2.0 or newer.
 - For a broker with a self-signed certificate or one from a private CA, choose that CA's certificate, usually a `.pem` or `.crt` file, as the CA file.
 - **Host** must be a name the broker's certificate lists, which is usually its host name rather than its IP address.
+
+## Notifications
+
+The widget sends a notification when:
+
+- Charging finishes. A charge that adds less than 3% doesn't count, so the car topping itself up stays quiet.
+- Charging stops before the limit, or the charger stops supplying power during a charge. The widget waits about 3 minutes in case the charge carries on, and tells you once per plug-in. Unplugging and waiting for a scheduled start never notify.
+- A door, window, the frunk, trunk, sunroof or charge port is left open, or the car is unlocked with nobody inside, for 10 minutes (**For at least**) while nobody is in the car. Each notifies once, and again only after it has been closed or locked.
+- A tire's pressure is low, or a software update is available.
+
+Notifications are only for changes. Nothing is sent for what's already the case when the widget starts, after you change the connection settings, or after a long break in the data, such as while the computer sleeps. Plasma shows them as System Notifications, and clicking one opens the widget. Copies of the widget that show the same car, such as one in the panel and one on the desktop, send each notification once.
+
+If you leave the car unlocked on purpose somewhere, such as in your garage at home, add that TeslaMate geofence to **Unlocked is OK at** on the Display page. The widget then neither warns nor notifies there.
 
 ## TeslaMate behavior
 

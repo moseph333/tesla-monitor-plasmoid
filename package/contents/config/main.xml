@@ -79,5 +79,30 @@
         <entry name="unlockedOkGeofences" type="String">
             <default></default>
         </entry>
+        <!-- Desktop notifications. notifyChargeStopped also covers a charger that loses
+             power during a charge. -->
+        <entry name="notifyChargeComplete" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="notifyChargeStopped" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="notifyLeftOpen" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="notifyUnlocked" type="Bool">
+            <default>true</default>
+        </entry>
+        <!-- Minutes something stays open, or the car unlocked with nobody inside, before it
+             notifies. 1 to 120. -->
+        <entry name="leftOpenMinutes" type="Int">
+            <default>10</default>
+        </entry>
+        <entry name="notifyTires" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="notifyUpdates" type="Bool">
+            <default>true</default>
+        </entry>
     </group>
 </kcfg>

@@ -6,8 +6,10 @@ import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.components as PlasmaComponents3
 import org.kde.plasma.extras as PlasmaExtras
 import org.kde.kirigami as Kirigami
+import org.kde.notification
 
 import "logic.js" as Logic
+import "notifyhub.js" as Hub
 
 PlasmoidItem {
     id: root
@@ -32,6 +34,8 @@ PlasmoidItem {
     property var healthySeenAt: null
     // Only a refresh someone asked for shows a spinner, so the regular polls stay quiet.
     property bool userRefreshing: false
+    // What Logic.notifyStep() knew after the last poll, or null to start over.
+    property var notifyState: null
 
     // A card on the desktop counts as closed, so it polls at the idle rate while the car
     // sleeps.
@@ -262,6 +266,7 @@ PlasmoidItem {
             hasData = true
             errorText = ""
             lastUpdated = new Date()
+            processNotifications()
         }
     }
 
@@ -320,6 +325,8 @@ PlasmoidItem {
             root.errorText = ""
             root.healthySeenAt = null
             root.userRefreshing = false
+            // Another broker or car starts over, so what it already shows isn't news.
+            root.notifyState = null
             fetch.cancel()
             root.refresh(false)
         }
@@ -330,6 +337,126 @@ PlasmoidItem {
         // existing widget showed, once; libplasma saves the new values a moment later.
         const m = Logic.unitMigration(cfg.unitsMigrated, cfg.brokerHost, cfg.imperial)
         if (m) for (const k in m) Plasmoid.configuration[k] = m[k]
+    }
+
+    // ---------- notifications ----------
+
+    // After every poll that got data. The state moves on even while a notification is
+    // turned off, so turning it on later doesn't bring up something old.
+    function processNotifications() {
+        const r = Logic.notifyStep(notifyState, car, Date.now(), {
+            leftOpenMs: cfg.leftOpenMinutes * 60000,
+            // Several polls at the slower rate, so only something like a suspend or a broker
+            // outage counts as a gap that starts over.
+            staleMs: Math.max(900000, 3000 * Math.max(cfg.refreshSeconds, cfg.idleRefreshSeconds)),
+            okGeofences: okGeofences
+        })
+        notifyState = r.state
+        for (const e of r.events) sendNotification(e)
+    }
+
+    function sendNotification(e) {
+        const wanted = {
+            chargeComplete: cfg.notifyChargeComplete,
+            chargeStopped: cfg.notifyChargeStopped,
+            chargerNoPower: cfg.notifyChargeStopped,
+            leftOpen: cfg.notifyLeftOpen,
+            unlocked: cfg.notifyUnlocked,
+            tires: cfg.notifyTires,
+            update: cfg.notifyUpdates
+        }
+        if (!wanted[e.type]) return
+        // Every copy of the widget that shows this car sees the event on its own poll, and
+        // only the first to claim it sends it.
+        const b = Logic.parseBrokerHost(cfg.brokerHost)
+        const source = b.host.toLowerCase() + ":" + (b.port || cfg.brokerPort) + "|" + prefix
+        if (!Hub.claim(source + "|" + Logic.eventKey(e, car), Date.now(), 300000)) return
+        const content = notificationContent(e, car.display_name || i18n("Tesla"))
+        if (!content) return
+        const note = notificationComponent.createObject(root, {
+            title: content.title,
+            text: Logic.escapeMarkup(content.body),
+            iconName: content.icon
+        })
+        if (note) note.sendEvent()
+    }
+
+    // The title, body and icon for an event from Logic.notifyStep(). A body says less when
+    // a value is missing, rather than leave a gap.
+    function notificationContent(e, name) {
+        const minutes = cfg.leftOpenMinutes
+        switch (e.type) {
+        case "chargeComplete":
+            return {
+                title: i18n("%1 finished charging", name),
+                body: e.level === null ? i18n("Charging is complete.")
+                    : rangeKm !== null ? i18n("Charged to %1% (%2).", e.level, fmtDistance(rangeKm))
+                    : i18n("Charged to %1%.", e.level),
+                icon: Logic.batteryIcon(e.level, false)
+            }
+        case "chargeStopped":
+            return {
+                title: i18n("%1 stopped charging", name),
+                body: e.level === null ? i18n("Charging stopped before the limit.")
+                    : e.limit !== null ? i18n("Stopped at %1%, below the %2% limit.", e.level, e.limit)
+                    : i18n("Stopped at %1%.", e.level),
+                icon: Logic.batteryIcon(e.level, false)
+            }
+        case "chargerNoPower":
+            return {
+                title: i18n("%1 can't charge", name),
+                body: e.level === null ? i18n("The charger stopped supplying power.")
+                    : i18n("The charger stopped supplying power at %1%.", e.level),
+                icon: "dialog-warning"
+            }
+        case "leftOpen":
+            return {
+                title: i18n("%1 needs attention", name),
+                body: texts.attentionLines(e.items)
+                    .concat(i18np("Like this for %1 minute.", "Like this for %1 minutes.", minutes)).join("\n"),
+                icon: "dialog-warning"
+            }
+        case "unlocked":
+            return {
+                title: i18n("%1 is unlocked", name),
+                body: i18np("Nobody has been inside for %1 minute.", "Nobody has been inside for %1 minutes.", minutes),
+                icon: "object-unlocked"
+            }
+        case "tires":
+            return {
+                title: i18n("%1 has low tire pressure", name),
+                body: i18n("Check %1.", e.items.map(pos => {
+                    const pressure = tire(pos).text
+                    return pressure === "—" ? texts.tireName(pos)
+                        : i18nc("tire position (pressure)", "%1 (%2)", texts.tireName(pos), pressure)
+                }).join(", ")),
+                icon: "dialog-warning"
+            }
+        case "update":
+            return {
+                title: i18n("Software update for %1", name),
+                body: e.version ? i18n("Version %1 is available.", e.version) : i18n("An update is available."),
+                icon: "system-software-update"
+            }
+        }
+        return null
+    }
+
+    // One object per notification, which deletes itself once Plasma is done with it.
+    // Plasma drops a notification without a componentName, so it goes out as Plasma's own.
+    Component {
+        id: notificationComponent
+
+        Notification {
+            componentName: "plasma_workspace"
+            eventId: "notification"
+            urgency: Notification.NormalUrgency
+            autoDelete: true
+            defaultAction: NotificationAction {
+                label: i18n("Show")
+                onActivated: root.expanded = true
+            }
+        }
     }
 
     // ---------- panel ----------

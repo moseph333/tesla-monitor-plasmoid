@@ -13,6 +13,7 @@ function load(file) {
 }
 
 const L = load("logic.js");
+const Hub = load("notifyhub.js");
 
 test("parseMqtt strips the prefix and ignores other topics", () => {
     const out = [
@@ -546,6 +547,326 @@ test("isResolved ends unlocked when locked, occupied, driving or at an OK geofen
     assert.equal(L.isResolved({ ...unlocked, geofence: "HOME" }, "unlocked", ["home"]), true);
 });
 
+// Notifications. Times are minutes from an arbitrary start, and each snapshot is
+// [minute, car]. run() feeds them to notifyStep in order and returns each one's events.
+const MIN = 60000;
+const T0 = Date.parse("2026-11-04T20:00:00Z");
+const notifyOpts = { leftOpenMs: 10 * MIN, staleMs: 15 * MIN, okGeofences: [] };
+function run(snapshots, o) {
+    let state = null;
+    const events = [];
+    for (const [minute, car] of snapshots) {
+        const r = L.notifyStep(state, car, T0 + minute * MIN, { ...notifyOpts, ...o });
+        state = r.state;
+        events.push(r.events);
+    }
+    return { events, state, all: events.flat() };
+}
+// One snapshot of the same car every minute from `from` to `to`.
+const every = (from, to, car) => Array.from({ length: to - from + 1 }, (_, i) => [from + i, car]);
+const doorOpen = { ...closed, driver_front_door_open: "true", doors_open: "true" };
+
+test("notifyStep sends nothing for the first snapshot and only records what's there", () => {
+    const car = {
+        ...doorOpen, locked: "false", tpms_soft_warning_fl: "true",
+        update_available: "true", update_version: "2026.44.1",
+    };
+    const r = run(every(0, 30, car));
+    assert.deepEqual(r.all, []);
+    assert.deepEqual(Object.keys(r.state.tracked).sort(),
+        ["door:driver_front", "tire:fl", "unlocked", "update:2026.44.1"]);
+    assert.equal(r.state.tracked["door:driver_front"].done, true);
+    assert.equal(r.state.at, T0 + 30 * MIN);
+});
+
+test("notifyStep notifies a door opened later after leftOpenMs, once", () => {
+    const r = run([[0, closed], ...every(1, 30, doorOpen)]);
+    assert.deepEqual(r.events.slice(0, 11).flat(), []);
+    assert.deepEqual(r.events[11], [
+        { type: "leftOpen", items: [{ id: "door:driver_front", type: "door", part: "driver_front" }] },
+    ]);
+    assert.deepEqual(r.events.slice(12).flat(), []);
+});
+
+test("notifyStep groups everything that came due at once and keeps the delay per item", () => {
+    const both = { ...doorOpen, trunk_open: "true" };
+    const r = run([[0, closed], [1, both], [11, both], [12, { ...both, frunk_open: "true" }], [22, { ...both, frunk_open: "true" }]]);
+    assert.deepEqual(r.events[2].map(e => e.items.map(i => i.id)), [["door:driver_front", "trunk"]]);
+    assert.deepEqual(r.events[3], []);
+    assert.deepEqual(r.events[4].map(e => e.items.map(i => i.id)), [["frunk"]]);
+});
+
+test("notifyStep notifies again for a door closed and opened again", () => {
+    const r = run([[0, closed], [1, doorOpen], [11, doorOpen], [12, closed], [13, doorOpen], [22, doorOpen], [23, doorOpen]]);
+    assert.deepEqual(r.events.map(e => e.length), [0, 0, 1, 0, 0, 0, 1]);
+});
+
+test("notifyStep keeps tracking an item whose topic went empty, so it doesn't notify again", () => {
+    const gone = { ...doorOpen, driver_front_door_open: "", doors_open: "" };
+    const r = run([[0, closed], [1, doorOpen], [11, doorOpen], [12, gone], [13, doorOpen], [30, doorOpen]]);
+    assert.deepEqual(r.events.map(e => e.length), [0, 0, 1, 0, 0, 0]);
+    assert.ok(r.state.tracked["door:driver_front"]);
+    // An item that hadn't notified yet keeps its timer through the gap.
+    const early = run([[0, closed], [1, doorOpen], [5, gone], [12, doorOpen]]);
+    assert.deepEqual(early.events.map(e => e.length), [0, 0, 0, 1]);
+});
+
+test("notifyStep restarts the timer while someone is inside or the car is driving", () => {
+    const present = { ...doorOpen, is_user_present: "true" };
+    // The timer counts from the last snapshot that saw someone inside.
+    const r = run([[0, closed], [1, doorOpen], [8, present], [9, doorOpen], [17, doorOpen], [18, doorOpen]]);
+    assert.deepEqual(r.events.map(e => e.length), [0, 0, 0, 0, 0, 1]);
+    const driving = { ...doorOpen, state: "driving" };
+    const d = run([[0, closed], [1, doorOpen], [8, driving], [9, doorOpen], [17, doorOpen], [18, doorOpen]]);
+    assert.deepEqual(d.events.map(e => e.length), [0, 0, 0, 0, 0, 1]);
+    // Unknown presence counts as nobody, as it does for the warning.
+    const unknown = { ...doorOpen, is_user_present: "" };
+    assert.equal(run([[0, closed], [1, unknown], [11, unknown]]).events[2].length, 1);
+});
+
+test("notifyStep sends unlocked as its own event, after something left open", () => {
+    const car = { ...doorOpen, locked: "false" };
+    const r = run([[0, closed], [1, car], [11, car], [20, car]]);
+    assert.deepEqual(r.events[2].map(e => e.type), ["leftOpen", "unlocked"]);
+    assert.deepEqual(r.events[2][0].items.map(i => i.id), ["door:driver_front"]);
+    assert.deepEqual(r.events[3], []);
+    const unlocked = { ...closed, locked: "false" };
+    assert.deepEqual(run([[0, closed], [1, unlocked], [11, unlocked]]).events[2], [{ type: "unlocked" }]);
+});
+
+test("notifyStep restarts unlocked when someone gets in, and skips it at an OK geofence", () => {
+    const unlocked = { ...closed, locked: "false" };
+    const inside = { ...unlocked, is_user_present: "true" };
+    const r = run([[0, closed], [1, unlocked], [11, unlocked], [12, inside], [13, unlocked], [22, unlocked], [23, unlocked]]);
+    assert.deepEqual(r.events.map(e => e.length), [0, 0, 1, 0, 0, 0, 1]);
+    const home = { ...unlocked, geofence: "Home" };
+    assert.deepEqual(run([[0, closed], ...every(1, 30, home)], { okGeofences: ["home"] }).all, []);
+    // Presence going empty doesn't end it, so it doesn't notify again.
+    const blank = { ...unlocked, is_user_present: "" };
+    assert.deepEqual(run([[0, closed], [1, unlocked], [11, unlocked], [12, blank], [13, unlocked], [30, unlocked]])
+        .events.map(e => e.length), [0, 0, 1, 0, 0, 0]);
+});
+
+test("notifyStep notifies low tires on the next snapshot, once and together", () => {
+    const low = { ...closed, tpms_soft_warning_rr: "true", tpms_soft_warning_fl: "true" };
+    const empty = { ...closed, tpms_soft_warning_rr: "", tpms_soft_warning_fl: "" };
+    const r = run([[0, closed], [1, low], [2, low], [3, empty], [4, low], [5, closed], [6, low]]);
+    assert.deepEqual(r.events[1], [{ type: "tires", items: ["fl", "rr"] }]);
+    assert.deepEqual(r.events.map(e => e.length), [0, 1, 0, 0, 0, 0, 1]);
+    // A tire never waits for leftOpenMs or for nobody to be inside.
+    assert.equal(run([[0, closed], [1, { ...low, is_user_present: "true" }]]).events[1].length, 1);
+});
+
+test("notifyStep notifies an update once, and again for a new version", () => {
+    const none = { ...closed, update_available: "false", update_version: "" };
+    const v1 = { ...closed, update_available: "true", update_version: "2026.44.1" };
+    const v2 = { ...v1, update_version: "2026.44.2" };
+    const r = run([[0, none], [1, v1], [2, v1], [3, { ...v1, update_available: "" }], [4, v1], [5, v2], [6, v2]]);
+    assert.deepEqual(r.events.flat(), [
+        { type: "update", version: "2026.44.1" },
+        { type: "update", version: "2026.44.2" },
+    ]);
+    assert.deepEqual(r.events[1], [{ type: "update", version: "2026.44.1" }]);
+    assert.deepEqual(r.events[5], [{ type: "update", version: "2026.44.2" }]);
+    assert.deepEqual(run([[0, none], [1, { ...v1, update_version: "" }]]).events[1], [{ type: "update", version: "" }]);
+    // Installed and offered again later counts as new.
+    assert.equal(run([[0, none], [1, v1], [2, none], [3, v1]]).all.length, 2);
+});
+
+test("notifyStep starts over after a gap longer than staleMs", () => {
+    const r = run([[0, closed], [1, doorOpen], [20, doorOpen], [40, doorOpen]]);
+    assert.deepEqual(r.all, []);
+    // Something new after the gap notifies as usual.
+    const later = { ...doorOpen, trunk_open: "true" };
+    const n = run([[0, closed], [1, doorOpen], [20, doorOpen], [21, later], [31, later]]);
+    assert.deepEqual(n.events[4].map(e => e.items.map(i => i.id)), [["trunk"]]);
+    // So does a clock set back.
+    assert.deepEqual(run([[60, closed], [61, doorOpen], [1, doorOpen], [30, doorOpen]]).all, []);
+});
+
+test("notifyStep doesn't start over after an idle gap shorter than staleMs", () => {
+    // 3 × a 3600 s idle interval, as main.qml works it out.
+    const staleMs = Math.max(900000, 3000 * Math.max(15, 3600));
+    const r = run([[0, closed], [1, doorOpen], [31, doorOpen]], { staleMs });
+    assert.deepEqual(r.events[2].map(e => e.type), ["leftOpen"]);
+});
+
+test("notifyStep leaves the previous state unchanged", () => {
+    const first = L.notifyStep(null, doorOpen, T0, notifyOpts).state;
+    const copy = JSON.parse(JSON.stringify(first));
+    L.notifyStep(first, { ...closed, charging_state: "Charging", battery_level: "50" }, T0 + MIN, notifyOpts);
+    assert.deepEqual(first, copy);
+});
+
+// A car plugged in at 80% limit, to charge from.
+const plugged = {
+    ...closed, plugged_in: "true", charge_port_door_open: "true", charge_limit_soc: "80",
+    since: "2026-11-04T19:55:00Z",
+};
+const unplugged = { ...closed, charging_state: "Disconnected", battery_level: "50" };
+const charging = level => ({ ...plugged, charging_state: "Charging", battery_level: String(level) });
+const stopped = level => ({ ...plugged, charging_state: "Stopped", battery_level: String(level) });
+const complete = level => ({ ...plugged, charging_state: "Complete", battery_level: String(level) });
+const noPower = level => ({ ...plugged, charging_state: "NoPower", battery_level: String(level) });
+const starting = level => ({ ...plugged, charging_state: "Starting", battery_level: String(level) });
+
+test("notifyStep notifies a finished charge that added 3% or more", () => {
+    const r = run([[0, unplugged], [1, charging(60)], [30, charging(70)], [40, complete(80)], [41, complete(80)]]);
+    assert.deepEqual(r.events[3], [{ type: "chargeComplete", level: 80 }]);
+    assert.equal(r.all.length, 1);
+    // A charge already under way at the first snapshot counts too.
+    assert.deepEqual(run([[0, charging(60)], [10, complete(63)]]).events[1], [{ type: "chargeComplete", level: 63 }]);
+    // Without levels there's nothing to compare, so it notifies.
+    const blank = { ...complete(0), battery_level: "" };
+    assert.deepEqual(run([[0, unplugged], [1, { ...charging(0), battery_level: "" }], [2, blank]]).events[2],
+        [{ type: "chargeComplete", level: null }]);
+});
+
+test("notifyStep keeps a top-up under 3% quiet", () => {
+    assert.deepEqual(run([[0, unplugged], [1, charging(78)], [5, charging(79)], [9, complete(80)]]).all, []);
+    assert.deepEqual(run([[0, stopped(78)], [1, charging(78)], [5, complete(80)]]).all, []);
+});
+
+test("notifyStep doesn't notify Complete without a charge it saw", () => {
+    assert.deepEqual(run([[0, complete(80)], [1, complete(80)]]).all, []);
+    assert.deepEqual(run([[0, stopped(70)], [1, complete(80)]]).all, []);
+    assert.deepEqual(run([[0, unplugged], [1, starting(70)], [2, complete(80)]]).all, []);
+});
+
+test("notifyStep notifies a stop once it has held for two snapshots and 3 minutes", () => {
+    const r = run([[0, charging(60)], ...every(1, 10, stopped(62))]);
+    assert.deepEqual(r.events.slice(0, 4).flat(), []);
+    assert.deepEqual(r.events[4], [{ type: "chargeStopped", level: 62, limit: 80 }]);
+    assert.deepEqual(r.events.slice(5).flat(), []);
+    // Just short of 3 minutes isn't enough.
+    const short = run([[0, charging(60)], [1, stopped(62)], [2, stopped(62)], [3.99, stopped(62)]]);
+    assert.deepEqual(short.all, []);
+});
+
+test("notifyStep needs a second snapshot of a stop, however long the first lasted", () => {
+    const r = run([[0, charging(60)], [5, stopped(62)], [6, stopped(62)]], { holdMs: 0 });
+    assert.deepEqual(r.events[1], []);
+    assert.deepEqual(r.events[2].map(e => e.type), ["chargeStopped"]);
+    // With a gap, the second snapshot is enough once 3 minutes have passed.
+    assert.deepEqual(run([[0, charging(60)], [1, stopped(62)], [5, stopped(62)]]).events[2].map(e => e.type),
+        ["chargeStopped"]);
+});
+
+test("notifyStep ignores a stop that turns back into charging within the hold", () => {
+    const r = run([[0, charging(60)], [1, stopped(61)], [2, stopped(61)], [3, charging(61)],
+        [4, stopped(62)], [5, stopped(62)], [6, charging(62)], [30, charging(70)]]);
+    assert.deepEqual(r.all, []);
+    assert.equal(r.state.charge.pending, null);
+});
+
+test("notifyStep notifies one stop per plug-in", () => {
+    const r = run([[0, charging(60)], ...every(1, 5, stopped(62)), [6, charging(62)], ...every(7, 12, stopped(64)),
+        [13, charging(64)], ...every(14, 20, { ...stopped(65), charging_state: "", state: "online" })]);
+    assert.deepEqual(r.all, [{ type: "chargeStopped", level: 62, limit: 80 }]);
+});
+
+test("notifyStep starts a new session after unplugging", () => {
+    const r = run([[0, charging(60)], ...every(1, 5, stopped(62)), [6, unplugged], [7, charging(50)], ...every(8, 12, stopped(55))]);
+    assert.deepEqual(r.all.map(e => e.type), ["chargeStopped", "chargeStopped"]);
+});
+
+test("notifyStep stays quiet when the cable comes out", () => {
+    const r = run([[0, charging(60)], ...every(1, 10, unplugged)]);
+    assert.deepEqual(r.all, []);
+    assert.equal(r.state.charge.wasCharging, false);
+});
+
+test("notifyStep counts a stop at the limit as finished", () => {
+    const r = run([[0, charging(60)], ...every(1, 5, stopped(79))]);
+    assert.deepEqual(r.all, [{ type: "chargeComplete", level: 79 }]);
+    // TeslaMate before 1.28 has no charging_state, so the charger's power says it all.
+    const old = { ...plugged, charging_state: undefined, state: "online", charger_power: "0" };
+    const oldCharging = level => ({ ...old, state: "charging", charger_power: "11", battery_level: String(level) });
+    const oldDone = level => ({ ...old, battery_level: String(level) });
+    const o = run([[0, oldDone(50)], [1, oldCharging(50)], [60, oldCharging(70)], ...every(61, 65, oldDone(80)),
+        // The car tops itself up later in the same plug-in, which stays quiet: the stop at
+        // the limit started a new session, so the gain counts from 79.
+        [70, oldCharging(79)], ...every(71, 76, oldDone(80))]);
+    assert.deepEqual(o.all, [{ type: "chargeComplete", level: 80 }]);
+    // A stop well short of the limit is a stop.
+    assert.deepEqual(run([[0, charging(60)], ...every(1, 5, stopped(77))]).all.map(e => e.type), ["chargeStopped"]);
+});
+
+test("notifyStep stays quiet while a charge waits for its schedule", () => {
+    const scheduled = { ...stopped(62), scheduled_charging_start_time: "2026-11-05T01:00:00Z" };
+    const r = run([[0, charging(60)], ...every(1, 30, scheduled)]);
+    assert.deepEqual(r.all, []);
+    assert.equal(r.state.charge.status, "scheduled");
+});
+
+test("notifyStep notifies once when the charger loses power during a charge", () => {
+    const r = run([[0, charging(60)], ...every(1, 10, noPower(61)), [11, charging(61)], ...every(12, 20, noPower(62))]);
+    assert.deepEqual(r.all, [{ type: "chargerNoPower", level: 61 }]);
+    assert.deepEqual(r.events[4], [{ type: "chargerNoPower", level: 61 }]);
+    // A stop still notifies in the same session, since it's a different problem.
+    const s = run([[0, charging(60)], ...every(1, 5, noPower(61)), [6, charging(61)], ...every(7, 12, stopped(63))]);
+    assert.deepEqual(s.all.map(e => e.type), ["chargerNoPower", "chargeStopped"]);
+});
+
+test("notifyStep ignores no power without a charge, and a charger that flaps", () => {
+    assert.deepEqual(run([[0, unplugged], ...every(1, 20, noPower(50))]).all, []);
+    assert.deepEqual(run([[0, noPower(50)], ...every(1, 20, noPower(50))]).all, []);
+    const flapping = Array.from({ length: 20 }, (_, i) => [i + 1, i % 2 ? starting(50) : noPower(50)]);
+    assert.deepEqual(run([[0, unplugged], ...flapping]).all, []);
+    assert.deepEqual(run([[0, charging(50)], ...flapping]).all, []);
+});
+
+test("notifyStep starts the hold over when a stop turns into no power", () => {
+    const r = run([[0, charging(60)], [1, stopped(61)], [3, noPower(61)], [5, noPower(61)], [6, noPower(61)]]);
+    assert.deepEqual(r.events.slice(0, 4).flat(), []);
+    assert.deepEqual(r.events[4], [{ type: "chargerNoPower", level: 61 }]);
+});
+
+test("notifyStep keeps the previous charge status when the status is unknown", () => {
+    const unknown = { ...plugged, charging_state: "", plugged_in: "", state: "online", charger_power: "0" };
+    const r = run([[0, unplugged], [1, charging(60)], [2, unknown]]);
+    assert.equal(r.state.charge.status, "charging");
+    assert.equal(r.state.charge.wasCharging, true);
+    const s = run([[0, unplugged], [1, charging(60)], [2, unknown], ...every(3, 7, stopped(62))]);
+    assert.deepEqual(s.all.map(e => e.type), ["chargeStopped"]);
+});
+
+test("notifyStep puts charge events before the others", () => {
+    const car = level => ({ ...charging(level), trunk_open: "true" });
+    const done = { ...complete(80), trunk_open: "true" };
+    const r = run([[0, unplugged], [1, car(60)], [11, done]]);
+    assert.deepEqual(r.events[2].map(e => e.type), ["chargeComplete", "leftOpen"]);
+});
+
+test("eventKey names the same event the same way", () => {
+    const car = { since: "2026-11-04T19:55:00Z" };
+    assert.equal(L.eventKey({ type: "chargeComplete", level: 80 }, car), "chargeComplete|2026-11-04T19:55:00Z");
+    assert.equal(L.eventKey({ type: "chargeStopped" }, {}), "chargeStopped|");
+    assert.equal(L.eventKey({ type: "chargerNoPower" }, null), "chargerNoPower|");
+    assert.equal(L.eventKey({ type: "update", version: "2026.44.1" }, car), "update|2026.44.1");
+    assert.equal(L.eventKey({ type: "update", version: "" }, car), "update|");
+    assert.equal(L.eventKey({ type: "unlocked" }, car), "unlocked");
+    assert.equal(L.eventKey({ type: "tires", items: ["rr", "fl"] }, car), "tires|fl,rr");
+    assert.equal(L.eventKey({ type: "tires", items: ["fl", "rr"] }, car), "tires|fl,rr");
+    assert.equal(L.eventKey({ type: "leftOpen", items: [{ id: "trunk" }, { id: "door:driver_front" }] }, car),
+        "leftOpen|door:driver_front,trunk");
+});
+
+test("Hub.claim lets the first caller through within the window", () => {
+    assert.equal(Hub.claim("a", 1000, 300000), true);
+    assert.equal(Hub.claim("a", 1000, 300000), false);
+    assert.equal(Hub.claim("a", 1000 + 299999, 300000), false);
+    assert.equal(Hub.claim("b", 2000, 300000), true);
+    assert.equal(Hub.claim("a", 1000 + 300000, 300000), true);
+    assert.equal(Hub.claim("a", 1000 + 300001, 300000), false);
+});
+
+test("Hub.claim forgets keys from a clock that was set back", () => {
+    assert.equal(Hub.claim("c", 5000000, 300000), true);
+    assert.equal(Hub.claim("c", 1000, 300000), true);
+    assert.equal(Hub.claim("c", 1000, 300000), false);
+});
+
 test("batteryIcon rounds to Breeze's 10% steps", () => {
     assert.equal(L.batteryIcon(72, false), "battery-070");
     assert.equal(L.batteryIcon(75, false), "battery-080");
@@ -806,4 +1127,12 @@ test("parseCars keeps a car with an empty name and handles no output", () => {
         [{ prefix: "teslamate/cars/1", name: "" }]);
     assert.deepEqual(L.parseCars(""), []);
     assert.deepEqual(L.parseCars(undefined), []);
+});
+
+test("escapeMarkup escapes &, < and > and keeps line breaks", () => {
+    assert.equal(L.escapeMarkup("Tom & Jerry's <car>"), "Tom &amp; Jerry's &lt;car&gt;");
+    assert.equal(L.escapeMarkup("&amp;"), "&amp;amp;");
+    assert.equal(L.escapeMarkup("Doors: open\nTrunk open"), "Doors: open\nTrunk open");
+    assert.equal(L.escapeMarkup(80), "80");
+    assert.equal(L.escapeMarkup(""), "");
 });

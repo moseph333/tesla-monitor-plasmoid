@@ -143,7 +143,7 @@ KCM.SimpleKCM {
             wrapMode: Text.Wrap
             font: Kirigami.Theme.smallFont
             opacity: 0.7
-            text: i18n("TeslaMate geofence names, separated by commas. There, an unlocked car isn't shown as a warning.")
+            text: i18n("TeslaMate geofence names, separated by commas. There, an unlocked car isn't shown as a warning or notified.")
         }
     }
 }

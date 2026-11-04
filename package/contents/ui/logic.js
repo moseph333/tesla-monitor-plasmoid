@@ -51,6 +51,8 @@ function partOpen(car, key, totalKey) {
 // TeslaMate names doors and windows by driver and passenger side, and tires by position.
 var PARTS = ["driver_front", "driver_rear", "passenger_front", "passenger_rear"];
 var TIRES = ["fl", "fr", "rl", "rr"];
+// The attention() types that count as left open, which notify only after a delay.
+var LEFT = { door: 1, window: 1, frunk: 1, trunk: 1, sunroof: 1, port: 1 };
 
 // Every door or window (kind "door" or "window") by its TeslaMate name, as partOpen() reads
 // it, e.g. {driver_front: true, driver_rear: false, ...}.
@@ -330,6 +332,181 @@ function isResolved(car, id, okGeofences) {
     }
 }
 
+// Which notifications a new snapshot calls for. Pass the state it returns back in with the
+// next snapshot; prev is null at the start. opts = {leftOpenMs, staleMs, holdMs, okGeofences}.
+// Returns {state, events}, where each event is {type, ...} and QML words it.
+//
+// Notifications are for changes, so the first snapshot, and the first after a gap longer
+// than staleMs (a suspend or a broker outage), only record what's already the case.
+// Something left open, or the car unlocked with nobody inside, notifies once it has been
+// that way for leftOpenMs while nobody is in the car, and only once until it's explicitly
+// fine again. A low tire and an update notify right away, once.
+//
+// A charge that stops early, or a charger that loses power, notifies at most once per
+// plug-in, and only after it has lasted for two snapshots and holdMs, so a charger that
+// pauses for a moment doesn't count. Unplugging, waiting for a schedule and a top-up that
+// adds less than 3% stay quiet.
+function notifyStep(prev, car, nowMs, opts) {
+    opts = opts || {};
+    var leftOpenMs = opts.leftOpenMs === undefined ? 600000 : opts.leftOpenMs;
+    var staleMs = opts.staleMs === undefined ? 900000 : opts.staleMs;
+    var holdMs = opts.holdMs === undefined ? 180000 : opts.holdMs;
+    var ok = opts.okGeofences || [];
+    // A clock set back would leave every timer in the future, so that starts over too.
+    var gap = prev ? nowMs - prev.at : NaN;
+    var first = !(gap >= 0 && gap <= staleMs);
+    var old = first ? {} : prev.tracked || {};
+
+    // Things left open and the unlocked car, with a timer that only runs while nobody is in
+    // the car; tires and updates, which notify on the next snapshot.
+    var unattended = !isDriving(car) && triState(car, "is_user_present") !== true;
+    var candidates = [];
+    var items = attention(car, ok);
+    for (var i = 0; i < items.length; i++) {
+        var type = items[i].type;
+        if (LEFT[type] || type === "unlocked" || type === "tire") candidates.push(items[i]);
+    }
+    if (bool(car, "update_available"))
+        candidates.push({ id: "update:" + (car.update_version || ""), type: "update", part: "" });
+
+    var tracked = {};
+    var leftDue = [];
+    var unlockedDue = false;
+    var tiresDue = [];
+    var updateDue = null;
+    for (var c = 0; c < candidates.length; c++) {
+        var item = candidates[c];
+        var was = old[item.id];
+        var entry = was ? { since: was.since, done: was.done } : { since: nowMs, done: first };
+        if (LEFT[item.type] || item.type === "unlocked") {
+            if (!unattended) {
+                entry.since = nowMs;
+            } else if (!entry.done && nowMs - entry.since >= leftOpenMs) {
+                entry.done = true;
+                if (item.type === "unlocked") unlockedDue = true;
+                else leftDue.push(item);
+            }
+        } else if (!entry.done) {
+            entry.done = true;
+            if (item.type === "tire") tiresDue.push(item.part);
+            else updateDue = car.update_version || "";
+        }
+        tracked[item.id] = entry;
+    }
+    // An item that's gone is forgotten only once its value says it's fine. A topic that went
+    // empty keeps it, so the item doesn't notify again when the value comes back.
+    for (var id in old) {
+        if (!tracked.hasOwnProperty(id) && !isResolved(car, id, ok))
+            tracked[id] = { since: old[id].since, done: old[id].done };
+    }
+
+    var s = chargeStatus(car);
+    var level = num(car, "battery_level");
+    var limit = num(car, "charge_limit_soc");
+    var chargeEvents = [];
+    function session(status) {
+        return { status: status, startLevel: null, wasCharging: false, stopDone: false,
+                 noPowerDone: false, pending: null };
+    }
+    // A charge that added less than 3% is the car topping itself up, not worth a word.
+    function gainOk(start) {
+        return start === null || level === null || level - start >= 3;
+    }
+    var ch;
+    if (first || !prev.charge) {
+        ch = session(s);
+        if (s === "charging") {
+            ch.wasCharging = true;
+            ch.startLevel = level;
+        }
+    } else {
+        var p = prev.charge;
+        ch = { status: p.status, startLevel: p.startLevel, wasCharging: p.wasCharging,
+               stopDone: p.stopDone, noPowerDone: p.noPowerDone,
+               pending: p.pending ? { kind: p.pending.kind, since: p.pending.since, count: p.pending.count } : null };
+        switch (s) {
+        case "charging":
+            ch.wasCharging = true;
+            if (ch.startLevel === null) ch.startLevel = level;
+            ch.pending = null;
+            break;
+        case "starting":
+            ch.pending = null;
+            break;
+        case "unplugged":
+            ch = session(s);
+            break;
+        case "complete":
+            if (ch.wasCharging && gainOk(ch.startLevel)) chargeEvents.push({ type: "chargeComplete", level: level });
+            ch = session(s);
+            break;
+        case "stopped":
+        case "plugged":
+        case "nopower": {
+            if (!ch.wasCharging) {
+                ch.pending = null;
+                break;
+            }
+            var kind = s === "nopower" ? "nopower" : "stop";
+            ch.pending = ch.pending && ch.pending.kind === kind
+                ? { kind: kind, since: ch.pending.since, count: ch.pending.count + 1 }
+                : { kind: kind, since: nowMs, count: 1 };
+            if (ch.pending.count < 2 || nowMs - ch.pending.since < holdMs) break;
+            if (kind === "stop" && level !== null && limit !== null && level >= limit - 1) {
+                // Reaching the limit is how TeslaMate before 1.28 says Complete, so it's
+                // treated the same way, including the new session that follows.
+                if (gainOk(ch.startLevel)) chargeEvents.push({ type: "chargeComplete", level: level });
+                ch = session(s);
+                break;
+            }
+            if (kind === "stop" && !ch.stopDone)
+                chargeEvents.push({ type: "chargeStopped", level: level, limit: limit });
+            if (kind === "nopower" && !ch.noPowerDone)
+                chargeEvents.push({ type: "chargerNoPower", level: level });
+            if (kind === "stop") ch.stopDone = true;
+            else ch.noPowerDone = true;
+            ch.wasCharging = false;
+            ch.pending = null;
+            break;
+        }
+        case "scheduled":
+            ch.pending = null;
+            break;
+        }
+        // An empty status says nothing new, so the previous one stands.
+        if (s !== "") ch.status = s;
+    }
+
+    var events = [];
+    if (!first) {
+        events = chargeEvents;
+        if (leftDue.length > 0) events.push({ type: "leftOpen", items: leftDue });
+        if (unlockedDue) events.push({ type: "unlocked" });
+        if (tiresDue.length > 0) events.push({ type: "tires", items: tiresDue });
+        if (updateDue !== null) events.push({ type: "update", version: updateDue });
+    }
+    return { state: { at: nowMs, charge: ch, tracked: tracked }, events: events };
+}
+
+// What makes an event from notifyStep() the same one, for copies of the widget that show
+// the same car and see it on their own polls. A charge event belongs to the car state it
+// happened in, so its since marks it.
+function eventKey(e, car) {
+    switch (e.type) {
+    case "update": return "update|" + (e.version || "");
+    case "unlocked": return "unlocked";
+    case "tires":
+    case "leftOpen": {
+        var keys = [];
+        for (var i = 0; i < e.items.length; i++)
+            keys.push(e.type === "tires" ? e.items[i] : e.items[i].id);
+        keys.sort();
+        return e.type + "|" + keys.join(",");
+    }
+    default: return e.type + "|" + ((car && car.since) || "");
+    }
+}
+
 // Breeze battery icon name for a level (0..100).
 function batteryIcon(level, charging) {
     var step = level === null ? 50 : Math.max(0, Math.min(100, Math.round(level / 10) * 10));
@@ -480,4 +657,10 @@ function parseCars(out) {
     var cars = [];
     for (var i = 0; i < found.length; i++) cars.push({ prefix: found[i].prefix, name: found[i].name });
     return cars;
+}
+
+// Plasma reads a notification's body as markup, so text with & or < in it, such as a
+// software version, would otherwise break or turn into formatting.
+function escapeMarkup(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
