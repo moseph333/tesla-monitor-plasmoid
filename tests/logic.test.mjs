@@ -109,17 +109,80 @@ test("partOpen falls back to the total: some, false or null", () => {
     assert.equal(L.partOpen({}, "own", "total"), null);
 });
 
-test("unit conversions convert only when imperial and pass null through", () => {
-    assert.equal(L.distance(100, false), 100);
-    assert.ok(Math.abs(L.distance(100, true) - 62.1371) < 1e-9);
-    assert.equal(L.distance(null, true), null);
-    assert.equal(L.temperature(20, false), 20);
-    assert.equal(L.temperature(20, true), 68);
-    assert.equal(L.temperature(-40, true), -40);
-    assert.equal(L.temperature(null, true), null);
-    assert.equal(L.pressure(2.9, false), 2.9);
-    assert.ok(Math.abs(L.pressure(2.9, true) - 42.06102) < 1e-9);
-    assert.equal(L.pressure(null, true), null);
+test("distance converts only to miles and passes null through", () => {
+    assert.equal(L.distance(100, "km"), 100);
+    assert.ok(Math.abs(L.distance(100, "mi") - 62.1371) < 1e-9);
+    assert.equal(L.distance(0, "mi"), 0);
+    assert.equal(L.distance(null, "mi"), null);
+    assert.equal(L.distance(null, "km"), null);
+});
+
+test("temperature converts only to Fahrenheit and passes null through", () => {
+    assert.equal(L.temperature(20, "C"), 20);
+    assert.equal(L.temperature(20, "F"), 68);
+    assert.equal(L.temperature(-40, "F"), -40);
+    assert.equal(L.temperature(0, "F"), 32);
+    assert.equal(L.temperature(null, "F"), null);
+    assert.equal(L.temperature(null, "C"), null);
+});
+
+test("pressure converts to psi or kPa and passes null through", () => {
+    assert.equal(L.pressure(2.9, "bar"), 2.9);
+    assert.ok(Math.abs(L.pressure(2.9, "psi") - 42.06102) < 1e-9);
+    assert.ok(Math.abs(L.pressure(2.9, "kPa") - 290) < 1e-9);
+    assert.equal(L.pressure(null, "psi"), null);
+    assert.equal(L.pressure(null, "kPa"), null);
+    assert.equal(L.pressure(null, "bar"), null);
+});
+
+test("resolveUnits follows the measurement system on Automatic", () => {
+    assert.deepEqual(L.resolveUnits(0, 0, 0, 0), { distance: "km", temperature: "C", pressure: "bar" });
+    assert.deepEqual(L.resolveUnits(0, 0, 0, 1), { distance: "mi", temperature: "F", pressure: "psi" });
+    assert.deepEqual(L.resolveUnits(0, 0, 0, 2), { distance: "mi", temperature: "C", pressure: "psi" });
+});
+
+test("resolveUnits lets each setting override the locale", () => {
+    assert.deepEqual(L.resolveUnits(1, 1, 1, 1), { distance: "km", temperature: "C", pressure: "bar" });
+    assert.deepEqual(L.resolveUnits(2, 2, 2, 0), { distance: "mi", temperature: "F", pressure: "psi" });
+    assert.deepEqual(L.resolveUnits(0, 2, 3, 0), { distance: "km", temperature: "F", pressure: "kPa" });
+    assert.deepEqual(L.resolveUnits(1, 0, 0, 2), { distance: "km", temperature: "C", pressure: "psi" });
+    assert.deepEqual(L.resolveUnits(0, 0, 3, 1), { distance: "mi", temperature: "F", pressure: "kPa" });
+});
+
+test("resolveUnits treats unknown settings and systems as Automatic and metric", () => {
+    assert.deepEqual(L.resolveUnits(7, -1, 9, 0), { distance: "km", temperature: "C", pressure: "bar" });
+    assert.deepEqual(L.resolveUnits(undefined, undefined, undefined, undefined),
+        { distance: "km", temperature: "C", pressure: "bar" });
+    assert.deepEqual(L.resolveUnits(0, 0, 0, 5), { distance: "km", temperature: "C", pressure: "bar" });
+});
+
+test("unitMigration does nothing once it has run", () => {
+    assert.equal(L.unitMigration(true, "broker", true), null);
+    assert.equal(L.unitMigration(true, "", false), null);
+});
+
+test("unitMigration leaves a new widget on Automatic", () => {
+    assert.deepEqual(L.unitMigration(false, "", true), { unitsMigrated: true });
+    assert.deepEqual(L.unitMigration(false, "   ", false), { unitsMigrated: true });
+    assert.deepEqual(L.unitMigration(false, undefined, true), { unitsMigrated: true });
+});
+
+test("unitMigration keeps an existing widget's units", () => {
+    assert.deepEqual(L.unitMigration(false, "broker.lan", true),
+        { unitsMigrated: true, distanceUnit: 2, temperatureUnit: 2, pressureUnit: 2 });
+    assert.deepEqual(L.unitMigration(false, " broker.lan ", false),
+        { unitsMigrated: true, distanceUnit: 1, temperatureUnit: 1, pressureUnit: 1 });
+});
+
+test("unitMigration's units resolve to what the imperial checkbox showed", () => {
+    for (const ms of [0, 1, 2]) {
+        const imp = L.unitMigration(false, "h", true);
+        assert.deepEqual(L.resolveUnits(imp.distanceUnit, imp.temperatureUnit, imp.pressureUnit, ms),
+            { distance: "mi", temperature: "F", pressure: "psi" });
+        const met = L.unitMigration(false, "h", false);
+        assert.deepEqual(L.resolveUnits(met.distanceUnit, met.temperatureUnit, met.pressureUnit, ms),
+            { distance: "km", temperature: "C", pressure: "bar" });
+    }
 });
 
 test("formatHours shows hours and zero-padded minutes", () => {

@@ -25,8 +25,25 @@
         <entry name="topicPrefix" type="String">
             <default>teslamate/cars/1</default>
         </entry>
+        <!-- No longer shown. Only the one-time unit migration in main.qml reads it. -->
         <entry name="imperial" type="Bool">
             <default>true</default>
+        </entry>
+        <!-- 0 follows the locale, 1 km, 2 mi. Speed uses the same unit. -->
+        <entry name="distanceUnit" type="Int">
+            <default>0</default>
+        </entry>
+        <!-- 0 follows the locale, 1 °C, 2 °F. -->
+        <entry name="temperatureUnit" type="Int">
+            <default>0</default>
+        </entry>
+        <!-- 0 follows the locale, 1 bar, 2 psi, 3 kPa. -->
+        <entry name="pressureUnit" type="Int">
+            <default>0</default>
+        </entry>
+        <!-- Not shown. main.qml sets it once the units above have been migrated. -->
+        <entry name="unitsMigrated" type="Bool">
+            <default>false</default>
         </entry>
         <entry name="rangeType" type="Int">
             <default>0</default>

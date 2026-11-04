@@ -4,11 +4,18 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.kcmutils as KCM
 
+import "logic.js" as Logic
+
 KCM.SimpleKCM {
-    property alias cfg_imperial: imperial.checked
+    property alias cfg_distanceUnit: distanceUnit.currentIndex
+    property alias cfg_temperatureUnit: temperatureUnit.currentIndex
+    property alias cfg_pressureUnit: pressureUnit.currentIndex
     property alias cfg_rangeType: rangeType.currentIndex
     property alias cfg_showPanelPercentage: showPanelPercentage.checked
     property alias cfg_rightHandDrive: rightHandDrive.checked
+
+    // What Automatic means on this computer, so each combo can say which unit it gives.
+    readonly property var autoUnits: Logic.resolveUnits(0, 0, 0, Qt.locale().measurementSystem)
 
     Kirigami.FormLayout {
         Kirigami.Separator {
@@ -16,9 +23,44 @@ KCM.SimpleKCM {
             Kirigami.FormData.label: i18n("Units")
         }
 
-        QQC2.CheckBox {
-            id: imperial
-            text: i18n("Miles, °F and psi")
+        QQC2.ComboBox {
+            id: distanceUnit
+            Kirigami.FormData.label: i18n("Distance:")
+            model: [
+                i18nc("automatic unit (the unit it gives here)", "Automatic (%1)",
+                      autoUnits.distance === "mi" ? i18n("miles") : i18n("kilometers")),
+                i18n("Kilometers"),
+                i18n("Miles")
+            ]
+        }
+
+        QQC2.Label {
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            wrapMode: Text.Wrap
+            font: Kirigami.Theme.smallFont
+            opacity: 0.7
+            text: i18n("Speed uses the same unit.")
+        }
+
+        QQC2.ComboBox {
+            id: temperatureUnit
+            Kirigami.FormData.label: i18n("Temperature:")
+            model: [
+                i18nc("automatic unit (the unit it gives here)", "Automatic (%1)", "°" + autoUnits.temperature),
+                "°C",
+                "°F"
+            ]
+        }
+
+        QQC2.ComboBox {
+            id: pressureUnit
+            Kirigami.FormData.label: i18n("Tire pressure:")
+            model: [
+                i18nc("automatic unit (the unit it gives here)", "Automatic (%1)", autoUnits.pressure),
+                "bar",
+                "psi",
+                "kPa"
+            ]
         }
 
         QQC2.ComboBox {

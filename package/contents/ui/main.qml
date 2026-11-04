@@ -18,7 +18,9 @@ PlasmoidItem {
     readonly property bool configured: Logic.parseBrokerHost(cfg.brokerHost).host !== ""
     // One value for both the subscription and stripping topics, so the two can't disagree.
     readonly property string prefix: cfg.topicPrefix.trim().replace(/\/+$/, "") || "teslamate/cars/1"
-    readonly property bool imperial: cfg.imperial
+    // Automatic follows Measurement units in Region & Language, which Qt reads from the locale.
+    readonly property var units: Logic.resolveUnits(cfg.distanceUnit, cfg.temperatureUnit, cfg.pressureUnit,
+                                                    Qt.locale().measurementSystem)
 
     // Raw TeslaMate values keyed by topic suffix
     property var car: ({})
@@ -38,26 +40,27 @@ PlasmoidItem {
     readonly property var rangeKm: Logic.num(car, ["rated_battery_range_km", "est_battery_range_km", "ideal_battery_range_km"][cfg.rangeType] || "rated_battery_range_km")
     readonly property var openList: Logic.openings(car)
 
-    readonly property string distUnit: imperial ? "mi" : "km"
-    readonly property string tempUnit: imperial ? "°F" : "°C"
-    readonly property string pressUnit: imperial ? "psi" : "bar"
+    readonly property string distUnit: units.distance
+    readonly property string tempUnit: "°" + units.temperature
+    readonly property string pressUnit: units.pressure
 
     function fmtDistance(km) {
-        const d = Logic.distance(km, imperial)
+        const d = Logic.distance(km, units.distance)
         return d === null ? "—" : Math.round(d).toLocaleString(Qt.locale(), "f", 0) + " " + distUnit
     }
     function fmtTemp(c) {
-        const t = Logic.temperature(c, imperial)
+        const t = Logic.temperature(c, units.temperature)
         return t === null ? "—" : Math.round(t) + tempUnit
     }
     function fmtSpeed(kmh) {
-        const v = Logic.distance(kmh, imperial)
-        return v === null ? "" : Math.round(v) + (imperial ? " mph" : " km/h")
+        const v = Logic.distance(kmh, units.distance)
+        return v === null ? "" : Math.round(v) + (units.distance === "mi" ? " mph" : " km/h")
     }
+    // A tenth of a bar matters, but psi and kPa are read in whole numbers.
     function tire(pos) {
-        const p = Logic.pressure(Logic.num(car, "tpms_pressure_" + pos), imperial)
+        const p = Logic.pressure(Logic.num(car, "tpms_pressure_" + pos), units.pressure)
         return {
-            text: p === null ? "—" : (imperial ? Math.round(p) : p.toFixed(1)) + " " + pressUnit,
+            text: p === null ? "—" : (units.pressure === "bar" ? p.toFixed(1) : Math.round(p)) + " " + pressUnit,
             warn: Logic.bool(car, "tpms_soft_warning_" + pos)
         }
     }
@@ -181,7 +184,9 @@ PlasmoidItem {
     Connections {
         target: Plasmoid.configuration
         // Only connection settings need fresh data. The display settings (units, range type,
-        // right-hand drive, panel percentage) update through their bindings.
+        // right-hand drive, panel percentage) update through their bindings. Keys the widget
+        // writes itself, such as unitsMigrated, must stay off this list, or writing them
+        // would throw away the data and poll again.
         function onValueChanged(key) {
             if (["brokerHost", "brokerPort", "brokerUser", "brokerPassword", "topicPrefix", "useTls", "caFile"].indexOf(key) >= 0)
                 configSettle.restart()
@@ -198,6 +203,13 @@ PlasmoidItem {
             fetch.cancel()
             root.refresh()
         }
+    }
+
+    Component.onCompleted: {
+        // 1.5 replaced the imperial checkbox with a setting for each unit. This keeps what an
+        // existing widget showed, once; libplasma saves the new values a moment later.
+        const m = Logic.unitMigration(cfg.unitsMigrated, cfg.brokerHost, cfg.imperial)
+        if (m) for (const k in m) Plasmoid.configuration[k] = m[k]
     }
 
     // ---------- panel ----------

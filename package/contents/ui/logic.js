@@ -48,19 +48,51 @@ function partOpen(car, key, totalKey) {
     return total === true ? "some" : total;
 }
 
-function distance(km, imperial) {
+// TeslaMate reports metric values. These convert them to a unit from resolveUnits().
+function distance(km, unit) {
     if (km === null) return null;
-    return imperial ? km * 0.621371 : km;
+    return unit === "mi" ? km * 0.621371 : km;
 }
 
-function temperature(c, imperial) {
+function temperature(c, unit) {
     if (c === null) return null;
-    return imperial ? c * 9 / 5 + 32 : c;
+    return unit === "F" ? c * 9 / 5 + 32 : c;
 }
 
-function pressure(bar, imperial) {
+function pressure(bar, unit) {
     if (bar === null) return null;
-    return imperial ? bar * 14.5038 : bar;
+    if (unit === "psi") return bar * 14.5038;
+    if (unit === "kPa") return bar * 100;
+    return bar;
+}
+
+// The units to show, from the Display settings (0 is Automatic) and Qt's measurement
+// system for the locale (0 metric, 1 US, 2 UK). The UK drives in miles and fills tires in
+// psi but gives temperatures in °C.
+function resolveUnits(d, t, p, measurementSystem) {
+    var us = measurementSystem === 1;
+    var miles = us || measurementSystem === 2;
+    return {
+        distance: d === 1 ? "km" : d === 2 ? "mi" : miles ? "mi" : "km",
+        temperature: t === 1 ? "C" : t === 2 ? "F" : us ? "F" : "C",
+        pressure: p === 1 ? "bar" : p === 2 ? "psi" : p === 3 ? "kPa" : miles ? "psi" : "bar"
+    };
+}
+
+// The settings to write the first time 1.5 runs, or null once that has happened. An
+// existing widget, which has a broker host, keeps the units the old imperial checkbox gave
+// it; a new one stays on Automatic. Writing the result again changes nothing, so it's safe
+// if Plasma quits before it saves.
+function unitMigration(migrated, brokerHost, imperial) {
+    if (migrated) return null;
+    var keys = { unitsMigrated: true };
+    if (String(brokerHost || "").trim() !== "") {
+        var unit = imperial ? 2 : 1;
+        keys.distanceUnit = unit;
+        keys.temperatureUnit = unit;
+        keys.pressureUnit = unit;
+    }
+    return keys;
 }
 
 // Hours (float) -> "1h 20m" / "45m"
