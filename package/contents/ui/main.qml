@@ -44,6 +44,9 @@ PlasmoidItem {
     readonly property var hoursToFull: Logic.num(car, "time_to_full_charge")
     // kW, negative while regenerating. TeslaMate's docs say watts, but it publishes kW.
     readonly property var power: Logic.num(car, "power")
+    // Only when turned on, since it names where the car is going, and only while driving, so
+    // a route still retained from an earlier drive doesn't show on a parked car.
+    readonly property var route: cfg.showNavigation && driving ? Logic.activeRoute(car) : null
     readonly property var rangeKm: Logic.num(car, ["rated_battery_range_km", "est_battery_range_km", "ideal_battery_range_km"][cfg.rangeType] || "rated_battery_range_km")
     readonly property var okGeofences: Logic.geofenceList(cfg.unlockedOkGeofences)
     readonly property var attentionItems: Logic.attention(car, okGeofences)
@@ -56,9 +59,13 @@ PlasmoidItem {
     readonly property string tempUnit: "°" + units.temperature
     readonly property string pressUnit: units.pressure
 
-    function fmtDistance(km) {
+    // Whole units, except that keepTenths keeps one decimal below 10, for a distance such as
+    // what's left of a route, where "0 km" would say nothing.
+    function fmtDistance(km, keepTenths) {
         const d = Logic.distance(km, units.distance)
-        return d === null ? "—" : Math.round(d).toLocaleString(Qt.locale(), "f", 0) + " " + distUnit
+        if (d === null) return "—"
+        const digits = keepTenths && d < 10 ? 1 : 0
+        return (digits ? d : Math.round(d)).toLocaleString(Qt.locale(), "f", digits) + " " + distUnit
     }
     function fmtTemp(c) {
         const t = Logic.temperature(c, units.temperature)
@@ -527,17 +534,54 @@ PlasmoidItem {
                         opacity: 0.7
                         text: root.power < 0 ? i18n("Regenerating") : i18n("Battery power")
                     }
-
-                    // Not charging
+                    // Navigation, when it's turned on and the car has a route
                     PlasmaComponents3.Label {
                         Layout.fillWidth: true
-                        visible: !root.charging && root.limit >= 0
+                        visible: !root.charging && root.route !== null
+                        elide: Text.ElideRight
+                        font.weight: Font.DemiBold
+                        text: root.route !== null ? i18n("To %1", root.route.destination) : ""
+                    }
+                    PlasmaComponents3.Label {
+                        Layout.fillWidth: true
+                        visible: !root.charging && root.route !== null && text !== ""
+                        wrapMode: Text.Wrap
+                        text: {
+                            const t = root.route !== null && root.route.minutes !== null
+                                ? Logic.formatHours(root.route.minutes / 60) : ""
+                            if (!t) return ""
+                            const delay = root.route.trafficMinutes >= 1
+                                ? " · " + i18n("+%1 traffic", Logic.formatHours(root.route.trafficMinutes / 60)) : ""
+                            return i18n("Arriving in %1", t) + delay
+                        }
+                    }
+                    PlasmaComponents3.Label {
+                        Layout.fillWidth: true
+                        visible: !root.charging && root.route !== null && text !== ""
+                        wrapMode: Text.Wrap
+                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                        opacity: 0.7
+                        text: {
+                            if (root.route === null) return ""
+                            const parts = []
+                            if (root.route.km !== null) parts.push(i18n("%1 to go", root.fmtDistance(root.route.km, true)))
+                            if (root.route.energyAtArrival !== null)
+                                parts.push(i18n("%1% on arrival", Math.round(root.route.energyAtArrival)))
+                            return parts.join(" · ")
+                        }
+                    }
+
+                    // Not charging. A route takes the limit lines' place while driving.
+                    PlasmaComponents3.Label {
+                        Layout.fillWidth: true
+                        visible: !root.charging && root.route === null && root.limit >= 0
                         font.weight: Font.DemiBold
                         text: i18n("Limit %1%", root.limit)
                     }
                     PlasmaComponents3.Label {
                         Layout.fillWidth: true
-                        visible: !root.charging && root.limit > 0 && root.level > 0 && root.rangeKm !== null
+                        visible: !root.charging && root.route === null && root.limit > 0 && root.level > 0
+                                 && root.rangeKm !== null
                         wrapMode: Text.Wrap
                         font.pointSize: Kirigami.Theme.smallFont.pointSize
                         opacity: 0.7

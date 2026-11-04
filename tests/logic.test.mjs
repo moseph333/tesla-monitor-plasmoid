@@ -326,6 +326,47 @@ test("showPhases hides one phase and incomplete or zero values", () => {
     assert.equal(L.showPhases(null), null);
 });
 
+// TeslaMate's own example payloads for active_route.
+const routing = JSON.stringify({
+    destination: "Home", energy_at_arrival: 73, miles_to_arrival: 6.485299,
+    minutes_to_arrival: 23.466667, traffic_minutes_delay: 0.0,
+    location: { latitude: 35.278131, longitude: 29.744801 }, error: null,
+});
+const noRoute = JSON.stringify({ error: "No active route available" });
+
+test("activeRoute reads a route, with the distance in km", () => {
+    const r = L.activeRoute({ active_route: routing });
+    assert.equal(r.destination, "Home");
+    assert.equal(r.minutes, 23.466667);
+    assert.equal(r.trafficMinutes, 0);
+    assert.equal(r.energyAtArrival, 73);
+    assert.ok(Math.abs(r.km - 10.437) < 0.001);
+    assert.deepEqual(Object.keys(r).sort(), ["destination", "energyAtArrival", "km", "minutes", "trafficMinutes"]);
+});
+
+test("activeRoute is null without a route, on an error or on bad JSON", () => {
+    assert.equal(L.activeRoute({ active_route: noRoute }), null);
+    assert.equal(L.activeRoute({ active_route: JSON.stringify({ destination: "Home", error: "Oops" }) }), null);
+    assert.equal(L.activeRoute({ active_route: "{not json" }), null);
+    assert.equal(L.activeRoute({ active_route: "42" }), null);
+    assert.equal(L.activeRoute({ active_route: "null" }), null);
+    assert.equal(L.activeRoute({ active_route: "[1]" }), null);
+    assert.equal(L.activeRoute({ active_route: "" }), null);
+    assert.equal(L.activeRoute({}), null);
+    assert.equal(L.activeRoute(null), null);
+});
+
+test("activeRoute needs a destination and reads missing numbers as null", () => {
+    assert.equal(L.activeRoute({ active_route: JSON.stringify({ destination: "  ", error: null }) }), null);
+    assert.equal(L.activeRoute({ active_route: JSON.stringify({ destination: null, minutes_to_arrival: 5 }) }), null);
+    assert.deepEqual(L.activeRoute({
+        active_route: JSON.stringify({
+            destination: " Work ", energy_at_arrival: null, miles_to_arrival: "6",
+            minutes_to_arrival: null, error: null,
+        }),
+    }), { destination: "Work", minutes: null, trafficMinutes: null, energyAtArrival: null, km: null });
+});
+
 test("carryHealthy takes a fresh value", () => {
     assert.deepEqual(L.carryHealthy("false", "true", 1000, 5000, 600000), { value: "false", seenAt: 5000 });
     assert.deepEqual(L.carryHealthy("true", undefined, null, 5000, 600000), { value: "true", seenAt: 5000 });

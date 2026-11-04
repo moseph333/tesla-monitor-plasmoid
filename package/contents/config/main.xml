@@ -66,6 +66,10 @@
         <entry name="rightHandDrive" type="Bool">
             <default>false</default>
         </entry>
+        <!-- Off by default, since the route names where the car is going. -->
+        <entry name="showNavigation" type="Bool">
+            <default>false</default>
+        </entry>
         <!-- TeslaMate geofence names, separated by commas, where an unlocked car is fine. -->
         <entry name="unlockedOkGeofences" type="String">
             <default></default>

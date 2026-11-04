@@ -198,6 +198,37 @@ function showPhases(car) {
     return Math.round(kw * 1000 / (amps * volts)) === phases ? phases : null;
 }
 
+// The route the car is navigating, from TeslaMate's active_route JSON (1.29 and newer), as
+// {destination, minutes, trafficMinutes, energyAtArrival, km}, or null. Without a route
+// TeslaMate publishes {"error": "No active route available"}; with one, error is null. The
+// older active_route_destination topic isn't used because it stays retained after the
+// route ends, so it would show an old destination. Numbers TeslaMate leaves out are null.
+function activeRoute(car) {
+    var text = car ? car.active_route : "";
+    if (!text) return null;
+    var r;
+    try {
+        r = JSON.parse(text);
+    } catch (e) {
+        return null;
+    }
+    if (!r || typeof r !== "object" || Array.isArray(r) || r.error) return null;
+    var destination = typeof r.destination === "string" ? r.destination.trim() : "";
+    if (!destination) return null;
+    function number(v) {
+        return typeof v === "number" && isFinite(v) ? v : null;
+    }
+    // TeslaMate gives the distance in miles whatever its own unit setting.
+    var miles = number(r.miles_to_arrival);
+    return {
+        destination: destination,
+        minutes: number(r.minutes_to_arrival),
+        trafficMinutes: number(r.traffic_minutes_delay),
+        energyAtArrival: number(r.energy_at_arrival),
+        km: miles === null ? null : miles * 1.609344
+    };
+}
+
 // TeslaMate 2.1 and newer don't retain healthy, so most polls don't see it. A value that
 // arrived within maxAgeMs is kept, and seenAt stays at when it arrived so it can't live on
 // forever. Returns {value, seenAt}, with value undefined once there's nothing to keep.

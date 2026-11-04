@@ -15,6 +15,7 @@ KCM.SimpleKCM {
     property alias cfg_panelText: panelText.currentIndex
     property alias cfg_panelChargingTime: panelChargingTime.checked
     property alias cfg_rightHandDrive: rightHandDrive.checked
+    property alias cfg_showNavigation: showNavigation.checked
     property alias cfg_unlockedOkGeofences: unlockedOkGeofences.text
 
     // What Automatic means on this computer, so each combo can say which unit it gives.
@@ -112,6 +113,20 @@ KCM.SimpleKCM {
             font: Kirigami.Theme.smallFont
             opacity: 0.7
             text: i18n("TeslaMate reports doors and windows by driver and passenger side. This puts the driver on the right of the car drawing.")
+        }
+
+        QQC2.CheckBox {
+            id: showNavigation
+            Kirigami.FormData.label: i18n("Navigation:")
+            text: i18n("Show the destination and arrival while driving")
+        }
+
+        QQC2.Label {
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            wrapMode: Text.Wrap
+            font: Kirigami.Theme.smallFont
+            opacity: 0.7
+            text: i18n("Uses TeslaMate's active_route topic (TeslaMate 1.29 or newer), which includes the destination's name and location.")
         }
 
         // For owners who leave the car unlocked on purpose, such as in a locked garage with
