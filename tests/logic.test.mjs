@@ -296,6 +296,36 @@ test("updateProgress is empty without an update", () => {
     assert.deepEqual(L.updateProgress(null), none);
 });
 
+test("showPhases shows a multi-phase count that the power agrees with", () => {
+    // 16 A at 230 V on three phases is 11 kW.
+    const three = { charger_phases: "3", charger_actual_current: "16", charger_voltage: "230", charger_power: "11" };
+    assert.equal(L.showPhases(three), 3);
+    assert.equal(L.showPhases({ ...three, charger_phases: "2", charger_power: "7" }), 2);
+});
+
+test("showPhases hides a count the power doesn't match, as on a single-phase charger", () => {
+    // The car says 2 phases, but 32 A at 230 V is the whole 7 kW.
+    assert.equal(L.showPhases({
+        charger_phases: "2", charger_actual_current: "32", charger_voltage: "230", charger_power: "7",
+    }), null);
+    assert.equal(L.showPhases({
+        charger_phases: "3", charger_actual_current: "16", charger_voltage: "230", charger_power: "4",
+    }), null);
+});
+
+test("showPhases hides one phase and incomplete or zero values", () => {
+    const three = { charger_phases: "3", charger_actual_current: "16", charger_voltage: "230", charger_power: "11" };
+    assert.equal(L.showPhases({ ...three, charger_phases: "1", charger_power: "4" }), null);
+    assert.equal(L.showPhases({ ...three, charger_phases: "" }), null);
+    assert.equal(L.showPhases({ ...three, charger_actual_current: undefined }), null);
+    assert.equal(L.showPhases({ ...three, charger_voltage: "" }), null);
+    assert.equal(L.showPhases({ ...three, charger_power: "" }), null);
+    assert.equal(L.showPhases({ ...three, charger_actual_current: "0" }), null);
+    assert.equal(L.showPhases({ ...three, charger_voltage: "0" }), null);
+    assert.equal(L.showPhases({}), null);
+    assert.equal(L.showPhases(null), null);
+});
+
 test("carryHealthy takes a fresh value", () => {
     assert.deepEqual(L.carryHealthy("false", "true", 1000, 5000, 600000), { value: "false", seenAt: 5000 });
     assert.deepEqual(L.carryHealthy("true", undefined, null, 5000, 600000), { value: "true", seenAt: 5000 });

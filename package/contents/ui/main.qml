@@ -41,6 +41,9 @@ PlasmoidItem {
     // Starting counts, so the icon and the ring don't wait for the charger to ramp up.
     readonly property bool charging: chargeStatus === "charging" || chargeStatus === "starting"
     readonly property bool driving: Logic.isDriving(car)
+    readonly property var hoursToFull: Logic.num(car, "time_to_full_charge")
+    // kW, negative while regenerating. TeslaMate's docs say watts, but it publishes kW.
+    readonly property var power: Logic.num(car, "power")
     readonly property var rangeKm: Logic.num(car, ["rated_battery_range_km", "est_battery_range_km", "ideal_battery_range_km"][cfg.rangeType] || "rated_battery_range_km")
     readonly property var okGeofences: Logic.geofenceList(cfg.unlockedOkGeofences)
     readonly property var attentionItems: Logic.attention(car, okGeofences)
@@ -73,14 +76,19 @@ PlasmoidItem {
             warn: Logic.bool(car, "tpms_soft_warning_" + pos)
         }
     }
+    // Rounded before the sign is chosen, so a small negative value can't show as "−0". The
+    // minus sign (U+2212) is as wide as the digits, unlike a hyphen.
+    function fmtPower(kw) {
+        const r = Math.round(kw)
+        return (r < 0 ? "−" : "") + Math.abs(r) + " kW"
+    }
 
     // The text next to the panel icon. While charging, the time to full can take the
     // range's place, since it's what matters then.
     function panelLabel() {
         const parts = []
         if (cfg.panelText !== 1 && level >= 0) parts.push(level + "%")
-        const toFull = charging && cfg.panelChargingTime
-            ? Logic.formatHours(Logic.num(car, "time_to_full_charge")) : ""
+        const toFull = charging && cfg.panelChargingTime ? Logic.formatHours(hoursToFull) : ""
         if (toFull) parts.push(toFull)
         else if (cfg.panelText !== 0 && rangeKm !== null) parts.push(fmtDistance(rangeKm))
         return parts.join(" · ")
@@ -129,6 +137,17 @@ PlasmoidItem {
         }
     }
 
+    // The charging block's heading. The charger reports no power yet while it starts, and
+    // current × voltage stands in when it reports 0 kW, as it can for a slow charge.
+    function chargePowerText() {
+        if (chargeStatus === "starting") return i18n("Starting…")
+        if (chargerKw > 0) return chargerKw + " kW"
+        const amps = Logic.num(car, "charger_actual_current")
+        const volts = Logic.num(car, "charger_voltage")
+        if (amps > 0 && volts > 0) return (amps * volts / 1000).toFixed(1) + " kW"
+        return i18n("Charging")
+    }
+
     function stateColor() {
         switch (carState) {
         case "charging": return Kirigami.Theme.positiveTextColor
@@ -159,6 +178,8 @@ PlasmoidItem {
         if (!hasData) return errorText || i18n("Connecting…")
         let s = stateLabel()
         if (level >= 0) s += " · " + level + "% · " + fmtDistance(rangeKm)
+        const toFull = Logic.formatHours(hoursToFull)
+        if (charging && toFull) s += " · " + i18n("%1 to %2%", toFull, limit)
         // Every attention line, since the panel icon has no other way to show them.
         return [s].concat(attentionLines).join("\n")
     }
@@ -433,23 +454,15 @@ PlasmoidItem {
                     }
 
                     // While charging
-                    PlasmaComponents3.Label {
-                        Layout.fillWidth: true
-                        visible: root.charging
-                        font.pointSize: Kirigami.Theme.smallFont.pointSize
-                        opacity: 0.7
-                        text: i18n("Charging")
-                    }
                     PlasmaExtras.Heading {
                         visible: root.charging
                         level: 2
                         color: Kirigami.Theme.positiveTextColor
-                        // The charger reports no power yet while it starts.
-                        text: root.chargeStatus === "starting" ? i18n("Starting…") : root.chargerKw + " kW"
+                        text: root.chargePowerText()
                     }
                     PlasmaComponents3.Label {
                         Layout.fillWidth: true
-                        visible: root.charging
+                        visible: root.charging && text.length > 0
                         wrapMode: Text.Wrap
                         text: {
                             const parts = []
@@ -457,18 +470,62 @@ PlasmoidItem {
                             if (added !== null) parts.push("+" + added.toFixed(1) + " kWh")
                             const amps = Logic.num(root.car, "charger_actual_current")
                             const volts = Logic.num(root.car, "charger_voltage")
-                            if (amps !== null && volts !== null) parts.push(amps + " A · " + volts + " V")
+                            if (amps !== null && volts !== null) {
+                                const phases = Logic.showPhases(root.car)
+                                parts.push(amps + " A · " + volts + " V"
+                                           + (phases !== null ? " · " + i18np("%1 phase", "%1 phases", phases) : ""))
+                            }
                             return parts.join("\n")
                         }
+                    }
+                    // The car asks for less than the charger offers when its charge current
+                    // has been turned down, which explains a slow charge.
+                    PlasmaComponents3.Label {
+                        readonly property var request: Logic.num(root.car, "charge_current_request")
+                        readonly property var requestMax: Logic.num(root.car, "charge_current_request_max")
+
+                        Layout.fillWidth: true
+                        visible: root.charging && text !== "" && request < requestMax
+                        wrapMode: Text.Wrap
+                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                        opacity: 0.7
+                        text: request !== null && requestMax !== null
+                            ? i18n("Requested %1 of %2 A", request, requestMax) : ""
                     }
                     PlasmaComponents3.Label {
                         Layout.fillWidth: true
                         visible: root.charging && text.length > 0
                         font.weight: Font.DemiBold
                         text: {
-                            const t = Logic.formatHours(Logic.num(root.car, "time_to_full_charge"))
+                            const t = Logic.formatHours(root.hoursToFull)
                             return t ? i18n("%1 to %2%", t, root.limit) : ""
                         }
+                    }
+                    // The car's estimate counts from when it was published, which the last
+                    // poll is nearest to, so the time doesn't creep later while data is old.
+                    PlasmaComponents3.Label {
+                        Layout.fillWidth: true
+                        visible: root.charging && text.length > 0
+                        wrapMode: Text.Wrap
+                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                        opacity: 0.7
+                        text: root.hoursToFull > 0 && root.lastUpdated
+                            ? i18n("Done by %1", root.clock(root.lastUpdated.getTime() + root.hoursToFull * 3600000)) : ""
+                    }
+
+                    // While driving: what the battery gives, or takes back while regenerating
+                    PlasmaExtras.Heading {
+                        visible: root.driving && !root.charging && root.power !== null
+                        level: 2
+                        color: root.power < 0 ? Kirigami.Theme.positiveTextColor : Kirigami.Theme.textColor
+                        text: root.power !== null ? root.fmtPower(root.power) : ""
+                    }
+                    PlasmaComponents3.Label {
+                        Layout.fillWidth: true
+                        visible: root.driving && !root.charging && root.power !== null
+                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                        opacity: 0.7
+                        text: root.power < 0 ? i18n("Regenerating") : i18n("Battery power")
                     }
 
                     // Not charging

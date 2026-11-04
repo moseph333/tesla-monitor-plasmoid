@@ -4,7 +4,8 @@ A KDE Plasma 6 widget that shows a Tesla's status from [TeslaMate](https://docs.
 
 The card shows:
 
-- Battery level, range and charge limit, plus power, energy added and time left while charging. Otherwise it says whether the car is plugged in, finished charging, stopped early, waiting for a scheduled start, or plugged into a charger that has no power
+- Battery level, range and charge limit. While charging it shows the power, energy added, current and voltage with the number of phases, the current the car asks for when that's less than the charger offers, and the time left with when it'll be done. Otherwise it says whether the car is plugged in, finished charging, stopped early, waiting for a scheduled start, or plugged into a charger that has no power
+- While driving, the power the battery gives, or takes back while regenerating
 - How much of the battery is usable while it's cold
 - Inside and outside temperature, climate and odometer
 - A top-down drawing of the car with each tire's pressure, each door and window, the trunk, frunk and charge port, the lock and Sentry. Open doors swing out, anything open turns orange, the charge cable shows while plugged in, and a red camera on the windshield means Sentry is on. Hover over the car to see the same status as text

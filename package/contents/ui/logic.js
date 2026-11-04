@@ -185,6 +185,19 @@ function updateProgress(car) {
     return { phase: "available", percent: null };
 }
 
+// The charger's phase count when it's more than one, or null. The car can report more
+// phases than a charger has, so, as TeslaMate does, the count is trusted only when the
+// power matches current × voltage × phases.
+function showPhases(car) {
+    var phases = num(car, "charger_phases");
+    var amps = num(car, "charger_actual_current");
+    var volts = num(car, "charger_voltage");
+    var kw = num(car, "charger_power");
+    if (phases === null || phases <= 1 || amps === null || amps <= 0
+        || volts === null || volts <= 0 || kw === null) return null;
+    return Math.round(kw * 1000 / (amps * volts)) === phases ? phases : null;
+}
+
 // TeslaMate 2.1 and newer don't retain healthy, so most polls don't see it. A value that
 // arrived within maxAgeMs is kept, and seenAt stays at when it arrived so it can't live on
 // forever. Returns {value, seenAt}, with value undefined once there's nothing to keep.
