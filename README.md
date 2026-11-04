@@ -12,7 +12,7 @@ The card shows:
 - One warning that lists everything that needs attention: open doors, windows, frunk, trunk, sunroof or charge port, the car unlocked with nobody inside, low tire pressure, service mode, and TeslaMate having trouble reaching the car. The panel icon's tooltip lists the same
 - Software version, available updates and their download and install progress
 
-The widget runs `mosquitto_sub` every 15 seconds by default and reads TeslaMate's retained messages from the broker. It never talks to the car.
+The widget runs `mosquitto_sub` every 15 seconds by default, and every 2 minutes while the car sleeps and the popup is closed, to read TeslaMate's retained messages from the broker. It never talks to the car. Opening the popup, or pressing the refresh button in its header, updates right away. If the broker stops answering, the card keeps the last data, the panel icon dims and its tooltip says when the data was last updated.
 
 ## Requirements
 
@@ -42,6 +42,7 @@ Then add **Tesla Monitor** to a panel or the desktop and open its settings.
 | Use TLS, CA file | For a broker that uses TLS. See [TLS](#tls) |
 | Topic prefix | `teslamate/cars/1`, or `teslamate/<namespace>/cars/1` if TeslaMate sets `MQTT_NAMESPACE` |
 | Refresh every | 15 seconds by default |
+| While the car sleeps | 2 minutes by default. Used while the car is asleep or offline and the popup is closed. A widget on the desktop has no popup, so it uses this whenever the car sleeps. It never polls faster than **Refresh every** |
 
 **Test Connection** tries the values on the page before you apply them, and says what went wrong if it can't read TeslaMate's data. **Find Cars** lists the cars TeslaMate publishes on the broker and fills in the topic prefix, or lets you choose when there are several.
 

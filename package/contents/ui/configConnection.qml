@@ -18,6 +18,7 @@ KCM.SimpleKCM {
     property alias cfg_caFile: caFile.text
     property alias cfg_topicPrefix: topicPrefix.text
     property alias cfg_refreshSeconds: refreshSeconds.value
+    property alias cfg_idleRefreshSeconds: idleRefreshSeconds.value
 
     // The cars the last Find Cars run turned up, for the picker.
     property var cars: []
@@ -289,6 +290,24 @@ KCM.SimpleKCM {
             to: 600
             textFromValue: (value) => i18np("%1 second", "%1 seconds", value)
             valueFromText: (text) => parseInt(text)
+        }
+
+        QQC2.SpinBox {
+            id: idleRefreshSeconds
+            Kirigami.FormData.label: i18n("While the car sleeps:")
+            from: 5
+            to: 3600
+            stepSize: 5
+            textFromValue: (value) => i18np("%1 second", "%1 seconds", value)
+            valueFromText: (text) => parseInt(text)
+        }
+
+        QQC2.Label {
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            wrapMode: Text.Wrap
+            font: Kirigami.Theme.smallFont
+            opacity: 0.7
+            text: i18n("Used while the car is asleep or offline and the popup is closed, and always for a widget on the desktop. Opening the popup or pressing Refresh updates right away.")
         }
     }
 }

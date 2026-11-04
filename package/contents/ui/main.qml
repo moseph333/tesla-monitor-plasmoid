@@ -30,6 +30,18 @@ PlasmoidItem {
     property real now: Date.now()
     // When healthy last arrived, so its carried-over value can expire.
     property var healthySeenAt: null
+    // Only a refresh someone asked for shows a spinner, so the regular polls stay quiet.
+    property bool userRefreshing: false
+
+    // A card on the desktop counts as closed, so it polls at the idle rate while the car
+    // sleeps.
+    readonly property bool popupOpen: expanded && Plasmoid.formFactor !== PlasmaCore.Types.Planar
+    readonly property int pollMs: Logic.pollIntervalMs(cfg.refreshSeconds, cfg.idleRefreshSeconds, carState,
+                                                       hasData, popupOpen)
+    // The last poll failed and the data is older than a minute, or two intervals while
+    // polling slowly, so one missed poll of a sleeping car doesn't count.
+    readonly property bool stale: hasData && errorText !== "" && lastUpdated !== null
+                                  && now - lastUpdated.getTime() > Math.max(60000, 2 * pollMs)
 
     // ---------- derived values ----------
 
@@ -122,11 +134,17 @@ PlasmoidItem {
         }
     }
 
+    // The locale's short time, "11:40 PM" or "23:40". Qt.formatTime(t, Locale.ShortFormat)
+    // would read the enum as Qt.ISODate and give "23:40:00".
+    function shortTime(d) {
+        return d.toLocaleTimeString(Qt.locale(), Locale.ShortFormat)
+    }
+
     // A time that may be days away, such as a scheduled charge, so it names the weekday
     // when it isn't today: "11:40 PM" or "Sat 7:00 AM".
     function clock(ms) {
         const d = new Date(ms)
-        const time = Qt.formatTime(d, Locale.ShortFormat)
+        const time = shortTime(d)
         if (d.toDateString() === new Date().toDateString()) return time
         return Qt.locale().dayName(d.getDay(), Locale.ShortFormat) + " " + time
     }
@@ -188,14 +206,17 @@ PlasmoidItem {
         const toFull = Logic.formatHours(hoursToFull)
         if (charging && toFull) s += " · " + i18n("%1 to %2%", toFull, limit)
         // Every attention line, since the panel icon has no other way to show them.
-        return [s].concat(attentionLines).join("\n")
+        const lines = [s].concat(attentionLines)
+        if (stale)
+            lines.push(i18n("Not updated since %1. %2", lastUpdated.toLocaleString(Qt.locale(), Locale.ShortFormat), errorText))
+        return lines.join("\n")
     }
 
     Plasmoid.contextualActions: [
         PlasmaCore.Action {
             text: i18n("Refresh Now")
             icon.name: "view-refresh"
-            onTriggered: root.refresh()
+            onTriggered: root.refresh(true)
         }
     ]
 
@@ -216,12 +237,17 @@ PlasmoidItem {
         }
     }
 
-    function refresh() {
-        if (!configured || fetch.busy) return
-        fetch.run(connectionOptions([prefix + "/#"], 2))
+    // manual is true when someone asked, which shows a spinner until the result arrives. If a
+    // poll is already running, its result is the one they get.
+    function refresh(manual) {
+        if (!configured) return
+        if (manual) userRefreshing = true
+        if (fetch.busy) return
+        if (!fetch.run(connectionOptions([prefix + "/#"], 2))) userRefreshing = false
     }
 
     function applyResult(out, err) {
+        userRefreshing = false
         now = Date.now()
         const parsed = Logic.parseMqtt(out, prefix)
         if (Object.keys(parsed).length === 0) {
@@ -246,12 +272,23 @@ PlasmoidItem {
 
     Texts { id: texts }
 
+    // A new interval restarts the countdown, so the rate changes as soon as the car falls
+    // asleep or the popup opens.
     Timer {
-        interval: Math.max(5, root.cfg.refreshSeconds) * 1000
+        interval: root.pollMs
         running: root.configured
         repeat: true
         triggeredOnStart: true
-        onTriggered: root.refresh()
+        onTriggered: root.refresh(false)
+    }
+
+    // Opening the popup shows fresh data, which matters most while polling slowly. Inside
+    // this handler, bindings on expanded such as popupOpen may not have updated yet, so it
+    // reads the signal's argument instead.
+    onExpandedChanged: (expanded) => {
+        if (expanded && Plasmoid.formFactor !== PlasmaCore.Types.Planar && configured
+            && (!lastUpdated || Date.now() - lastUpdated.getTime() > 5000))
+            refresh(false)
     }
 
     // Keep "asleep for 3h" ticking between polls.
@@ -282,8 +319,9 @@ PlasmoidItem {
             root.hasData = false
             root.errorText = ""
             root.healthySeenAt = null
+            root.userRefreshing = false
             fetch.cancel()
-            root.refresh()
+            root.refresh(false)
         }
     }
 
@@ -309,6 +347,8 @@ PlasmoidItem {
             anchors.centerIn: parent
             height: parent.height
             spacing: Kirigami.Units.smallSpacing
+            // Dimmed while the data is old, so a level from hours ago doesn't pass for now.
+            opacity: root.stale ? 0.5 : 1
 
             CarBattery {
                 // Plasma's small icon size, so it sits near the system tray's battery icon (whose
@@ -356,23 +396,25 @@ PlasmoidItem {
             }
         }
 
+        // Retry swaps the old error for the spinner until the new result arrives, so the
+        // click visibly does something.
         PlasmaExtras.PlaceholderMessage {
             anchors.centerIn: parent
             width: parent.width - Kirigami.Units.gridUnit * 2
-            visible: root.configured && !root.hasData && root.errorText.length > 0
+            visible: root.configured && !root.hasData && root.errorText.length > 0 && !root.userRefreshing
             iconName: "network-disconnect"
             text: i18n("No data yet")
             explanation: root.errorText
             helpfulAction: QQC2.Action {
                 text: i18n("Retry")
                 icon.name: "view-refresh"
-                onTriggered: root.refresh()
+                onTriggered: root.refresh(true)
             }
         }
 
         PlasmaComponents3.BusyIndicator {
             anchors.centerIn: parent
-            visible: root.configured && !root.hasData && root.errorText.length === 0
+            visible: root.configured && !root.hasData && (root.errorText.length === 0 || root.userRefreshing)
             running: visible
         }
 
@@ -423,6 +465,30 @@ PlasmoidItem {
                                 return parts.join(" · ")
                             }
                         }
+                    }
+                }
+
+                // Only for a refresh someone asked for, and beside the button rather than
+                // over it, so the button keeps its icon.
+                PlasmaComponents3.BusyIndicator {
+                    Layout.preferredWidth: Kirigami.Units.iconSizes.small
+                    Layout.preferredHeight: Kirigami.Units.iconSizes.small
+                    visible: root.userRefreshing
+                    running: visible
+                }
+
+                // Always visible and enabled, even while refreshing, so it never takes
+                // keyboard focus away by disappearing or turning off.
+                PlasmaComponents3.ToolButton {
+                    id: refreshButton
+                    icon.name: "view-refresh"
+                    display: QQC2.AbstractButton.IconOnly
+                    text: i18n("Refresh")
+                    onClicked: root.refresh(true)
+
+                    PlasmaComponents3.ToolTip {
+                        visible: refreshButton.hovered
+                        text: refreshButton.text
                     }
                 }
             }
@@ -597,7 +663,7 @@ PlasmoidItem {
                         opacity: 0.7
                         text: {
                             const t = Date.parse(root.car.scheduled_charging_start_time || "")
-                            return isNaN(t) ? "" : i18n("Scheduled %1", Qt.formatTime(new Date(t), Locale.ShortFormat))
+                            return isNaN(t) ? "" : i18n("Scheduled %1", root.shortTime(new Date(t)))
                         }
                     }
                 }
@@ -715,10 +781,12 @@ PlasmoidItem {
                     }
                 }
 
+                // Stands out while the data is old, since this time then says how old.
                 PlasmaComponents3.Label {
                     font.pointSize: Kirigami.Theme.smallFont.pointSize
-                    opacity: 0.6
-                    text: root.lastUpdated ? Qt.formatTime(root.lastUpdated, Locale.ShortFormat) : ""
+                    opacity: root.stale ? 1 : 0.6
+                    color: root.stale ? Kirigami.Theme.neutralTextColor : Kirigami.Theme.textColor
+                    text: root.lastUpdated ? root.shortTime(root.lastUpdated) : ""
                 }
             }
         }

@@ -337,6 +337,17 @@ function batteryIcon(level, charging) {
     return charging ? name + "-charging" : name;
 }
 
+// How long to wait between polls, in ms. A sleeping car's values don't change, so once
+// there's data and nobody has the popup open, the idle setting applies; it never polls
+// faster than the normal rate. Without data it keeps trying at the normal rate, since the
+// state isn't known yet.
+function pollIntervalMs(refresh, idle, state, hasData, popupOpen) {
+    var fast = Math.max(5, refresh || 15);
+    var sleeping = state === "asleep" || state === "offline" || state === "suspended";
+    if (hasData && !popupOpen && sleeping) return Math.max(fast, idle || 0) * 1000;
+    return fast * 1000;
+}
+
 // Single-quotes a value for the shell, so hosts, topics and passwords reach mosquitto_sub
 // unchanged whatever characters they contain.
 function shellQuote(s) {

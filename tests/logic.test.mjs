@@ -558,6 +558,35 @@ test("batteryIcon rounds to Breeze's 10% steps", () => {
     assert.equal(L.batteryIcon(60, true), "battery-060-charging");
 });
 
+test("pollIntervalMs slows down while the car sleeps and the popup is closed", () => {
+    assert.equal(L.pollIntervalMs(15, 120, "asleep", true, false), 120000);
+    assert.equal(L.pollIntervalMs(15, 120, "offline", true, false), 120000);
+    assert.equal(L.pollIntervalMs(15, 120, "suspended", true, false), 120000);
+    assert.equal(L.pollIntervalMs(15, 3600, "asleep", true, false), 3600000);
+});
+
+test("pollIntervalMs keeps the normal rate with the popup open, while awake or without data", () => {
+    assert.equal(L.pollIntervalMs(15, 120, "asleep", true, true), 15000);
+    assert.equal(L.pollIntervalMs(15, 120, "driving", true, false), 15000);
+    assert.equal(L.pollIntervalMs(15, 120, "online", true, false), 15000);
+    assert.equal(L.pollIntervalMs(15, 120, "charging", true, false), 15000);
+    assert.equal(L.pollIntervalMs(15, 120, "", true, false), 15000);
+    assert.equal(L.pollIntervalMs(15, 120, "asleep", false, false), 15000);
+});
+
+test("pollIntervalMs never polls faster than the normal rate or every 5 seconds", () => {
+    assert.equal(L.pollIntervalMs(60, 30, "asleep", true, false), 60000);
+    assert.equal(L.pollIntervalMs(2, 120, "online", true, false), 5000);
+    assert.equal(L.pollIntervalMs(2, 3, "asleep", true, false), 5000);
+});
+
+test("pollIntervalMs falls back to 15 seconds and no idle rate when the settings are missing", () => {
+    assert.equal(L.pollIntervalMs(undefined, 120, "online", true, false), 15000);
+    assert.equal(L.pollIntervalMs(0, 120, "online", true, false), 15000);
+    assert.equal(L.pollIntervalMs(15, undefined, "asleep", true, false), 15000);
+    assert.equal(L.pollIntervalMs(undefined, undefined, "asleep", true, false), 15000);
+});
+
 test("shellQuote single-quotes and escapes embedded quotes", () => {
     assert.equal(L.shellQuote("abc"), "'abc'");
     assert.equal(L.shellQuote("it's"), "'it'\\''s'");

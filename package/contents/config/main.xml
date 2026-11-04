@@ -51,6 +51,11 @@
         <entry name="refreshSeconds" type="Int">
             <default>15</default>
         </entry>
+        <!-- Seconds between polls while the car sleeps and the popup is closed. The widget
+             never polls faster than refreshSeconds. -->
+        <entry name="idleRefreshSeconds" type="Int">
+            <default>120</default>
+        </entry>
         <!-- Whether the panel shows any text next to the icon. The name is from when it
              could only show the percentage. -->
         <entry name="showPanelPercentage" type="Bool">
