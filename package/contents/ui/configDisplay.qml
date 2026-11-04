@@ -17,6 +17,7 @@ KCM.SimpleKCM {
     property alias cfg_rightHandDrive: rightHandDrive.checked
     property alias cfg_showNavigation: showNavigation.checked
     property alias cfg_unlockedOkGeofences: unlockedOkGeofences.text
+    property alias cfg_teslamateUrl: teslamateUrl.text
 
     // What Automatic means on this computer, so each combo can say which unit it gives.
     readonly property var autoUnits: Logic.resolveUnits(0, 0, 0, Qt.locale().measurementSystem)
@@ -144,6 +145,25 @@ KCM.SimpleKCM {
             font: Kirigami.Theme.smallFont
             opacity: 0.7
             text: i18n("TeslaMate geofence names, separated by commas. There, an unlocked car isn't shown as a warning or notified.")
+        }
+
+        // Saved the way the widget opens it, so an address typed without http:// shows
+        // here as the URL it will be.
+        QQC2.TextField {
+            id: teslamateUrl
+            Kirigami.FormData.label: i18n("TeslaMate:")
+            placeholderText: i18nc("example web address", "http://teslamate.local:4000")
+            inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoAutoUppercase
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            onEditingFinished: text = Logic.normalizeUrl(text)
+        }
+
+        QQC2.Label {
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            wrapMode: Text.Wrap
+            font: Kirigami.Theme.smallFont
+            opacity: 0.7
+            text: i18n("Click the car's name in the popup, or use the widget's context menu, to open it.")
         }
     }
 }

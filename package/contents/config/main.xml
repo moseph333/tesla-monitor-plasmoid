@@ -79,6 +79,11 @@
         <entry name="unlockedOkGeofences" type="String">
             <default></default>
         </entry>
+        <!-- TeslaMate's web address, which the car's name and the context menu open. Empty
+             means no link. -->
+        <entry name="teslamateUrl" type="String">
+            <default></default>
+        </entry>
         <!-- Desktop notifications. notifyChargeStopped also covers a charger that loses
              power during a charge. -->
         <entry name="notifyChargeComplete" type="Bool">

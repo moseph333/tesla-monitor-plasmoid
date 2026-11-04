@@ -974,6 +974,25 @@ test("parseBrokerHost leaves no host for a bare scheme", () => {
     assert.equal(L.parseBrokerHost("mqtts:///path").host, "");
 });
 
+test("normalizeUrl adds http:// to an address without a scheme", () => {
+    assert.equal(L.normalizeUrl("teslamate.local:4000"), "http://teslamate.local:4000");
+    assert.equal(L.normalizeUrl("  192.168.1.5:4000/  "), "http://192.168.1.5:4000/");
+    assert.equal(L.normalizeUrl("localhost"), "http://localhost");
+});
+
+test("normalizeUrl keeps a URL that has a scheme", () => {
+    assert.equal(L.normalizeUrl("https://tm.example.com"), "https://tm.example.com");
+    assert.equal(L.normalizeUrl(" HTTP://tm.lan:4000 "), "HTTP://tm.lan:4000");
+    assert.equal(L.normalizeUrl("http://tm.lan/x?a=b#c"), "http://tm.lan/x?a=b#c");
+});
+
+test("normalizeUrl leaves no link for an empty address", () => {
+    assert.equal(L.normalizeUrl(""), "");
+    assert.equal(L.normalizeUrl("   "), "");
+    assert.equal(L.normalizeUrl(undefined), "");
+    assert.equal(L.normalizeUrl(null), "");
+});
+
 test("mosquittoCommand builds the base command inside timeout", () => {
     assert.equal(
         L.mosquittoCommand({ host: "broker", port: 1883, topics: ["teslamate/cars/1/#"], wait: 2 }),

@@ -572,6 +572,15 @@ function parseBrokerHost(text) {
     return r;
 }
 
+// TeslaMate's address as people type it, such as teslamate.local:4000, made into a URL a
+// browser opens. Without a scheme, "teslamate.local:4000" would read as a URL whose scheme
+// is "teslamate.local", so http:// goes in front. "" stays "", meaning no link.
+function normalizeUrl(text) {
+    var s = String(text || "").trim();
+    if (!s) return "";
+    return /^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? s : "http://" + s;
+}
+
 // The mosquitto_sub call shared by the widget's poll and the settings page.
 // o = {host, port, user, password, tls, caFile, topics, wait}; "" when there is no host.
 // -W only starts counting once the connection is up, so coreutils timeout bounds a host

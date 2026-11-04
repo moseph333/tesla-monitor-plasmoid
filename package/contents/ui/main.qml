@@ -70,6 +70,8 @@ PlasmoidItem {
     readonly property var usableCold: Logic.usableIfCold(car)
     // Not "update", which would hide Item's update() method.
     readonly property var softwareUpdate: Logic.updateProgress(car)
+    // "" while no address is set, which hides the link and the context menu entry.
+    readonly property string teslamateUrl: Logic.normalizeUrl(cfg.teslamateUrl)
 
     readonly property string distUnit: units.distance
     readonly property string tempUnit: "°" + units.temperature
@@ -195,6 +197,13 @@ PlasmoidItem {
         return Kirigami.Theme.highlightColor
     }
 
+    // The browser takes over, so the popup closes rather than stay open behind it.
+    function openTeslaMate() {
+        if (!teslamateUrl) return
+        Qt.openUrlExternally(teslamateUrl)
+        expanded = false
+    }
+
     // ---------- plasmoid setup ----------
 
     Plasmoid.icon: Logic.batteryIcon(level >= 0 ? level : null, charging)
@@ -221,6 +230,12 @@ PlasmoidItem {
             text: i18n("Refresh Now")
             icon.name: "view-refresh"
             onTriggered: root.refresh(true)
+        },
+        PlasmaCore.Action {
+            text: i18n("Open TeslaMate")
+            icon.name: "internet-web-browser"
+            visible: root.teslamateUrl !== ""
+            onTriggered: root.openTeslaMate()
         }
     ]
 
@@ -461,13 +476,40 @@ PlasmoidItem {
 
     // ---------- panel ----------
 
+    // Behaves like Plasma's default panel icon, for the mouse, the keyboard and screen readers.
     compactRepresentation: MouseArea {
         id: compact
-        hoverEnabled: true
-        onClicked: root.expanded = !root.expanded
 
         readonly property bool horizontal: Plasmoid.formFactor === PlasmaCore.Types.Horizontal
+        // Pressing the icon while the popup is open takes focus from the popup, which closes
+        // it before the click arrives. The click goes by the state at the press, or it would
+        // open the popup again straight away.
+        property bool wasExpanded: false
+
         Layout.minimumWidth: horizontal ? row.implicitWidth : -1
+        hoverEnabled: true
+        activeFocusOnTab: true
+        onPressed: wasExpanded = root.expanded
+        onClicked: root.expanded = !wasExpanded
+
+        Keys.onPressed: (event) => {
+            switch (event.key) {
+            case Qt.Key_Space:
+            case Qt.Key_Enter:
+            case Qt.Key_Return:
+            case Qt.Key_Select:
+                Plasmoid.activated()
+                // Taken here, so a system tray holding the widget doesn't act on it as well.
+                event.accepted = true
+                break
+            }
+        }
+
+        Accessible.role: Accessible.Button
+        Accessible.name: Plasmoid.title
+        // The tooltip, which is all the icon has to say.
+        Accessible.description: root.toolTipMainText + "; " + root.toolTipSubText
+        Accessible.onPressAction: Plasmoid.activated()
 
         RowLayout {
             id: row
@@ -561,10 +603,56 @@ PlasmoidItem {
                     spacing: 0
 
                     PlasmaExtras.Heading {
+                        id: carName
                         Layout.fillWidth: true
                         level: 3
                         text: root.car.display_name || i18n("Tesla")
                         elide: Text.ElideRight
+                        // Underlined like a link while pointed at or focused, once it is one.
+                        font.underline: root.teslamateUrl !== "" && (nameHover.hovered || nameLink.activeFocus)
+
+                        // With TeslaMate's address set, the name opens it. This covers only the
+                        // text, not the empty width the layout gives the heading, and is what
+                        // Tab and screen readers reach, so the heading keeps its own role while
+                        // there is no link.
+                        Item {
+                            id: nameLink
+                            width: Math.min(carName.contentWidth, carName.width)
+                            height: carName.height
+                            activeFocusOnTab: root.teslamateUrl !== ""
+
+                            Keys.onPressed: (event) => {
+                                switch (event.key) {
+                                case Qt.Key_Space:
+                                case Qt.Key_Enter:
+                                case Qt.Key_Return:
+                                case Qt.Key_Select:
+                                    root.openTeslaMate()
+                                    event.accepted = true
+                                    break
+                                }
+                            }
+
+                            Accessible.role: Accessible.Link
+                            Accessible.name: carName.text
+                            Accessible.description: i18n("Open TeslaMate")
+                            Accessible.ignored: root.teslamateUrl === ""
+                            Accessible.onPressAction: root.openTeslaMate()
+
+                            HoverHandler {
+                                id: nameHover
+                                enabled: root.teslamateUrl !== ""
+                                cursorShape: Qt.PointingHandCursor
+                            }
+                            TapHandler {
+                                enabled: root.teslamateUrl !== ""
+                                onTapped: root.openTeslaMate()
+                            }
+                            PlasmaComponents3.ToolTip {
+                                visible: nameHover.hovered
+                                text: i18n("Open TeslaMate")
+                            }
+                        }
                     }
 
                     RowLayout {
