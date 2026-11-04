@@ -237,59 +237,71 @@ Item {
 
         // Not Shape.CurveRenderer: on Qt 6.7 and 6.8 it can keep showing the paths at an old
         // scale when the row is resized several times in a row while the card lays out
-        // (QTBUG-133267). A multisampled layer gives the same smooth edges. Its source rect is
-        // padded so strokes on the edge of the drawing (the nose, the cable) aren't clipped.
-        Shape {
-            anchors.fill: parent
-            layer.enabled: true
+        // (QTBUG-133267). A multisampled layer gives the same smooth edges. It sits on a slightly
+        // larger item so strokes on the edge of the drawing (the nose, the cable) aren't
+        // clipped, and the paths keep their exact size and line up with the wheels and doors.
+        // The software renderer draws nothing for a Shape inside a layer at scale factors
+        // above 1, and doesn't need one (it anti-aliases on its own), so it skips it.
+        Item {
+            id: pathLayer
+            readonly property real pad: Kirigami.Units.smallSpacing
+            x: -pad
+            y: -pad
+            width: drawing.width + 2 * pad
+            height: drawing.height + 2 * pad
+            layer.enabled: GraphicsInfo.api !== GraphicsInfo.Software
             layer.samples: 4
-            layer.sourceRect: Qt.rect(-Kirigami.Units.smallSpacing, -Kirigami.Units.smallSpacing,
-                                      width + 2 * Kirigami.Units.smallSpacing,
-                                      height + 2 * Kirigami.Units.smallSpacing)
 
-            ShapePath {
-                fillColor: "transparent"
-                strokeColor: status.lineColor
-                strokeWidth: 1.5
-                joinStyle: ShapePath.RoundJoin
-                scale: drawing.pathScale
-                PathSvg { path: drawing.bodyPath }
-            }
+            Shape {
+                x: pathLayer.pad
+                y: pathLayer.pad
+                width: drawing.width
+                height: drawing.height
 
-            ShapePath {
-                fillColor: status.glassColor
-                strokeColor: status.lineColor
-                strokeWidth: 1
-                joinStyle: ShapePath.RoundJoin
-                scale: drawing.pathScale
-                PathSvg { path: drawing.glassPath }
-            }
+                ShapePath {
+                    fillColor: "transparent"
+                    strokeColor: status.lineColor
+                    strokeWidth: 1.5
+                    joinStyle: ShapePath.RoundJoin
+                    scale: drawing.pathScale
+                    PathSvg { path: drawing.bodyPath }
+                }
 
-            ShapePath {
-                fillColor: status.frunkOpen === true ? status.openFill : "transparent"
-                strokeColor: status.edgeColor(status.frunkOpen)
-                strokeWidth: 1
-                joinStyle: ShapePath.RoundJoin
-                scale: drawing.pathScale
-                PathSvg { path: drawing.frunkPath }
-            }
+                ShapePath {
+                    fillColor: status.glassColor
+                    strokeColor: status.lineColor
+                    strokeWidth: 1
+                    joinStyle: ShapePath.RoundJoin
+                    scale: drawing.pathScale
+                    PathSvg { path: drawing.glassPath }
+                }
 
-            ShapePath {
-                fillColor: status.trunkOpen === true ? status.openFill : "transparent"
-                strokeColor: status.edgeColor(status.trunkOpen)
-                strokeWidth: 1
-                joinStyle: ShapePath.RoundJoin
-                scale: drawing.pathScale
-                PathSvg { path: drawing.trunkPath }
-            }
+                ShapePath {
+                    fillColor: status.frunkOpen === true ? status.openFill : "transparent"
+                    strokeColor: status.edgeColor(status.frunkOpen)
+                    strokeWidth: 1
+                    joinStyle: ShapePath.RoundJoin
+                    scale: drawing.pathScale
+                    PathSvg { path: drawing.frunkPath }
+                }
 
-            ShapePath {
-                fillColor: "transparent"
-                strokeColor: status.pluggedIn ? Kirigami.Theme.positiveTextColor : "transparent"
-                strokeWidth: 2
-                capStyle: ShapePath.RoundCap
-                scale: drawing.pathScale
-                PathSvg { path: drawing.cablePath }
+                ShapePath {
+                    fillColor: status.trunkOpen === true ? status.openFill : "transparent"
+                    strokeColor: status.edgeColor(status.trunkOpen)
+                    strokeWidth: 1
+                    joinStyle: ShapePath.RoundJoin
+                    scale: drawing.pathScale
+                    PathSvg { path: drawing.trunkPath }
+                }
+
+                ShapePath {
+                    fillColor: "transparent"
+                    strokeColor: status.pluggedIn ? Kirigami.Theme.positiveTextColor : "transparent"
+                    strokeWidth: 2
+                    capStyle: ShapePath.RoundCap
+                    scale: drawing.pathScale
+                    PathSvg { path: drawing.cablePath }
+                }
             }
         }
 

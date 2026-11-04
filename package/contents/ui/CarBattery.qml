@@ -28,52 +28,73 @@ Item {
     implicitHeight: Kirigami.Units.gridUnit
     implicitWidth: implicitHeight * aspect
 
-    Shape {
-        anchors.fill: parent
-        preferredRendererType: Shape.CurveRenderer
-
-        ShapePath {
-            fillColor: "transparent"
-            strokeColor: Qt.rgba(car.solid.r, car.solid.g, car.solid.b, car.active ? 0.7 : 0.5)
-            strokeWidth: 1
-            capStyle: ShapePath.RoundCap
-            joinStyle: ShapePath.RoundJoin
-            scale: car.pathScale
-            PathSvg { path: car.outlinePath }
-        }
-    }
-
+    // Not Shape.CurveRenderer: on Qt 6.7 and 6.8 it can miss the last resize while the panel
+    // lays out (QTBUG-133267) and leave the car undrawn or at an old size. The icon is drawn
+    // into a multisampled layer instead. The layer sits on a slightly larger item so the
+    // outline isn't clipped at the edges, and the shapes keep their exact size and position.
+    // The software renderer draws nothing for a Shape inside a layer at scale factors above
+    // 1, and doesn't need one (it anti-aliases and has no curve renderer), so it skips it.
     Item {
-        width: parent.width * Math.max(0, Math.min(1, car.value))
-        height: parent.height
-        clip: true
+        id: canvas
+        readonly property real pad: Kirigami.Units.smallSpacing
+        x: -pad
+        y: -pad
+        width: car.width + 2 * pad
+        height: car.height + 2 * pad
+        layer.enabled: GraphicsInfo.api !== GraphicsInfo.Software
+        layer.samples: 4
 
-        Shape {
+        Item {
+            x: canvas.pad
+            y: canvas.pad
             width: car.width
             height: car.height
-            preferredRendererType: Shape.CurveRenderer
 
-            ShapePath {
-                fillColor: car.solid
-                strokeColor: "transparent"
-                strokeWidth: 0
-                scale: car.pathScale
-                PathSvg { path: car.charging ? car.chargingFillPath : car.fillPath }
+            Shape {
+                anchors.fill: parent
+
+                ShapePath {
+                    fillColor: "transparent"
+                    strokeColor: Qt.rgba(car.solid.r, car.solid.g, car.solid.b, car.active ? 0.7 : 0.5)
+                    strokeWidth: 1
+                    capStyle: ShapePath.RoundCap
+                    joinStyle: ShapePath.RoundJoin
+                    scale: car.pathScale
+                    PathSvg { path: car.outlinePath }
+                }
             }
-        }
-    }
 
-    Shape {
-        anchors.fill: parent
-        visible: car.charging
-        preferredRendererType: Shape.CurveRenderer
+            Item {
+                width: parent.width * Math.max(0, Math.min(1, car.value))
+                height: parent.height
+                clip: true
 
-        ShapePath {
-            fillColor: car.solid
-            strokeColor: "transparent"
-            strokeWidth: 0
-            scale: car.pathScale
-            PathSvg { path: car.boltPath }
+                Shape {
+                    width: car.width
+                    height: car.height
+
+                    ShapePath {
+                        fillColor: car.solid
+                        strokeColor: "transparent"
+                        strokeWidth: 0
+                        scale: car.pathScale
+                        PathSvg { path: car.charging ? car.chargingFillPath : car.fillPath }
+                    }
+                }
+            }
+
+            Shape {
+                anchors.fill: parent
+                visible: car.charging
+
+                ShapePath {
+                    fillColor: car.solid
+                    strokeColor: "transparent"
+                    strokeWidth: 0
+                    scale: car.pathScale
+                    PathSvg { path: car.boltPath }
+                }
+            }
         }
     }
 }
