@@ -14,6 +14,7 @@ KCM.SimpleKCM {
     property alias cfg_rangeType: rangeType.currentIndex
     property alias cfg_refreshSeconds: refreshSeconds.value
     property alias cfg_showPanelPercentage: showPanelPercentage.checked
+    property alias cfg_rightHandDrive: rightHandDrive.checked
 
     Kirigami.FormLayout {
         Kirigami.Separator {
@@ -96,6 +97,20 @@ KCM.SimpleKCM {
             id: showPanelPercentage
             Kirigami.FormData.label: i18n("Panel:")
             text: i18n("Show battery percentage next to the icon")
+        }
+
+        QQC2.CheckBox {
+            id: rightHandDrive
+            Kirigami.FormData.label: i18n("Car:")
+            text: i18n("Right-hand drive")
+        }
+
+        QQC2.Label {
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            wrapMode: Text.Wrap
+            font: Kirigami.Theme.smallFont
+            opacity: 0.7
+            text: i18n("TeslaMate reports doors and windows by driver and passenger side. This puts the driver on the right of the car drawing.")
         }
     }
 }

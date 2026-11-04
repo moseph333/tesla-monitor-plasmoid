@@ -6,12 +6,12 @@
             }
         ],
         "Category": "System Information",
-        "Description": "Battery, charging, climate and tire status from TeslaMate over MQTT",
+        "Description": "Battery, charging, climate, tire, door and lock status from TeslaMate over MQTT",
         "Icon": "battery-080",
         "Id": "net.moseph.teslamonitor",
         "License": "MIT",
         "Name": "Tesla Monitor",
-        "Version": "1.3.0"
+        "Version": "1.4.0"
     },
     "KPackageStructure": "Plasma/Applet",
     "X-Plasma-API-Minimum-Version": "6.0"
