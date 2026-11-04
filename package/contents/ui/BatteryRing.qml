@@ -12,6 +12,7 @@ Item {
     property color color: Kirigami.Theme.highlightColor
     property string centerText
     property string subText
+    property string noteText
     property real thickness: Math.max(4, Math.round(width * 0.07))
 
     implicitWidth: Kirigami.Units.gridUnit * 8
@@ -90,6 +91,16 @@ Item {
             text: ring.subText
             font.pixelSize: Math.round(ring.width * 0.085)
             opacity: 0.7
+            visible: text.length > 0
+        }
+
+        // A caveat about the numbers above it, such as how much of a cold battery is usable,
+        // so it takes the neutral color.
+        PlasmaComponents3.Label {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: ring.noteText
+            font.pixelSize: Math.round(ring.width * 0.075)
+            color: Kirigami.Theme.neutralTextColor
             visible: text.length > 0
         }
     }

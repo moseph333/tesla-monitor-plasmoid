@@ -15,6 +15,7 @@ KCM.SimpleKCM {
     property alias cfg_panelText: panelText.currentIndex
     property alias cfg_panelChargingTime: panelChargingTime.checked
     property alias cfg_rightHandDrive: rightHandDrive.checked
+    property alias cfg_unlockedOkGeofences: unlockedOkGeofences.text
 
     // What Automatic means on this computer, so each combo can say which unit it gives.
     readonly property var autoUnits: Logic.resolveUnits(0, 0, 0, Qt.locale().measurementSystem)
@@ -111,6 +112,23 @@ KCM.SimpleKCM {
             font: Kirigami.Theme.smallFont
             opacity: 0.7
             text: i18n("TeslaMate reports doors and windows by driver and passenger side. This puts the driver on the right of the car drawing.")
+        }
+
+        // For owners who leave the car unlocked on purpose, such as in a locked garage with
+        // Tesla's Exclude Home setting.
+        QQC2.TextField {
+            id: unlockedOkGeofences
+            Kirigami.FormData.label: i18n("Unlocked is OK at:")
+            placeholderText: i18n("Home, Work")
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+        }
+
+        QQC2.Label {
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            wrapMode: Text.Wrap
+            font: Kirigami.Theme.smallFont
+            opacity: 0.7
+            text: i18n("TeslaMate geofence names, separated by commas. There, an unlocked car isn't shown as a warning.")
         }
     }
 }

@@ -28,17 +28,26 @@ PlasmoidItem {
     property string errorText: ""
     property var lastUpdated: null
     property real now: Date.now()
+    // When healthy last arrived, so its carried-over value can expire.
+    property var healthySeenAt: null
 
     // ---------- derived values ----------
 
     readonly property string carState: car.state || ""
     readonly property real level: Logic.num(car, "battery_level") ?? -1
     readonly property real limit: Logic.num(car, "charge_limit_soc") ?? -1
-    readonly property bool pluggedIn: Logic.bool(car, "plugged_in")
     readonly property real chargerKw: Logic.num(car, "charger_power") ?? 0
-    readonly property bool charging: carState === "charging" || chargerKw > 0
+    readonly property string chargeStatus: Logic.chargeStatus(car)
+    // Starting counts, so the icon and the ring don't wait for the charger to ramp up.
+    readonly property bool charging: chargeStatus === "charging" || chargeStatus === "starting"
+    readonly property bool driving: Logic.isDriving(car)
     readonly property var rangeKm: Logic.num(car, ["rated_battery_range_km", "est_battery_range_km", "ideal_battery_range_km"][cfg.rangeType] || "rated_battery_range_km")
-    readonly property var openList: Logic.openings(car)
+    readonly property var okGeofences: Logic.geofenceList(cfg.unlockedOkGeofences)
+    readonly property var attentionItems: Logic.attention(car, okGeofences)
+    readonly property var attentionLines: texts.attentionLines(attentionItems)
+    readonly property var usableCold: Logic.usableIfCold(car)
+    // Not "update", which would hide Item's update() method.
+    readonly property var softwareUpdate: Logic.updateProgress(car)
 
     readonly property string distUnit: units.distance
     readonly property string tempUnit: "°" + units.temperature
@@ -86,13 +95,37 @@ PlasmoidItem {
         case "charging": return i18n("Charging")
         case "asleep": return i18n("Asleep")
         case "offline": return i18n("Offline")
-        case "updating": return i18n("Installing update")
+        case "updating":
+            return softwareUpdate.percent !== null ? i18n("Installing update · %1%", Math.round(softwareUpdate.percent))
+                                                   : i18n("Installing update")
         case "suspended": return i18n("Falling asleep")
         case "online": {
             const shift = car.shift_state || ""
             return (shift === "D" || shift === "R") ? i18n("Driving") : i18n("Parked")
         }
         default: return carState ? carState : i18n("Unknown")
+        }
+    }
+
+    // A time that may be days away, such as a scheduled charge, so it names the weekday
+    // when it isn't today: "11:40 PM" or "Sat 7:00 AM".
+    function clock(ms) {
+        const d = new Date(ms)
+        const time = Qt.formatTime(d, Locale.ShortFormat)
+        if (d.toDateString() === new Date().toDateString()) return time
+        return Qt.locale().dayName(d.getDay(), Locale.ShortFormat) + " " + time
+    }
+
+    // The charge port's status for the card while it isn't charging.
+    function chargeStatusText() {
+        switch (chargeStatus) {
+        case "complete": return i18n("Charging complete")
+        case "stopped": return i18n("Charging stopped")
+        case "scheduled": return i18n("Charging starts at %1", clock(Date.parse(car.scheduled_charging_start_time)))
+        case "nopower": return i18n("Plugged in, charger has no power")
+        case "plugged": return i18n("Plugged in")
+        case "unplugged": return i18n("Not plugged in")
+        default: return ""
         }
     }
 
@@ -126,7 +159,8 @@ PlasmoidItem {
         if (!hasData) return errorText || i18n("Connecting…")
         let s = stateLabel()
         if (level >= 0) s += " · " + level + "% · " + fmtDistance(rangeKm)
-        return s
+        // Every attention line, since the panel icon has no other way to show them.
+        return [s].concat(attentionLines).join("\n")
     }
 
     Plasmoid.contextualActions: [
@@ -138,8 +172,8 @@ PlasmoidItem {
     ]
 
     // ---------- MQTT via mosquitto_sub ----------
-    // TeslaMate publishes every value as a retained message, so a short-lived
-    // subscriber receives a full snapshot immediately and exits after -W seconds.
+    // TeslaMate publishes every value except healthy as a retained message, so a
+    // short-lived subscriber receives a full snapshot immediately and exits after -W seconds.
 
     function connectionOptions(topics, wait) {
         return {
@@ -165,6 +199,11 @@ PlasmoidItem {
         if (Object.keys(parsed).length === 0) {
             errorText = err || i18n("No TeslaMate data on %1/#. Check the topic prefix and that MQTT is enabled in TeslaMate.", prefix)
         } else {
+            // TeslaMate 2.1 and newer don't retain healthy, so it's only in the polls that
+            // happen to catch it. Its last value stays for 10 minutes.
+            const h = Logic.carryHealthy(parsed.healthy, car.healthy, healthySeenAt, now, 600000)
+            if (h.value !== undefined) parsed.healthy = h.value
+            healthySeenAt = h.seenAt
             car = parsed
             hasData = true
             errorText = ""
@@ -176,6 +215,8 @@ PlasmoidItem {
         id: fetch
         onFinished: (out, err) => root.applyResult(out, err)
     }
+
+    Texts { id: texts }
 
     Timer {
         interval: Math.max(5, root.cfg.refreshSeconds) * 1000
@@ -212,6 +253,7 @@ PlasmoidItem {
             root.car = {}
             root.hasData = false
             root.errorText = ""
+            root.healthySeenAt = null
             fetch.cancel()
             root.refresh()
         }
@@ -370,6 +412,7 @@ PlasmoidItem {
                     color: root.batteryColor()
                     centerText: root.level >= 0 ? root.level + "%" : "—"
                     subText: root.fmtDistance(root.rangeKm)
+                    noteText: root.usableCold !== null ? i18n("%1% usable", root.usableCold) : ""
                 }
 
                 ColumnLayout {
@@ -377,21 +420,32 @@ PlasmoidItem {
                     Layout.alignment: Qt.AlignVCenter
                     spacing: Kirigami.Units.smallSpacing
 
+                    // Smart and solar chargers report no power every evening, so that's a
+                    // neutral status rather than a warning.
                     PlasmaComponents3.Label {
                         Layout.fillWidth: true
+                        visible: !root.charging && !root.driving && text !== ""
+                        wrapMode: Text.Wrap
                         font.pointSize: Kirigami.Theme.smallFont.pointSize
-                        opacity: 0.7
-                        text: root.charging ? i18n("Charging")
-                            : root.pluggedIn ? i18n("Plugged in")
-                            : i18n("Not plugged in")
+                        opacity: root.chargeStatus === "nopower" ? 1 : 0.7
+                        color: root.chargeStatus === "nopower" ? Kirigami.Theme.neutralTextColor : Kirigami.Theme.textColor
+                        text: root.chargeStatusText()
                     }
 
                     // While charging
+                    PlasmaComponents3.Label {
+                        Layout.fillWidth: true
+                        visible: root.charging
+                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                        opacity: 0.7
+                        text: i18n("Charging")
+                    }
                     PlasmaExtras.Heading {
                         visible: root.charging
                         level: 2
                         color: Kirigami.Theme.positiveTextColor
-                        text: root.chargerKw + " kW"
+                        // The charger reports no power yet while it starts.
+                        text: root.chargeStatus === "starting" ? i18n("Starting…") : root.chargerKw + " kW"
                     }
                     PlasmaComponents3.Label {
                         Layout.fillWidth: true
@@ -432,9 +486,11 @@ PlasmoidItem {
                         opacity: 0.7
                         text: i18n("≈ %1 at limit", root.fmtDistance(root.rangeKm / root.level * root.limit))
                     }
+                    // The status line already says when a waiting charge starts.
                     PlasmaComponents3.Label {
                         Layout.fillWidth: true
-                        visible: !root.charging && !!root.car.scheduled_charging_start_time
+                        visible: !root.charging && !root.driving && root.chargeStatus !== "scheduled"
+                                 && !!root.car.scheduled_charging_start_time
                         wrapMode: Text.Wrap
                         font.pointSize: Kirigami.Theme.smallFont.pointSize
                         opacity: 0.7
@@ -446,17 +502,20 @@ PlasmoidItem {
                 }
             }
 
-            // Something left open
+            // Anything that needs attention. Past two lines it shows the first and a count,
+            // so the car drawing keeps its room; hovering, and the panel tooltip, list all.
             Kirigami.InlineMessage {
                 Layout.fillWidth: true
-                visible: root.openList.length > 0
+                visible: root.attentionLines.length > 0
                 type: Kirigami.MessageType.Warning
-                text: {
-                    const names = {
-                        frunk: i18n("Frunk"), trunk: i18n("Trunk"),
-                        doors: i18n("A door"), windows: i18n("A window")
-                    }
-                    return root.openList.map(k => names[k]).join(", ") + " " + i18n("open")
+                text: root.attentionLines.length <= 2 ? root.attentionLines.join("\n")
+                    : root.attentionLines[0] + "\n"
+                      + i18np("And %1 more", "And %1 more", root.attentionLines.length - 1)
+
+                HoverHandler { id: attentionHover }
+                PlasmaComponents3.ToolTip {
+                    visible: attentionHover.hovered && root.attentionLines.length > 2
+                    text: root.attentionLines.join("\n")
                 }
             }
 
@@ -501,7 +560,7 @@ PlasmoidItem {
             CarStatus {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.minimumHeight: Kirigami.Units.gridUnit * 5
+                Layout.minimumHeight: Kirigami.Units.gridUnit * 4
                 car: root.car
                 rightHandDrive: root.cfg.rightHandDrive
                 fl: root.tire("fl")
@@ -520,11 +579,25 @@ PlasmoidItem {
                     text: root.car.version ? i18n("Software %1", root.car.version) : ""
                 }
 
+                // Elides rather than pushing the update time out of the footer.
                 PlasmaComponents3.Label {
-                    visible: Logic.bool(root.car, "update_available")
+                    Layout.fillWidth: true
+                    visible: root.softwareUpdate.phase !== ""
+                    elide: Text.ElideRight
                     font.pointSize: Kirigami.Theme.smallFont.pointSize
                     color: Kirigami.Theme.highlightColor
-                    text: root.car.update_version ? i18n("→ %1 available", root.car.update_version) : i18n("Update available")
+                    text: {
+                        const v = root.car.update_version || ""
+                        const p = root.softwareUpdate.percent !== null ? Math.round(root.softwareUpdate.percent) : 0
+                        switch (root.softwareUpdate.phase) {
+                        case "downloading":
+                            return v ? i18n("Downloading %1 · %2%", v, p) : i18n("Downloading update · %1%", p)
+                        case "installing":
+                            return v ? i18n("Installing %1", v) : i18n("Installing update")
+                        default:
+                            return v ? i18n("→ %1 available", v) : i18n("Update available")
+                        }
+                    }
                 }
 
                 Item { Layout.fillWidth: true }

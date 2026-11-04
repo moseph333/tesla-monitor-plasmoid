@@ -48,6 +48,19 @@ function partOpen(car, key, totalKey) {
     return total === true ? "some" : total;
 }
 
+// TeslaMate names doors and windows by driver and passenger side, and tires by position.
+var PARTS = ["driver_front", "driver_rear", "passenger_front", "passenger_rear"];
+var TIRES = ["fl", "fr", "rl", "rr"];
+
+// Every door or window (kind "door" or "window") by its TeslaMate name, as partOpen() reads
+// it, e.g. {driver_front: true, driver_rear: false, ...}.
+function parts(car, kind) {
+    var out = {};
+    for (var i = 0; i < PARTS.length; i++)
+        out[PARTS[i]] = partOpen(car, PARTS[i] + "_" + kind + "_open", kind + "s_open");
+    return out;
+}
+
 // TeslaMate reports metric values. These convert them to a unit from resolveUnits().
 function distance(km, unit) {
     if (km === null) return null;
@@ -115,14 +128,162 @@ function formatSince(iso, nowMs) {
     return Math.floor(s / 86400) + "d";
 }
 
-// Names of anything left open, in a stable order.
-function openings(car) {
+// TeslaMate can still say "online" for a moment after the car is put in gear, before it
+// starts recording a drive, so D and R count as driving too.
+function isDriving(car) {
+    var state = car ? car.state : "";
+    if (state === "driving") return true;
+    var shift = car ? car.shift_state : "";
+    return state === "online" && (shift === "D" || shift === "R");
+}
+
+// What the charge port is doing, as a key the card words: charging, starting, complete,
+// stopped, scheduled, nopower, plugged, unplugged, or "" while nothing says. TeslaMate
+// before 1.28 has no charging_state, so then the car's state and the charger's power decide.
+function chargeStatus(car) {
+    var s = car && car.charging_state ? car.charging_state : "";
+    if (s === "") {
+        if ((car && car.state === "charging") || num(car, "charger_power") > 0) return "charging";
+        var plugged = triState(car, "plugged_in");
+        return plugged === null ? "" : plugged ? "plugged" : "unplugged";
+    }
+    switch (s) {
+    case "Charging": return "charging";
+    case "Starting": return "starting";
+    case "Complete": return "complete";
+    case "NoPower": return "nopower";
+    case "Disconnected": return "unplugged";
+    // The car also reports Stopped while it waits for a scheduled start, which is expected
+    // rather than a charge that ended early.
+    case "Stopped":
+        return isNaN(Date.parse(car.scheduled_charging_start_time || "")) ? "stopped" : "scheduled";
+    default: return bool(car, "plugged_in") ? "plugged" : "unplugged";
+    }
+}
+
+// The usable level when a cold battery holds some of its charge back, else null. It uses
+// TeslaMate's own rule: more than 2 points below the battery level.
+function usableIfCold(car) {
+    var level = num(car, "battery_level");
+    var usable = num(car, "usable_battery_level");
+    if (level === null || usable === null || level - usable <= 2) return null;
+    return usable;
+}
+
+// A software update's phase ("", available, downloading or installing) and its percent,
+// or null when that isn't known. TeslaMate's state is "updating" while the car installs,
+// and update_available may already be false by then, so that state comes first. A download
+// or install at 0 or 100 isn't under way, so the update then just shows as available.
+function updateProgress(car) {
+    var install = num(car, "install_perc");
+    if (car && car.state === "updating")
+        return { phase: "installing", percent: install !== null && install > 0 ? install : null };
+    if (!bool(car, "update_available")) return { phase: "", percent: null };
+    var download = num(car, "download_perc");
+    if (download !== null && download > 0 && download < 100) return { phase: "downloading", percent: download };
+    if (install !== null && install > 0 && install < 100) return { phase: "installing", percent: install };
+    return { phase: "available", percent: null };
+}
+
+// TeslaMate 2.1 and newer don't retain healthy, so most polls don't see it. A value that
+// arrived within maxAgeMs is kept, and seenAt stays at when it arrived so it can't live on
+// forever. Returns {value, seenAt}, with value undefined once there's nothing to keep.
+function carryHealthy(fresh, prevValue, prevSeenAt, nowMs, maxAgeMs) {
+    if (fresh !== undefined && fresh !== null) return { value: fresh, seenAt: nowMs };
+    if (prevValue !== undefined && prevSeenAt !== null && prevSeenAt !== undefined
+        && nowMs - prevSeenAt <= maxAgeMs)
+        return { value: prevValue, seenAt: prevSeenAt };
+    return { value: undefined, seenAt: null };
+}
+
+// "Home, Work" -> ["home", "work"], so geofence names compare without regard to case or
+// spacing.
+function geofenceList(text) {
     var out = [];
-    if (bool(car, "frunk_open")) out.push("frunk");
-    if (bool(car, "trunk_open")) out.push("trunk");
-    if (bool(car, "doors_open")) out.push("doors");
-    if (bool(car, "windows_open")) out.push("windows");
+    var names = String(text || "").split(",");
+    for (var i = 0; i < names.length; i++) {
+        var name = names[i].trim().toLowerCase();
+        if (name) out.push(name);
+    }
     return out;
+}
+
+// Shared by attention() and isResolved(), so the two agree on where unlocked is fine.
+function atOkGeofence(car, okGeofences) {
+    var here = String((car && car.geofence) || "").trim().toLowerCase();
+    return here !== "" && (okGeofences || []).indexOf(here) >= 0;
+}
+
+// Everything that needs someone's attention, most severe first, as {id, type, part}.
+// okGeofences comes from geofenceList(). A charger with no power isn't here: smart and
+// solar chargers report that every evening, so the card shows it as a plain status.
+function attention(car, okGeofences) {
+    var items = [];
+    function add(id, type, part) {
+        items.push({ id: id, type: type, part: part || "" });
+    }
+    if (car && car.healthy === "false") add("unhealthy", "unhealthy");
+    if (bool(car, "service_mode")) add("service", "service");
+    for (var t = 0; t < TIRES.length; t++)
+        if (bool(car, "tpms_soft_warning_" + TIRES[t])) add("tire:" + TIRES[t], "tire", TIRES[t]);
+    // Only when the car says nobody is inside, so someone sitting in an unlocked car, or a
+    // TeslaMate that doesn't report presence, doesn't count.
+    if (triState(car, "locked") === false && !isDriving(car)
+        && triState(car, "is_user_present") === false && !atOkGeofence(car, okGeofences))
+        add("unlocked", "unlocked");
+    var kinds = ["door", "window"];
+    for (var k = 0; k < kinds.length; k++) {
+        var states = parts(car, kinds[k]);
+        var named = false;
+        var some = false;
+        for (var p = 0; p < PARTS.length; p++) {
+            if (states[PARTS[p]] === true) {
+                add(kinds[k] + ":" + PARTS[p], kinds[k], PARTS[p]);
+                named = true;
+            } else if (states[PARTS[p]] === "some") {
+                some = true;
+            }
+        }
+        // Older TeslaMate only reports that some door or window is open.
+        if (!named && some) add(kinds[k] + ":some", kinds[k], "some");
+    }
+    if (bool(car, "frunk_open")) add("frunk", "frunk");
+    if (bool(car, "trunk_open")) add("trunk", "trunk");
+    if (triState(car, "sun_roof_installed") !== false && num(car, "sun_roof_percent_open") > 0)
+        add("sunroof", "sunroof");
+    // An open port is expected while the cable is in.
+    if (bool(car, "charge_port_door_open") && !bool(car, "plugged_in")) add("port", "port");
+    return items;
+}
+
+// Whether an id from attention(), or "update:<version>", is now explicitly fine. A topic
+// that went empty doesn't count, so a value TeslaMate stops sending can't end a warning
+// that would then start over when it comes back.
+function isResolved(car, id, okGeofences) {
+    var colon = id.indexOf(":");
+    var type = colon < 0 ? id : id.slice(0, colon);
+    var part = colon < 0 ? "" : id.slice(colon + 1);
+    switch (type) {
+    case "door":
+    case "window": {
+        var states = parts(car, type);
+        if (part !== "some") return states[part] === false;
+        for (var i = 0; i < PARTS.length; i++)
+            if (states[PARTS[i]] !== false) return false;
+        return true;
+    }
+    case "frunk": return triState(car, "frunk_open") === false;
+    case "trunk": return triState(car, "trunk_open") === false;
+    case "sunroof":
+        return triState(car, "sun_roof_installed") === false || num(car, "sun_roof_percent_open") === 0;
+    case "port": return triState(car, "charge_port_door_open") === false || bool(car, "plugged_in");
+    case "unlocked":
+        return triState(car, "locked") === true || triState(car, "is_user_present") === true
+            || isDriving(car) || atOkGeofence(car, okGeofences);
+    case "tire": return triState(car, "tpms_soft_warning_" + part) === false;
+    case "update": return triState(car, "update_available") === false;
+    default: return true;
+    }
 }
 
 // Breeze battery icon name for a level (0..100).

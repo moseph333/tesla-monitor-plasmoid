@@ -208,12 +208,271 @@ test("formatSince counts minutes, hours and days, at least 1m", () => {
     assert.equal(L.formatSince("not a date", t0), "");
 });
 
-test("openings lists what is open in a stable order", () => {
-    assert.deepEqual(L.openings({}), []);
-    assert.deepEqual(L.openings({
-        windows_open: "true", doors_open: "true", trunk_open: "true", frunk_open: "true",
-    }), ["frunk", "trunk", "doors", "windows"]);
-    assert.deepEqual(L.openings({ trunk_open: "false", doors_open: "true" }), ["doors"]);
+test("isDriving counts the driving state and an online car in D or R", () => {
+    assert.equal(L.isDriving({ state: "driving" }), true);
+    assert.equal(L.isDriving({ state: "online", shift_state: "D" }), true);
+    assert.equal(L.isDriving({ state: "online", shift_state: "R" }), true);
+    assert.equal(L.isDriving({ state: "online", shift_state: "P" }), false);
+    assert.equal(L.isDriving({ state: "online", shift_state: "" }), false);
+    assert.equal(L.isDriving({ state: "asleep", shift_state: "D" }), false);
+    assert.equal(L.isDriving({}), false);
+    assert.equal(L.isDriving(null), false);
+});
+
+test("chargeStatus maps TeslaMate's charging_state", () => {
+    assert.equal(L.chargeStatus({ charging_state: "Charging" }), "charging");
+    assert.equal(L.chargeStatus({ charging_state: "Starting" }), "starting");
+    assert.equal(L.chargeStatus({ charging_state: "Complete" }), "complete");
+    assert.equal(L.chargeStatus({ charging_state: "NoPower", plugged_in: "true" }), "nopower");
+    assert.equal(L.chargeStatus({ charging_state: "Disconnected", plugged_in: "true" }), "unplugged");
+});
+
+test("chargeStatus tells a stop from a wait for a scheduled start", () => {
+    assert.equal(L.chargeStatus({ charging_state: "Stopped" }), "stopped");
+    assert.equal(L.chargeStatus({ charging_state: "Stopped", scheduled_charging_start_time: "" }), "stopped");
+    assert.equal(L.chargeStatus({ charging_state: "Stopped", scheduled_charging_start_time: "junk" }), "stopped");
+    assert.equal(L.chargeStatus({
+        charging_state: "Stopped", scheduled_charging_start_time: "2026-01-01T23:00:00Z",
+    }), "scheduled");
+});
+
+test("chargeStatus reads an unknown charging_state from plugged_in", () => {
+    assert.equal(L.chargeStatus({ charging_state: "Mystery", plugged_in: "true" }), "plugged");
+    assert.equal(L.chargeStatus({ charging_state: "Mystery", plugged_in: "false" }), "unplugged");
+    assert.equal(L.chargeStatus({ charging_state: "Mystery" }), "unplugged");
+});
+
+test("chargeStatus falls back to the state and charger power before TeslaMate 1.28", () => {
+    assert.equal(L.chargeStatus({ state: "charging" }), "charging");
+    assert.equal(L.chargeStatus({ state: "online", charger_power: "7" }), "charging");
+    assert.equal(L.chargeStatus({ charging_state: "", charger_power: "11", plugged_in: "true" }), "charging");
+    assert.equal(L.chargeStatus({ state: "online", charger_power: "0", plugged_in: "true" }), "plugged");
+    assert.equal(L.chargeStatus({ state: "online", plugged_in: "false" }), "unplugged");
+    assert.equal(L.chargeStatus({ state: "online", plugged_in: "" }), "");
+    assert.equal(L.chargeStatus({}), "");
+    assert.equal(L.chargeStatus(null), "");
+});
+
+test("usableIfCold shows the usable level only when more than 2 points are held back", () => {
+    assert.equal(L.usableIfCold({ battery_level: "68", usable_battery_level: "65" }), 65);
+    assert.equal(L.usableIfCold({ battery_level: "67", usable_battery_level: "65" }), null);
+    assert.equal(L.usableIfCold({ battery_level: "66", usable_battery_level: "65" }), null);
+    assert.equal(L.usableIfCold({ battery_level: "65", usable_battery_level: "65" }), null);
+    assert.equal(L.usableIfCold({ battery_level: "68" }), null);
+    assert.equal(L.usableIfCold({ usable_battery_level: "65" }), null);
+    assert.equal(L.usableIfCold({ battery_level: "68", usable_battery_level: "" }), null);
+    assert.equal(L.usableIfCold({}), null);
+});
+
+test("updateProgress reports installing while the car updates", () => {
+    assert.deepEqual(L.updateProgress({ state: "updating", install_perc: "45" }),
+        { phase: "installing", percent: 45 });
+    assert.deepEqual(L.updateProgress({ state: "updating", install_perc: "0" }),
+        { phase: "installing", percent: null });
+    assert.deepEqual(L.updateProgress({ state: "updating", update_available: "false" }),
+        { phase: "installing", percent: null });
+});
+
+test("updateProgress reports a download or install under way", () => {
+    assert.deepEqual(L.updateProgress({ update_available: "true", download_perc: "45" }),
+        { phase: "downloading", percent: 45 });
+    assert.deepEqual(L.updateProgress({ update_available: "true", download_perc: "100", install_perc: "20" }),
+        { phase: "installing", percent: 20 });
+});
+
+test("updateProgress shows an update as available at 0 or 100", () => {
+    const available = { phase: "available", percent: null };
+    assert.deepEqual(L.updateProgress({ update_available: "true" }), available);
+    assert.deepEqual(L.updateProgress({ update_available: "true", download_perc: "100" }), available);
+    assert.deepEqual(L.updateProgress({ update_available: "true", download_perc: "0", install_perc: "0" }), available);
+    assert.deepEqual(L.updateProgress({ update_available: "true", install_perc: "100" }), available);
+});
+
+test("updateProgress is empty without an update", () => {
+    const none = { phase: "", percent: null };
+    assert.deepEqual(L.updateProgress({ update_available: "false", download_perc: "45" }), none);
+    assert.deepEqual(L.updateProgress({ update_available: "" }), none);
+    assert.deepEqual(L.updateProgress({}), none);
+    assert.deepEqual(L.updateProgress(null), none);
+});
+
+test("carryHealthy takes a fresh value", () => {
+    assert.deepEqual(L.carryHealthy("false", "true", 1000, 5000, 600000), { value: "false", seenAt: 5000 });
+    assert.deepEqual(L.carryHealthy("true", undefined, null, 5000, 600000), { value: "true", seenAt: 5000 });
+    assert.deepEqual(L.carryHealthy("", "false", 1000, 5000, 600000), { value: "", seenAt: 5000 });
+});
+
+test("carryHealthy keeps the last value for up to maxAgeMs after it arrived", () => {
+    const seen = 1000;
+    assert.deepEqual(L.carryHealthy(undefined, "false", seen, seen + 60000, 600000),
+        { value: "false", seenAt: seen });
+    assert.deepEqual(L.carryHealthy(undefined, "false", seen, seen + 600000, 600000),
+        { value: "false", seenAt: seen });
+});
+
+test("carryHealthy drops the value after maxAgeMs or without one", () => {
+    const gone = { value: undefined, seenAt: null };
+    assert.deepEqual(L.carryHealthy(undefined, "false", 1000, 1000 + 600001, 600000), gone);
+    assert.deepEqual(L.carryHealthy(undefined, "false", null, 5000, 600000), gone);
+    assert.deepEqual(L.carryHealthy(undefined, undefined, 1000, 2000, 600000), gone);
+});
+
+test("geofenceList splits, trims and lower-cases the names", () => {
+    assert.deepEqual(L.geofenceList("Home, Work"), ["home", "work"]);
+    assert.deepEqual(L.geofenceList(" Home ,, My Garage ,"), ["home", "my garage"]);
+    assert.deepEqual(L.geofenceList(""), []);
+    assert.deepEqual(L.geofenceList("  , "), []);
+    assert.deepEqual(L.geofenceList(undefined), []);
+});
+
+// A parked, locked car with everything closed, as a base the attention tests change.
+const closed = {
+    state: "online", shift_state: "", healthy: "true", service_mode: "false",
+    locked: "true", is_user_present: "false", geofence: "",
+    tpms_soft_warning_fl: "false", tpms_soft_warning_fr: "false",
+    tpms_soft_warning_rl: "false", tpms_soft_warning_rr: "false",
+    doors_open: "false", windows_open: "false", frunk_open: "false", trunk_open: "false",
+    driver_front_door_open: "false", driver_rear_door_open: "false",
+    passenger_front_door_open: "false", passenger_rear_door_open: "false",
+    driver_front_window_open: "false", driver_rear_window_open: "false",
+    passenger_front_window_open: "false", passenger_rear_window_open: "false",
+    sun_roof_installed: "true", sun_roof_percent_open: "0",
+    charge_port_door_open: "false", plugged_in: "false",
+};
+const ids = (car, ok) => L.attention(car, ok || []).map(i => i.id);
+
+test("parts reads each door or window, preferring its own topic over the total", () => {
+    assert.deepEqual(L.parts(closed, "door"), {
+        driver_front: false, driver_rear: false, passenger_front: false, passenger_rear: false,
+    });
+    assert.deepEqual(L.parts({ ...closed, doors_open: "true", passenger_rear_door_open: "true" }, "door"), {
+        driver_front: false, driver_rear: false, passenger_front: false, passenger_rear: true,
+    });
+    assert.deepEqual(L.parts({ windows_open: "true", driver_front_window_open: "" }, "window"), {
+        driver_front: "some", driver_rear: "some", passenger_front: "some", passenger_rear: "some",
+    });
+    assert.deepEqual(L.parts({}, "door"), {
+        driver_front: null, driver_rear: null, passenger_front: null, passenger_rear: null,
+    });
+});
+
+test("attention is empty for a closed, locked car", () => {
+    assert.deepEqual(L.attention(closed, []), []);
+    assert.deepEqual(L.attention({}, []), []);
+    assert.deepEqual(L.attention(null, []), []);
+});
+
+test("attention lists everything, most severe first", () => {
+    const car = {
+        ...closed, healthy: "false", service_mode: "true", tpms_soft_warning_rr: "true",
+        tpms_soft_warning_fl: "true", locked: "false", passenger_rear_door_open: "true",
+        driver_front_window_open: "true", frunk_open: "true", trunk_open: "true",
+        sun_roof_percent_open: "15", charge_port_door_open: "true",
+    };
+    assert.deepEqual(L.attention(car, []), [
+        { id: "unhealthy", type: "unhealthy", part: "" },
+        { id: "service", type: "service", part: "" },
+        { id: "tire:fl", type: "tire", part: "fl" },
+        { id: "tire:rr", type: "tire", part: "rr" },
+        { id: "unlocked", type: "unlocked", part: "" },
+        { id: "door:passenger_rear", type: "door", part: "passenger_rear" },
+        { id: "window:driver_front", type: "window", part: "driver_front" },
+        { id: "frunk", type: "frunk", part: "" },
+        { id: "trunk", type: "trunk", part: "" },
+        { id: "sunroof", type: "sunroof", part: "" },
+        { id: "port", type: "port", part: "" },
+    ]);
+});
+
+test("attention names open parts, or says some when only the total is known", () => {
+    assert.deepEqual(ids({ ...closed, driver_front_door_open: "true", passenger_front_door_open: "true" }),
+        ["door:driver_front", "door:passenger_front"]);
+    assert.deepEqual(ids({ doors_open: "true", windows_open: "true" }), ["door:some", "window:some"]);
+    assert.deepEqual(L.attention({ windows_open: "true" }, []),
+        [{ id: "window:some", type: "window", part: "some" }]);
+    // A part's own topic beats the total, and one named part replaces "some".
+    assert.deepEqual(ids({ doors_open: "true", driver_rear_door_open: "true" }), ["door:driver_rear"]);
+    assert.deepEqual(ids({ ...closed, doors_open: "true" }), []);
+});
+
+test("attention reads healthy and service mode only when they say so", () => {
+    assert.deepEqual(ids({ ...closed, healthy: "false" }), ["unhealthy"]);
+    assert.deepEqual(ids({ ...closed, healthy: "true" }), []);
+    assert.deepEqual(ids({ ...closed, healthy: "" }), []);
+    assert.deepEqual(ids({ ...closed, service_mode: "true" }), ["service"]);
+});
+
+test("attention lists low tires in position order", () => {
+    assert.deepEqual(ids({ ...closed, tpms_soft_warning_rl: "true", tpms_soft_warning_fr: "true" }),
+        ["tire:fr", "tire:rl"]);
+});
+
+test("attention counts unlocked only when nobody is inside and the car isn't driving", () => {
+    const unlocked = { ...closed, locked: "false" };
+    assert.deepEqual(ids(unlocked), ["unlocked"]);
+    assert.deepEqual(ids({ ...unlocked, is_user_present: "true" }), []);
+    assert.deepEqual(ids({ ...unlocked, is_user_present: "" }), []);
+    assert.deepEqual(ids({ ...unlocked, is_user_present: undefined }), []);
+    assert.deepEqual(ids({ ...unlocked, state: "driving" }), []);
+    assert.deepEqual(ids({ ...unlocked, shift_state: "D" }), []);
+    assert.deepEqual(ids({ ...closed, locked: "" }), []);
+});
+
+test("attention skips unlocked at an OK geofence, whatever its case", () => {
+    const unlocked = { ...closed, locked: "false", geofence: " Home " };
+    assert.deepEqual(ids(unlocked, L.geofenceList("home, Work")), []);
+    assert.deepEqual(ids({ ...unlocked, geofence: "WORK" }, L.geofenceList("home, Work")), []);
+    assert.deepEqual(ids({ ...unlocked, geofence: "Shop" }, L.geofenceList("home, Work")), ["unlocked"]);
+    assert.deepEqual(ids({ ...unlocked, geofence: "" }, L.geofenceList("home")), ["unlocked"]);
+    assert.deepEqual(L.attention(unlocked).map(i => i.id), ["unlocked"]);
+});
+
+test("attention ignores a sunroof the car doesn't have and an open port with a cable", () => {
+    assert.deepEqual(ids({ ...closed, sun_roof_percent_open: "30" }), ["sunroof"]);
+    assert.deepEqual(ids({ ...closed, sun_roof_installed: "", sun_roof_percent_open: "30" }), ["sunroof"]);
+    assert.deepEqual(ids({ ...closed, sun_roof_installed: "false", sun_roof_percent_open: "30" }), []);
+    assert.deepEqual(ids({ ...closed, charge_port_door_open: "true" }), ["port"]);
+    assert.deepEqual(ids({ ...closed, charge_port_door_open: "true", plugged_in: "true" }), []);
+});
+
+test("isResolved needs a value that says so, not a missing one", () => {
+    assert.equal(L.isResolved({ tpms_soft_warning_fl: "false" }, "tire:fl", []), true);
+    assert.equal(L.isResolved({}, "tire:fl", []), false);
+    assert.equal(L.isResolved({ tpms_soft_warning_fl: "" }, "tire:fl", []), false);
+    assert.equal(L.isResolved({ frunk_open: "false" }, "frunk", []), true);
+    assert.equal(L.isResolved({}, "trunk", []), false);
+    assert.equal(L.isResolved({ update_available: "false" }, "update:2026.2", []), true);
+    assert.equal(L.isResolved({}, "update:2026.2", []), false);
+    assert.equal(L.isResolved({}, "unhealthy", []), true);
+});
+
+test("isResolved reads doors and windows, all four for some", () => {
+    assert.equal(L.isResolved({ driver_front_door_open: "false" }, "door:driver_front", []), true);
+    assert.equal(L.isResolved({ doors_open: "false" }, "door:driver_front", []), true);
+    assert.equal(L.isResolved({}, "door:driver_front", []), false);
+    assert.equal(L.isResolved({ doors_open: "false" }, "door:some", []), true);
+    assert.equal(L.isResolved(closed, "window:some", []), true);
+    assert.equal(L.isResolved({ ...closed, driver_rear_window_open: "", windows_open: "" }, "window:some", []), false);
+    assert.equal(L.isResolved({ driver_front_door_open: "false" }, "door:some", []), false);
+});
+
+test("isResolved treats a closed port or a cable as fine, and an empty sunroof as unknown", () => {
+    assert.equal(L.isResolved({ charge_port_door_open: "false" }, "port", []), true);
+    assert.equal(L.isResolved({ charge_port_door_open: "true", plugged_in: "true" }, "port", []), true);
+    assert.equal(L.isResolved({ charge_port_door_open: "" }, "port", []), false);
+    assert.equal(L.isResolved({ sun_roof_percent_open: "0" }, "sunroof", []), true);
+    assert.equal(L.isResolved({ sun_roof_installed: "false", sun_roof_percent_open: "" }, "sunroof", []), true);
+    assert.equal(L.isResolved({ sun_roof_percent_open: "" }, "sunroof", []), false);
+});
+
+test("isResolved ends unlocked when locked, occupied, driving or at an OK geofence", () => {
+    const unlocked = { ...closed, locked: "false" };
+    assert.equal(L.isResolved(unlocked, "unlocked", []), false);
+    assert.equal(L.isResolved({ ...unlocked, locked: "true" }, "unlocked", []), true);
+    assert.equal(L.isResolved({ ...unlocked, locked: "" }, "unlocked", []), false);
+    assert.equal(L.isResolved({ ...unlocked, is_user_present: "true" }, "unlocked", []), true);
+    assert.equal(L.isResolved({ ...unlocked, state: "driving" }, "unlocked", []), true);
+    assert.equal(L.isResolved({ ...unlocked, geofence: "HOME" }, "unlocked", ["home"]), true);
 });
 
 test("batteryIcon rounds to Breeze's 10% steps", () => {
