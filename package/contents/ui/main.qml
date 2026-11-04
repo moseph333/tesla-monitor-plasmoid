@@ -132,8 +132,8 @@ PlasmoidItem {
             port: cfg.brokerPort,
             user: cfg.brokerUser,
             password: cfg.brokerPassword,
-            tls: cfg.useTls === true,
-            caFile: cfg.caFile || "",
+            tls: cfg.useTls,
+            caFile: cfg.caFile,
             topics: topics,
             wait: wait
         }
@@ -183,7 +183,7 @@ PlasmoidItem {
         // Only connection settings need fresh data. The display settings (units, range type,
         // right-hand drive, panel percentage) update through their bindings.
         function onValueChanged(key) {
-            if (["brokerHost", "brokerPort", "brokerUser", "brokerPassword", "topicPrefix"].indexOf(key) >= 0)
+            if (["brokerHost", "brokerPort", "brokerUser", "brokerPassword", "topicPrefix", "useTls", "caFile"].indexOf(key) >= 0)
                 configSettle.restart()
         }
     }

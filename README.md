@@ -19,6 +19,7 @@ The widget runs `mosquitto_sub` every 15 seconds by default and reads TeslaMate'
   - Debian and Ubuntu: `sudo apt install mosquitto-clients`
   - Arch: `sudo pacman -S mosquitto`
   - The snap isn't supported. It only provides `mosquitto.sub`, which the widget can't find.
+  - TLS with the system's certificates needs mosquitto 2.0 or newer.
 - TeslaMate with MQTT enabled, and a broker this machine can reach
 
 ## Install
@@ -27,19 +28,38 @@ The widget runs `mosquitto_sub` every 15 seconds by default and reads TeslaMate'
 make install
 ```
 
-Then add **Tesla Monitor** to a panel or the desktop and open its settings:
+Then add **Tesla Monitor** to a panel or the desktop and open its settings.
+
+**Connection**
 
 | Setting | Value |
 | ------- | ----- |
-| Host, Port | Your MQTT broker |
+| Host, Port | Your MQTT broker. You can paste a URL such as `mqtts://user@broker:8883`, and the widget moves the port, TLS and username into their own fields |
 | Username, Password | A broker account, if the broker requires one |
+| Use TLS, CA file | For a broker that uses TLS. See [TLS](#tls) |
 | Topic prefix | `teslamate/cars/1`, or `teslamate/<namespace>/cars/1` if TeslaMate sets `MQTT_NAMESPACE` |
+| Refresh every | 15 seconds by default |
+
+**Display**
+
+| Setting | Value |
+| ------- | ----- |
+| Units | Miles, °F and psi, or kilometers, °C and bar |
+| Range | Rated (matches the car), estimated or ideal |
 | Show battery percentage | On by default. Turn it off to show only the car in the panel. Hovering over the car still shows the percentage |
 | Right-hand drive | Off by default. TeslaMate names doors and windows by driver and passenger side, so turn this on if the steering wheel is on the right |
 
 Each copy of the widget keeps its own settings.
 
 Plasma stores the password in plain text and the widget passes it to `mosquitto_sub` on the command line, so use a read-only broker account. The widget doesn't read GPS or route topics, so that account can be denied them.
+
+## TLS
+
+Turn on **Use TLS** for a broker that encrypts its connections. TLS brokers usually listen on port 8883, so the widget switches the port between 1883 and 8883 along with the checkbox, unless you've set a different one. With mosquitto 2.0 or newer, port 8883 always uses TLS.
+
+- Leave **CA file** empty to trust the system's certificates. This needs mosquitto 2.0 or newer.
+- For a broker with a self-signed certificate or one from a private CA, choose that CA's certificate, usually a `.pem` or `.crt` file, as the CA file.
+- **Host** must be a name the broker's certificate lists, which is usually its host name rather than its IP address.
 
 ## TeslaMate behavior
 

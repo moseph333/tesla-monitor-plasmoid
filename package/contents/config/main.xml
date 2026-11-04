@@ -16,6 +16,12 @@
         <entry name="brokerPassword" type="String">
             <default></default>
         </entry>
+        <entry name="useTls" type="Bool">
+            <default>false</default>
+        </entry>
+        <entry name="caFile" type="String">
+            <default></default>
+        </entry>
         <entry name="topicPrefix" type="String">
             <default>teslamate/cars/1</default>
         </entry>
