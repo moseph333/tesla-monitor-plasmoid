@@ -12,6 +12,8 @@ KCM.SimpleKCM {
     property alias cfg_pressureUnit: pressureUnit.currentIndex
     property alias cfg_rangeType: rangeType.currentIndex
     property alias cfg_showPanelPercentage: showPanelPercentage.checked
+    property alias cfg_panelText: panelText.currentIndex
+    property alias cfg_panelChargingTime: panelChargingTime.checked
     property alias cfg_rightHandDrive: rightHandDrive.checked
 
     // What Automatic means on this computer, so each combo can say which unit it gives.
@@ -76,7 +78,20 @@ KCM.SimpleKCM {
 
         QQC2.CheckBox {
             id: showPanelPercentage
-            text: i18n("Show battery percentage next to the icon")
+            text: i18n("Show text next to the icon")
+        }
+
+        QQC2.ComboBox {
+            id: panelText
+            Kirigami.FormData.label: i18n("Text:")
+            enabled: showPanelPercentage.checked
+            model: [i18n("Battery percentage"), i18n("Range"), i18n("Percentage and range")]
+        }
+
+        QQC2.CheckBox {
+            id: panelChargingTime
+            enabled: showPanelPercentage.checked
+            text: i18n("While charging, show the time to full")
         }
 
         Kirigami.Separator {

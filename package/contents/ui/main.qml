@@ -65,6 +65,18 @@ PlasmoidItem {
         }
     }
 
+    // The text next to the panel icon. While charging, the time to full can take the
+    // range's place, since it's what matters then.
+    function panelLabel() {
+        const parts = []
+        if (cfg.panelText !== 1 && level >= 0) parts.push(level + "%")
+        const toFull = charging && cfg.panelChargingTime
+            ? Logic.formatHours(Logic.num(car, "time_to_full_charge")) : ""
+        if (toFull) parts.push(toFull)
+        else if (cfg.panelText !== 0 && rangeKm !== null) parts.push(fmtDistance(rangeKm))
+        return parts.join(" · ")
+    }
+
     function stateLabel() {
         switch (carState) {
         case "driving": {
@@ -184,7 +196,7 @@ PlasmoidItem {
     Connections {
         target: Plasmoid.configuration
         // Only connection settings need fresh data. The display settings (units, range type,
-        // right-hand drive, panel percentage) update through their bindings. Keys the widget
+        // right-hand drive, panel text) update through their bindings. Keys the widget
         // writes itself, such as unitsMigrated, must stay off this list, or writing them
         // would throw away the data and poll again.
         function onValueChanged(key) {
@@ -243,8 +255,8 @@ PlasmoidItem {
             }
 
             PlasmaComponents3.Label {
-                visible: compact.horizontal && root.level >= 0 && root.cfg.showPanelPercentage
-                text: root.level + "%"
+                visible: compact.horizontal && root.cfg.showPanelPercentage && text !== ""
+                text: root.panelLabel()
                 font.features: { "tnum": 1 }
             }
         }

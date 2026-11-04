@@ -48,7 +48,9 @@ Then add **Tesla Monitor** to a panel or the desktop and open its settings.
 | ------- | ----- |
 | Distance, Temperature, Tire pressure | Automatic by default, which follows Measurement units in System Settings, Region & Language: miles, °F and psi for the US, miles, °C and psi for the UK, and kilometers, °C and bar otherwise. Each can be set on its own, and tire pressure can also be kPa. Speed uses the distance unit. A widget set up before 1.5 keeps the units it showed |
 | Range | Rated (matches the car), estimated or ideal |
-| Show battery percentage | On by default. Turn it off to show only the car in the panel. Hovering over the car still shows the percentage |
+| Show text next to the icon | On by default. Turn it off to show only the car in the panel. Hovering over the car still shows the percentage and range |
+| Text | What the panel shows next to the car: the battery percentage (the default), the range, or both |
+| While charging, show the time to full | Off by default. While the car charges, the panel shows the time left to reach the charge limit, instead of the range when Text includes it |
 | Right-hand drive | Off by default. TeslaMate names doors and windows by driver and passenger side, so turn this on if the steering wheel is on the right |
 
 Each copy of the widget keeps its own settings.
