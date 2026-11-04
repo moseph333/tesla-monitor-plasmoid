@@ -5,7 +5,6 @@ import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.components as PlasmaComponents3
 import org.kde.plasma.extras as PlasmaExtras
-import org.kde.plasma.plasma5support as P5Support
 import org.kde.kirigami as Kirigami
 
 import "logic.js" as Logic
@@ -14,7 +13,11 @@ PlasmoidItem {
     id: root
 
     readonly property var cfg: Plasmoid.configuration
-    readonly property bool configured: cfg.brokerHost.trim().length > 0
+    // The same test the command builder uses, so a host such as "mqtt://" can't leave the
+    // card waiting for data that no command will fetch.
+    readonly property bool configured: Logic.parseBrokerHost(cfg.brokerHost).host !== ""
+    // One value for both the subscription and stripping topics, so the two can't disagree.
+    readonly property string prefix: cfg.topicPrefix.trim().replace(/\/+$/, "") || "teslamate/cars/1"
     readonly property bool imperial: cfg.imperial
 
     // Raw TeslaMate values keyed by topic suffix
@@ -23,7 +26,6 @@ PlasmoidItem {
     property string errorText: ""
     property var lastUpdated: null
     property real now: Date.now()
-    property bool busy: false
 
     // ---------- derived values ----------
 
@@ -124,56 +126,40 @@ PlasmoidItem {
     // TeslaMate publishes every value as a retained message, so a short-lived
     // subscriber receives a full snapshot immediately and exits after -W seconds.
 
-    function shellQuote(s) {
-        return "'" + String(s).replace(/'/g, "'\\''") + "'"
-    }
-
-    function command() {
-        const prefix = cfg.topicPrefix.trim().replace(/\/+$/, "") || "teslamate/cars/1"
-        let cmd = "mosquitto_sub -h " + shellQuote(cfg.brokerHost.trim())
-            + " -p " + cfg.brokerPort
-            + " -t " + shellQuote(prefix + "/#")
-            + " -v -W 2"
-        if (cfg.brokerUser) cmd += " -u " + shellQuote(cfg.brokerUser)
-        if (cfg.brokerPassword) cmd += " -P " + shellQuote(cfg.brokerPassword)
-        return cmd
+    function connectionOptions(topics, wait) {
+        return {
+            host: cfg.brokerHost,
+            port: cfg.brokerPort,
+            user: cfg.brokerUser,
+            password: cfg.brokerPassword,
+            tls: cfg.useTls === true,
+            caFile: cfg.caFile || "",
+            topics: topics,
+            wait: wait
+        }
     }
 
     function refresh() {
-        if (!configured || busy) return
-        busy = true
-        exec.connectSource(command())
+        if (!configured || fetch.busy) return
+        fetch.run(connectionOptions([prefix + "/#"], 2))
     }
 
-    P5Support.DataSource {
-        id: exec
-        engine: "executable"
-        connectedSources: []
-        onNewData: (source, data) => {
-            disconnectSource(source)
-            root.busy = false
-            root.now = Date.now()
-
-            const exitCode = data["exit code"]
-            const stderr = String(data["stderr"] || "").trim()
-            const prefix = root.cfg.topicPrefix.trim() || "teslamate/cars/1"
-            const parsed = Logic.parseMqtt(data["stdout"], prefix)
-            const count = Object.keys(parsed).length
-
-            if (exitCode === 127) {
-                root.errorText = i18n("mosquitto_sub not found. Install it with: sudo dnf install mosquitto")
-            } else if (count === 0) {
-                // 27 = -W timeout reached, which is normal; anything else is a real failure.
-                root.errorText = stderr && exitCode !== 27
-                    ? stderr.replace(/^Error:\s*/, "")
-                    : i18n("No TeslaMate data on %1/#. Check the topic prefix and that MQTT is enabled in TeslaMate.", prefix)
-            } else {
-                root.car = parsed
-                root.hasData = true
-                root.errorText = ""
-                root.lastUpdated = new Date()
-            }
+    function applyResult(out, err) {
+        now = Date.now()
+        const parsed = Logic.parseMqtt(out, prefix)
+        if (Object.keys(parsed).length === 0) {
+            errorText = err || i18n("No TeslaMate data on %1/#. Check the topic prefix and that MQTT is enabled in TeslaMate.", prefix)
+        } else {
+            car = parsed
+            hasData = true
+            errorText = ""
+            lastUpdated = new Date()
         }
+    }
+
+    MqttFetch {
+        id: fetch
+        onFinished: (out, err) => root.applyResult(out, err)
     }
 
     Timer {
@@ -209,7 +195,7 @@ PlasmoidItem {
             root.car = {}
             root.hasData = false
             root.errorText = ""
-            root.busy = false
+            fetch.cancel()
             root.refresh()
         }
     }
@@ -266,7 +252,9 @@ PlasmoidItem {
             visible: !root.configured
             iconName: "battery-080"
             text: i18n("Connect to TeslaMate")
-            explanation: i18n("Add your MQTT broker in the widget settings.")
+            explanation: root.cfg.brokerHost.trim() !== ""
+                ? i18n("The broker host isn't valid. Check it in the widget settings.")
+                : i18n("Add your MQTT broker in the widget settings.")
             helpfulAction: QQC2.Action {
                 text: i18n("Configure…")
                 icon.name: "configure"

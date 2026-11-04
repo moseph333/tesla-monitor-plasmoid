@@ -99,3 +99,113 @@ function batteryIcon(level, charging) {
     var name = "battery-" + (step < 10 ? "00" : step < 100 ? "0" : "") + step;
     return charging ? name + "-charging" : name;
 }
+
+// Single-quotes a value for the shell, so hosts, topics and passwords reach mosquitto_sub
+// unchanged whatever characters they contain.
+function shellQuote(s) {
+    return "'" + String(s).replace(/'/g, "'\\''") + "'";
+}
+
+// Splits what people paste into the Host field, such as mqtts://user:pw@host:8883/path,
+// [fd00::1]:1883 or host:1884, into its parts. tls is true or false when the scheme says
+// so and null otherwise. port is null when there is none or it is out of range.
+function parseBrokerHost(text) {
+    var r = { host: "", port: null, tls: null, user: "", password: "" };
+    var s = String(text || "").trim();
+    var scheme = /^([a-z][a-z0-9+.-]*):\/\//i.exec(s);
+    if (scheme) {
+        var name = scheme[1].toLowerCase();
+        if (["mqtts", "ssl", "tls", "wss"].indexOf(name) >= 0) r.tls = true;
+        else if (["mqtt", "tcp", "ws"].indexOf(name) >= 0) r.tls = false;
+        s = s.slice(scheme[0].length);
+    }
+    s = s.split(/[\/?#]/)[0];
+    // The last @ ends the credentials, so a password may contain one.
+    var at = s.lastIndexOf("@");
+    if (at >= 0) {
+        var cred = s.slice(0, at);
+        var colon = cred.indexOf(":");
+        r.user = colon < 0 ? cred : cred.slice(0, colon);
+        r.password = colon < 0 ? "" : cred.slice(colon + 1);
+        s = s.slice(at + 1);
+    }
+    var port = "";
+    var bracketed = /^\[([^\]]*)\](?::(.*))?$/.exec(s);
+    if (bracketed) {
+        s = bracketed[1];
+        port = bracketed[2] || "";
+    } else if (s.indexOf(":") >= 0 && s.indexOf(":") === s.lastIndexOf(":")) {
+        // A single colon separates a port; more than one is a bare IPv6 address.
+        port = s.slice(s.indexOf(":") + 1);
+        s = s.slice(0, s.indexOf(":"));
+    }
+    if (/^\d+$/.test(port)) {
+        var p = parseInt(port, 10);
+        if (p >= 1 && p <= 65535) r.port = p;
+    }
+    r.host = s;
+    return r;
+}
+
+// The mosquitto_sub call shared by the widget's poll and the settings page.
+// o = {host, port, user, password, tls, caFile, topics, wait}; "" when there is no host.
+// -W only starts counting once the connection is up, so coreutils timeout bounds a host
+// that drops packets (exit 124). timeout exits 127 itself when mosquitto_sub is missing,
+// which keeps the install hint working.
+function mosquittoCommand(o) {
+    o = o || {};
+    var b = parseBrokerHost(o.host);
+    if (!b.host) return "";
+    var wait = Math.max(1, Math.round(o.wait || 2));
+    var given = parseInt(o.port, 10);
+    var port = b.port || (given >= 1 && given <= 65535 ? given : 1883);
+    var cmd = "timeout " + (wait + 10) + " mosquitto_sub -h " + shellQuote(b.host) + " -p " + port;
+    var topics = o.topics || [];
+    for (var i = 0; i < topics.length; i++) cmd += " -t " + shellQuote(topics[i]);
+    cmd += " -v -W " + wait;
+    if (o.tls || b.tls === true) {
+        var ca = String(o.caFile || "").trim();
+        // Only an unquoted leading ~ expands, so a home-relative path keeps it outside
+        // the quotes.
+        if (ca.indexOf("~/") === 0) cmd += " --cafile ~/" + shellQuote(ca.slice(2));
+        else if (ca) cmd += " --cafile " + shellQuote(ca);
+        else cmd += " --tls-use-os-certs";
+    }
+    var user = o.user || b.user;
+    var password = o.password || b.password;
+    if (user) cmd += " -u " + shellQuote(user);
+    if (password) cmd += " -P " + shellQuote(password);
+    return cmd;
+}
+
+// Sorts a failed mosquitto_sub run into a kind that QML words for people, with the detail
+// a message needs. kind "" means the run was fine, even if no messages arrived.
+function mqttError(code, stderr, hasOutput) {
+    var e = String(stderr || "").trim();
+    var plain = e.replace(/^Error:\s*/, "");
+    function result(kind, detail) {
+        return { kind: kind, detail: detail || "" };
+    }
+    if (code === 127) return result("notInstalled");
+    if (code === 124) return result("noAnswer");
+    if (/Unknown option '--tls-use-os-certs'/.test(e)) return result("oldClient");
+    if (/Problem setting TLS options/.test(e)) return result("caFile");
+    if (code === 4 || code === 5 || /not authori[sz]ed|bad user name or password/i.test(e))
+        return result("auth");
+    if (/Lookup error/.test(e)) return result("lookup");
+    if (/Error: Connection refused/.test(e)) return result("refused");
+    if (/No route to host|Network is unreachable|Connection timed out/.test(e))
+        return result("unreachable", plain);
+    if (code === 14 || /Protocol error/.test(e)) return result("tls");
+    // A TLS broker hangs up on a plain client without a word, and so does a plain broker
+    // when the client talks TLS.
+    if (code === 255 && !e) return result("handshake");
+    // When -W runs out, mosquitto 2.0 prints "Timed out" and exits 27; 1.6 exits 0.
+    if (code === 0 || code === 27) {
+        if (!hasOutput && /denied/.test(e)) return result("denied");
+        if (!hasOutput && e && e !== "Timed out") return result("other", plain);
+        return result("");
+    }
+    if (e) return result("other", plain);
+    return result("exit", String(code));
+}

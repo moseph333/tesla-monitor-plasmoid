@@ -14,7 +14,11 @@ The widget runs `mosquitto_sub` every 15 seconds by default and reads TeslaMate'
 ## Requirements
 
 - Plasma 6
-- `mosquitto_sub`, from `sudo dnf install mosquitto` on Fedora
+- `mosquitto_sub`:
+  - Fedora: `sudo dnf install mosquitto`
+  - Debian and Ubuntu: `sudo apt install mosquitto-clients`
+  - Arch: `sudo pacman -S mosquitto`
+  - The snap isn't supported. It only provides `mosquitto.sub`, which the widget can't find.
 - TeslaMate with MQTT enabled, and a broker this machine can reach
 
 ## Install

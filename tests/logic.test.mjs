@@ -164,3 +164,182 @@ test("batteryIcon rounds to Breeze's 10% steps", () => {
     assert.equal(L.batteryIcon(null, false), "battery-050");
     assert.equal(L.batteryIcon(60, true), "battery-060-charging");
 });
+
+test("shellQuote single-quotes and escapes embedded quotes", () => {
+    assert.equal(L.shellQuote("abc"), "'abc'");
+    assert.equal(L.shellQuote("it's"), "'it'\\''s'");
+    assert.equal(L.shellQuote("a b;$(rm)"), "'a b;$(rm)'");
+    assert.equal(L.shellQuote(1883), "'1883'");
+});
+
+test("parseBrokerHost reads a plain host and host:port", () => {
+    const none = { port: null, tls: null, user: "", password: "" };
+    assert.deepEqual(L.parseBrokerHost("host"), { host: "host", ...none });
+    assert.deepEqual(L.parseBrokerHost("  192.168.1.5  "), { host: "192.168.1.5", ...none });
+    assert.deepEqual(L.parseBrokerHost("host:1884"), { ...none, host: "host", port: 1884 });
+    assert.deepEqual(L.parseBrokerHost(""), { host: "", ...none });
+    assert.deepEqual(L.parseBrokerHost(undefined), { host: "", ...none });
+});
+
+test("parseBrokerHost takes a full URL apart", () => {
+    assert.deepEqual(L.parseBrokerHost("mqtts://u:p@h:8883/x"),
+        { host: "h", port: 8883, tls: true, user: "u", password: "p" });
+    assert.deepEqual(L.parseBrokerHost("SSL://broker.lan?x=1#y"),
+        { host: "broker.lan", port: null, tls: true, user: "", password: "" });
+    assert.equal(L.parseBrokerHost("tls://h").tls, true);
+    assert.equal(L.parseBrokerHost("wss://h").tls, true);
+    assert.equal(L.parseBrokerHost("mqtt://h").tls, false);
+    assert.equal(L.parseBrokerHost("tcp://h").tls, false);
+    assert.equal(L.parseBrokerHost("ws://h").tls, false);
+    assert.deepEqual(L.parseBrokerHost("http://h:1883"),
+        { host: "h", port: 1883, tls: null, user: "", password: "" });
+});
+
+test("parseBrokerHost splits credentials at the last @", () => {
+    assert.deepEqual(L.parseBrokerHost("u:p@ss@h"),
+        { host: "h", port: null, tls: null, user: "u", password: "p@ss" });
+    assert.deepEqual(L.parseBrokerHost("me@h"),
+        { host: "h", port: null, tls: null, user: "me", password: "" });
+    assert.deepEqual(L.parseBrokerHost("user@"),
+        { host: "", port: null, tls: null, user: "user", password: "" });
+});
+
+test("parseBrokerHost handles IPv6 with and without brackets", () => {
+    assert.deepEqual(L.parseBrokerHost("[fd00::1]:1883"),
+        { host: "fd00::1", port: 1883, tls: null, user: "", password: "" });
+    assert.deepEqual(L.parseBrokerHost("[fd00::1]"),
+        { host: "fd00::1", port: null, tls: null, user: "", password: "" });
+    assert.deepEqual(L.parseBrokerHost("fd00::1"),
+        { host: "fd00::1", port: null, tls: null, user: "", password: "" });
+    assert.deepEqual(L.parseBrokerHost("mqtts://[::1]:8883/"),
+        { host: "::1", port: 8883, tls: true, user: "", password: "" });
+});
+
+test("parseBrokerHost drops a port that isn't a number or is out of range", () => {
+    assert.deepEqual(L.parseBrokerHost("h:abc"),
+        { host: "h", port: null, tls: null, user: "", password: "" });
+    assert.equal(L.parseBrokerHost("h:70000").port, null);
+    assert.equal(L.parseBrokerHost("h:0").port, null);
+    assert.equal(L.parseBrokerHost("h:65535").port, 65535);
+    assert.equal(L.parseBrokerHost("h:").port, null);
+    assert.equal(L.parseBrokerHost("h:").host, "h");
+});
+
+test("parseBrokerHost leaves no host for a bare scheme", () => {
+    assert.deepEqual(L.parseBrokerHost("mqtt://"),
+        { host: "", port: null, tls: false, user: "", password: "" });
+    assert.equal(L.parseBrokerHost("mqtts:///path").host, "");
+});
+
+test("mosquittoCommand builds the base command inside timeout", () => {
+    assert.equal(
+        L.mosquittoCommand({ host: "broker", port: 1883, topics: ["teslamate/cars/1/#"], wait: 2 }),
+        "timeout 12 mosquitto_sub -h 'broker' -p 1883 -t 'teslamate/cars/1/#' -v -W 2");
+    assert.equal(
+        L.mosquittoCommand({ host: "broker", port: 1883, topics: ["t/#"], wait: 3 }),
+        "timeout 13 mosquitto_sub -h 'broker' -p 1883 -t 't/#' -v -W 3");
+});
+
+test("mosquittoCommand defaults the wait and the port", () => {
+    assert.equal(L.mosquittoCommand({ host: "h", topics: ["t/#"] }),
+        "timeout 12 mosquitto_sub -h 'h' -p 1883 -t 't/#' -v -W 2");
+    assert.equal(L.mosquittoCommand({ host: "h", port: "1; rm -rf ~", topics: ["t/#"] }),
+        "timeout 12 mosquitto_sub -h 'h' -p 1 -t 't/#' -v -W 2");
+    assert.equal(L.mosquittoCommand({ host: "h", port: 0, topics: [], wait: 0.2 }),
+        "timeout 11 mosquitto_sub -h 'h' -p 1883 -v -W 1");
+});
+
+test("mosquittoCommand quotes credentials and lists several topics", () => {
+    assert.equal(
+        L.mosquittoCommand({
+            host: "h", port: 1883, user: "me", password: "it's", wait: 2,
+            topics: ["teslamate/cars/+/display_name", "teslamate/+/cars/+/display_name"],
+        }),
+        "timeout 12 mosquitto_sub -h 'h' -p 1883"
+        + " -t 'teslamate/cars/+/display_name' -t 'teslamate/+/cars/+/display_name'"
+        + " -v -W 2 -u 'me' -P 'it'\\''s'");
+});
+
+test("mosquittoCommand takes the port, TLS and credentials from the host", () => {
+    assert.equal(
+        L.mosquittoCommand({ host: "mqtts://u:p@h:8884/", port: 1883, topics: ["t/#"], wait: 2 }),
+        "timeout 12 mosquitto_sub -h 'h' -p 8884 -t 't/#' -v -W 2 --tls-use-os-certs -u 'u' -P 'p'");
+    assert.equal(
+        L.mosquittoCommand({ host: "u:p@h", user: "form", password: "secret", topics: [], wait: 2 }),
+        "timeout 12 mosquitto_sub -h 'h' -p 1883 -v -W 2 -u 'form' -P 'secret'");
+});
+
+test("mosquittoCommand adds TLS with system certificates or a CA file", () => {
+    const base = { host: "h", port: 8883, topics: ["t/#"], wait: 2, tls: true };
+    const head = "timeout 12 mosquitto_sub -h 'h' -p 8883 -t 't/#' -v -W 2";
+    assert.equal(L.mosquittoCommand(base), head + " --tls-use-os-certs");
+    assert.equal(L.mosquittoCommand({ ...base, caFile: "  " }), head + " --tls-use-os-certs");
+    assert.equal(L.mosquittoCommand({ ...base, caFile: "/etc/ssl/my ca.pem" }),
+        head + " --cafile '/etc/ssl/my ca.pem'");
+    assert.equal(L.mosquittoCommand({ ...base, caFile: "~/certs/ca.pem" }),
+        head + " --cafile ~/'certs/ca.pem'");
+    assert.equal(L.mosquittoCommand({ ...base, tls: false, caFile: "/ca.pem" }), head);
+});
+
+test("mosquittoCommand returns nothing without a usable host", () => {
+    assert.equal(L.mosquittoCommand({ host: "", topics: ["t/#"] }), "");
+    assert.equal(L.mosquittoCommand({ host: "   ", topics: ["t/#"] }), "");
+    assert.equal(L.mosquittoCommand({ host: "mqtt://", topics: ["t/#"] }), "");
+    assert.equal(L.mosquittoCommand({}), "");
+    assert.equal(L.mosquittoCommand(undefined), "");
+});
+
+test("mqttError treats a timed-out run as fine", () => {
+    const ok = { kind: "", detail: "" };
+    assert.deepEqual(L.mqttError(27, "Timed out\n", false), ok);
+    assert.deepEqual(L.mqttError(0, "Timed out", false), ok);
+    assert.deepEqual(L.mqttError(27, "Timed out", true), ok);
+    assert.deepEqual(L.mqttError(0, "", false), ok);
+    assert.deepEqual(L.mqttError(0, "something odd", true), ok);
+});
+
+test("mqttError recognizes a missing client and an unanswered connect", () => {
+    assert.equal(L.mqttError(127, "timeout: failed to run command 'mosquitto_sub'", false).kind, "notInstalled");
+    assert.equal(L.mqttError(124, "", false).kind, "noAnswer");
+});
+
+test("mqttError recognizes TLS setup problems", () => {
+    assert.equal(L.mqttError(1, "Error: Unknown option '--tls-use-os-certs'.", false).kind, "oldClient");
+    assert.equal(L.mqttError(1, "Error: Problem setting TLS options: File not found.", false).kind, "caFile");
+    assert.equal(L.mqttError(14, "Error: Protocol error", false).kind, "tls");
+    assert.equal(L.mqttError(1, "Error: Protocol error", false).kind, "tls");
+    assert.equal(L.mqttError(14, "", false).kind, "tls");
+    assert.equal(L.mqttError(255, "", false).kind, "handshake");
+    assert.equal(L.mqttError(255, "  \n", false).kind, "handshake");
+});
+
+test("mqttError recognizes rejected credentials", () => {
+    assert.equal(L.mqttError(5, "Connection error: Connection Refused: not authorised.", false).kind, "auth");
+    assert.equal(L.mqttError(4, "", false).kind, "auth");
+    assert.equal(L.mqttError(1, "Connection Refused: bad user name or password.", false).kind, "auth");
+    assert.equal(L.mqttError(1, "Error: Not authorized", false).kind, "auth");
+});
+
+test("mqttError recognizes lookup, refused and unreachable hosts", () => {
+    assert.equal(L.mqttError(1, "Error: Unable to connect (Lookup error.).", false).kind, "lookup");
+    assert.equal(L.mqttError(1, "Error: Connection refused", false).kind, "refused");
+    assert.deepEqual(L.mqttError(1, "Error: No route to host", false),
+        { kind: "unreachable", detail: "No route to host" });
+    assert.deepEqual(L.mqttError(1, "Error: Network is unreachable", false),
+        { kind: "unreachable", detail: "Network is unreachable" });
+    assert.equal(L.mqttError(1, "Error: Connection timed out", false).kind, "unreachable");
+});
+
+test("mqttError reports a denied subscription and other complaints without output", () => {
+    assert.deepEqual(L.mqttError(0, "All subscription requests were denied.", false),
+        { kind: "denied", detail: "" });
+    assert.deepEqual(L.mqttError(27, "Error: Something new", false),
+        { kind: "other", detail: "Something new" });
+});
+
+test("mqttError passes other failures through, or names the exit code", () => {
+    assert.deepEqual(L.mqttError(1, "Error: Out of memory.", false),
+        { kind: "other", detail: "Out of memory." });
+    assert.deepEqual(L.mqttError(3, "", false), { kind: "exit", detail: "3" });
+    assert.deepEqual(L.mqttError(255, "Error: weird", false), { kind: "other", detail: "weird" });
+});
