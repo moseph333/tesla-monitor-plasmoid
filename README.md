@@ -1,9 +1,10 @@
 # Tesla Monitor
 
-A KDE Plasma 6 widget that shows a Tesla's status from [TeslaMate](https://docs.teslamate.org) over MQTT. On the desktop it's a full card. In a panel it's a Model 3-shaped battery icon and percentage that opens the card when clicked. It's drawn like Plasma's battery icon: a thin outline with a solid fill that grows from left to right, and a bolt while charging. The panel icon also works from the keyboard, where Space or Enter opens the card, and screen readers read out the same status as its tooltip.
+A KDE Plasma 6 widget that shows a Tesla's status from [TeslaMate](https://docs.teslamate.org) over MQTT. On the desktop it's a full card. In a panel it's a Model 3-shaped battery icon, with the battery percentage or the range beside it, that opens the card when clicked. It's drawn like Plasma's battery icon: a thin outline with a solid fill that grows from left to right, and a bolt while charging. The panel icon also works from the keyboard, where Space or Enter opens the card, and screen readers read out the same status as its tooltip.
 
 The card shows:
 
+- The car's name, what it's doing, the TeslaMate geofence it's in and for how long, such as "Parked · Home · 3h". If you set TeslaMate's address in the settings, clicking the name opens TeslaMate in your browser
 - Battery level, range and charge limit. While charging it shows the power, energy added, current and voltage with the number of phases, the current the car asks for when that's less than the charger offers, and the time left with when it'll be done. Otherwise it says whether the car is plugged in, finished charging, stopped early, waiting for a scheduled start, or plugged into a charger that has no power
 - While driving, the power the battery gives, or takes back while regenerating. If you turn on navigation, also the destination, the time to arrival with any traffic delay, the distance left and the battery level on arrival
 - How much of the battery is usable while it's cold
@@ -25,6 +26,7 @@ The widget runs `mosquitto_sub` every 15 seconds by default, and every 2 minutes
   - Arch: `sudo pacman -S mosquitto`
   - The snap isn't supported. It only provides `mosquitto.sub`, which the widget can't find.
   - TLS with the system's certificates needs mosquitto 2.0 or newer.
+- KNotifications' QML module, `org.kde.notification`. Most distributions ship it with KNotifications. Where it's a separate package, install it, or the widget won't load
 - TeslaMate with MQTT enabled, and a broker this machine can reach
 
 ## Install
@@ -112,8 +114,40 @@ Edit the files in `package/`, then:
 ```bash
 make install   # build dist/tesla-monitor.plasmoid and install or upgrade it
 make reload    # restart Plasma so the new QML loads
+make test      # run the unit tests
 ```
 
 `make reload` makes the panel and desktop blink, and it clears Plasma's notifications. Raise `Version` in `package/metadata.json` for each release.
+
+The tests in `tests/` cover `logic.js` and `notifyhub.js` and need only Node.js 18 or newer. `logic.js` holds the widget's decisions and never calls `Qt` or `i18n()`, so Node can run it; the QML turns its results into words. Qt 6's `qmllint` catches QML syntax errors:
+
+```bash
+qmllint package/contents/ui/*.qml package/contents/config/*.qml
+```
+
+If it isn't on your `PATH`, look in Qt 6's `bin` folder, such as `/usr/lib/qt6/bin` or `/usr/lib64/qt6/bin`. Outside a Plasma session it can't find Plasma's and Kirigami's modules, so ignore its warnings about those.
+
+### Fake TeslaMate data
+
+`tools/fake-teslamate.sh` publishes made-up TeslaMate values to a broker, so you can try the widget without a car, and see states your car is rarely in. It needs `mosquitto_pub`, which comes with `mosquitto_sub`. Run a broker of your own, from the `mosquitto` package, so nothing lands on a real TeslaMate's topics:
+
+```bash
+mosquitto -p 1884 -v                            # in another terminal
+tools/fake-teslamate.sh -p 1884 parked          # parked and locked, everything closed
+tools/fake-teslamate.sh -p 1884 charging        # then whatever you want to see
+```
+
+Set the widget's host to `localhost` and its port to 1884. The values are retained, as TeslaMate's are, so the widget sees them on its next poll. Each scenario changes only its own values, so they combine, and `parked` puts everything back. Run the script without a scenario to see what each one does:
+
+- `parked`, `asleep`, `driving`, `regen`, `route`, `noroute`
+- `charging`, `complete`, `stopped`, `nopower`, `scheduled`
+- `open`, `close`, `unlock`, `lock`, `present`, `away`, `home`
+- `tires`, `tires-empty`, `update`, `downloading`, `installing`
+- `cold`, `unhealthy`, `service`
+- `car2` adds a second car for **Find Cars**, and `clear` removes everything the script published
+
+`-h` and `-p` choose the broker's host and port, and `-t` the topic prefix, such as `teslamate/<namespace>/cars/1`.
+
+Notifications are for changes, so run a scenario, let the widget poll, then run the next. `charging` and then `complete` notifies that charging finished, and `charging` and then `stopped` notifies about 3 minutes later. `parked` removes `healthy`, as TeslaMate 2.1 and newer don't retain it, so a warning from `unhealthy` stays on the card for 10 minutes.
 
 With `isMask: true`, use `-symbolic` icon names. Some icon themes, such as WhiteSur, map plain names to full-color icons, which then render as a solid block.
