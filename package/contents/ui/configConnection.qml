@@ -121,13 +121,17 @@ KCM.SimpleKCM {
             onTextChanged: page.brokerEdited()
             // People paste whatever their broker's docs show, such as
             // mqtts://user:pw@host:8883/. mosquitto_sub only takes a bare host, so the rest
-            // moves to the fields it belongs in. Credentials never overwrite what's typed.
+            // moves to the fields it belongs in. A scheme turns TLS on (mqtts://) or off
+            // (mqtt://), and the usual port follows it as it does for the checkbox; setting
+            // checked here doesn't emit toggled, so that's done here too. Credentials never
+            // overwrite what's typed.
             onEditingFinished: {
                 const r = Logic.parseBrokerHost(text)
                 if (text !== r.host) text = r.host
                 if (r.port) brokerPort.value = r.port
                 else if (r.tls === true && brokerPort.value === 1883) brokerPort.value = 8883
-                if (r.tls === true) useTls.checked = true
+                else if (r.tls === false && brokerPort.value === 8883) brokerPort.value = 1883
+                if (r.tls !== null) useTls.checked = r.tls
                 if (r.user && brokerUser.text === "") brokerUser.text = r.user
                 if (r.password && brokerPassword.text === "") brokerPassword.text = r.password
             }
@@ -283,23 +287,41 @@ KCM.SimpleKCM {
             Kirigami.FormData.label: i18n("Refresh")
         }
 
-        QQC2.SpinBox {
-            id: refreshSeconds
+        // The unit sits beside each spin box, not in its text. Plasma's style makes a spin box
+        // editable and takes the value as soon as the typed text reads as a number, so with
+        // the unit in the text the first digit typed would be saved and the rest would land
+        // after the unit. i18np() also formats the number with digit grouping or the
+        // locale's own digits, which parseInt() can't read back. The spin box's own text
+        // and parsing follow its locale both ways.
+        RowLayout {
             Kirigami.FormData.label: i18n("Every:")
-            from: 5
-            to: 600
-            textFromValue: (value) => i18np("%1 second", "%1 seconds", value)
-            valueFromText: (text) => parseInt(text)
+            spacing: Kirigami.Units.smallSpacing
+
+            QQC2.SpinBox {
+                id: refreshSeconds
+                from: 5
+                to: 600
+            }
+
+            QQC2.Label {
+                text: i18ncp("@label unit after a spin box", "second", "seconds", refreshSeconds.value)
+            }
         }
 
-        QQC2.SpinBox {
-            id: idleRefreshSeconds
+        RowLayout {
             Kirigami.FormData.label: i18n("While the car sleeps:")
-            from: 5
-            to: 3600
-            stepSize: 5
-            textFromValue: (value) => i18np("%1 second", "%1 seconds", value)
-            valueFromText: (text) => parseInt(text)
+            spacing: Kirigami.Units.smallSpacing
+
+            QQC2.SpinBox {
+                id: idleRefreshSeconds
+                from: 5
+                to: 3600
+                stepSize: 5
+            }
+
+            QQC2.Label {
+                text: i18ncp("@label unit after a spin box", "second", "seconds", idleRefreshSeconds.value)
+            }
         }
 
         QQC2.Label {

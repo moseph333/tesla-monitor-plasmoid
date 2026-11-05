@@ -18,3 +18,9 @@ function claim(key, nowMs, windowMs) {
     sent[key] = { at: nowMs, until: nowMs + windowMs };
     return true;
 }
+
+// Ends a claim before its window does, once what it was for is fine again, so the next time
+// it happens is news.
+function release(key) {
+    delete sent[key];
+}

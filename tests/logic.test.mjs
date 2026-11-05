@@ -843,17 +843,53 @@ test("notifyStep puts charge events before the others", () => {
 });
 
 test("eventKey names the same event the same way", () => {
-    const car = { since: "2026-11-04T19:55:00Z" };
-    assert.equal(L.eventKey({ type: "chargeComplete", level: 80 }, car), "chargeComplete|2026-11-04T19:55:00Z");
-    assert.equal(L.eventKey({ type: "chargeStopped" }, {}), "chargeStopped|");
-    assert.equal(L.eventKey({ type: "chargerNoPower" }, null), "chargerNoPower|");
-    assert.equal(L.eventKey({ type: "update", version: "2026.44.1" }, car), "update|2026.44.1");
-    assert.equal(L.eventKey({ type: "update", version: "" }, car), "update|");
-    assert.equal(L.eventKey({ type: "unlocked" }, car), "unlocked");
-    assert.equal(L.eventKey({ type: "tires", items: ["rr", "fl"] }, car), "tires|fl,rr");
-    assert.equal(L.eventKey({ type: "tires", items: ["fl", "rr"] }, car), "tires|fl,rr");
-    assert.equal(L.eventKey({ type: "leftOpen", items: [{ id: "trunk" }, { id: "door:driver_front" }] }, car),
+    // A charge event is named by its type, whatever level it happened at.
+    assert.equal(L.eventKey({ type: "chargeComplete", level: 80 }), "chargeComplete");
+    assert.equal(L.eventKey({ type: "chargeStopped", level: 62, limit: 80 }), "chargeStopped");
+    assert.equal(L.eventKey({ type: "chargerNoPower", level: null }), "chargerNoPower");
+    assert.equal(L.eventKey({ type: "update", version: "2026.44.1" }), "update|2026.44.1");
+    assert.equal(L.eventKey({ type: "update", version: "" }), "update|");
+    assert.equal(L.eventKey({ type: "unlocked" }), "unlocked");
+    assert.equal(L.eventKey({ type: "tires", items: ["rr", "fl"] }), "tires|fl,rr");
+    assert.equal(L.eventKey({ type: "tires", items: ["fl", "rr"] }), "tires|fl,rr");
+    assert.equal(L.eventKey({ type: "leftOpen", items: [{ id: "trunk" }, { id: "door:driver_front" }] }),
         "leftOpen|door:driver_front,trunk");
+});
+
+test("itemKey gives a tracked id the key its event is claimed under", () => {
+    assert.equal(L.itemKey("door:driver_front"), "leftOpen|door:driver_front");
+    assert.equal(L.itemKey("window:some"), "leftOpen|window:some");
+    assert.equal(L.itemKey("trunk"), "leftOpen|trunk");
+    assert.equal(L.itemKey("unlocked"), "unlocked");
+    assert.equal(L.itemKey("tire:rl"), "tires|rl");
+    assert.equal(L.itemKey("update:2026.44.1"), "update|2026.44.1");
+    assert.equal(L.itemKey("update:"), "update|");
+});
+
+test("notifyStep releases the claims of what's fine again", () => {
+    const first = L.notifyStep(null, doorOpen, T0, notifyOpts);
+    // Even the first snapshot, since a copy that starts over may find old claims.
+    assert.ok(first.released.includes("leftOpen|trunk"));
+    assert.ok(first.released.includes("unlocked"));
+    assert.ok(first.released.includes("tires|fl"));
+    assert.ok(!first.released.includes("leftOpen|door:driver_front"));
+    assert.ok(!first.released.includes("leftOpen|door:some"));
+    assert.ok(L.notifyStep(first.state, closed, T0 + MIN, notifyOpts).released.includes("leftOpen|door:driver_front"));
+    // A topic that went empty says nothing, so the claim stays.
+    const gone = { ...doorOpen, driver_front_door_open: "", doors_open: "" };
+    assert.ok(!L.notifyStep(first.state, gone, T0 + MIN, notifyOpts).released.includes("leftOpen|door:driver_front"));
+    // An installed update releases the version it was claimed under.
+    const v1 = { ...closed, update_available: "true", update_version: "2026.44.1" };
+    const before = L.notifyStep(null, v1, T0, notifyOpts);
+    assert.ok(!before.released.includes("update|2026.44.1"));
+    assert.ok(L.notifyStep(before.state, { ...v1, update_available: "false" }, T0 + MIN, notifyOpts)
+        .released.includes("update|2026.44.1"));
+    // A charge under way releases the charge events, and nothing else does.
+    const chargeKeys = r => r.released.filter(k => k.startsWith("charge"));
+    assert.deepEqual(chargeKeys(L.notifyStep(null, charging(60), T0, notifyOpts)),
+        ["chargeComplete", "chargeStopped", "chargerNoPower"]);
+    assert.deepEqual(chargeKeys(L.notifyStep(null, stopped(62), T0, notifyOpts)), []);
+    assert.deepEqual(chargeKeys(L.notifyStep(null, starting(62), T0, notifyOpts)), []);
 });
 
 test("Hub.claim lets the first caller through within the window", () => {
@@ -869,6 +905,16 @@ test("Hub.claim forgets keys from a clock that was set back", () => {
     assert.equal(Hub.claim("c", 5000000, 300000), true);
     assert.equal(Hub.claim("c", 1000, 300000), true);
     assert.equal(Hub.claim("c", 1000, 300000), false);
+});
+
+test("Hub.release ends a claim early", () => {
+    assert.equal(Hub.claim("rel", 0, 300000), true);
+    assert.equal(Hub.claim("rel", 1000, 300000), false);
+    Hub.release("rel");
+    assert.equal(Hub.claim("rel", 2000, 300000), true);
+    // Releasing a key nobody claimed changes nothing.
+    Hub.release("never");
+    assert.equal(Hub.claim("rel", 3000, 300000), false);
 });
 
 test("Hub.claim keeps the window each key was claimed with", () => {
@@ -892,15 +938,15 @@ test("claimEvent claims each item of an event on its own and keeps the ones it g
         return !taken.has(key);
     };
     const e = { type: "leftOpen", items: [door, trunk] };
-    assert.deepEqual(L.claimEvent(e, {}, 10 * MIN, claim), { type: "leftOpen", items: [door] });
-    assert.deepEqual(asked, [["leftOpen|door:driver_front", 5 * MIN], ["leftOpen|trunk", 5 * MIN]]);
+    assert.deepEqual(L.claimEvent(e, claim), { type: "leftOpen", items: [door] });
+    assert.deepEqual(asked, [["leftOpen|door:driver_front", 120 * MIN], ["leftOpen|trunk", 120 * MIN]]);
     assert.deepEqual(e.items, [door, trunk]);
     asked.length = 0;
-    assert.deepEqual(L.claimEvent({ type: "tires", items: ["fl", "rr"] }, {}, 10 * MIN, claim),
+    assert.deepEqual(L.claimEvent({ type: "tires", items: ["fl", "rr"] }, claim),
         { type: "tires", items: ["rr"] });
-    assert.deepEqual(asked, [["tires|fl", 5 * MIN], ["tires|rr", 5 * MIN]]);
+    assert.deepEqual(asked, [["tires|fl", 120 * MIN], ["tires|rr", 120 * MIN]]);
     // Nothing left for this copy to send.
-    assert.equal(L.claimEvent({ type: "leftOpen", items: [trunk] }, {}, 10 * MIN, claim), null);
+    assert.equal(L.claimEvent({ type: "leftOpen", items: [trunk] }, claim), null);
 });
 
 test("claimEvent claims an event without items once", () => {
@@ -909,51 +955,47 @@ test("claimEvent claims an event without items once", () => {
         asked.push([key, windowMs]);
         return key !== "unlocked";
     };
-    const car = { since: "2026-11-04T19:55:00Z" };
     const e = { type: "chargeComplete", level: 80 };
-    assert.equal(L.claimEvent(e, car, 10 * MIN, claim), e);
-    assert.equal(L.claimEvent({ type: "unlocked" }, car, 10 * MIN, claim), null);
-    assert.deepEqual(asked, [["chargeComplete|2026-11-04T19:55:00Z", 5 * MIN], ["unlocked", 5 * MIN]]);
+    assert.equal(L.claimEvent(e, claim), e);
+    assert.equal(L.claimEvent({ type: "unlocked" }, claim), null);
+    assert.deepEqual(asked, [["chargeComplete", 120 * MIN], ["unlocked", 120 * MIN]]);
 });
 
-test("claimEvent holds a left-open or unlocked claim no longer than leftOpenMs", () => {
-    const windows = [];
-    const claim = (key, windowMs) => {
-        windows.push(windowMs);
-        return true;
-    };
-    L.claimEvent({ type: "leftOpen", items: [door] }, {}, MIN, claim);
-    L.claimEvent({ type: "unlocked" }, {}, 2 * MIN, claim);
-    L.claimEvent({ type: "unlocked" }, {}, 30 * MIN, claim);
-    L.claimEvent({ type: "unlocked" }, {}, undefined, claim);
-    L.claimEvent({ type: "tires", items: ["fl"] }, {}, MIN, claim);
-    L.claimEvent({ type: "update", version: "2026.44.1" }, {}, MIN, claim);
-    L.claimEvent({ type: "chargeStopped" }, {}, MIN, claim);
-    assert.deepEqual(windows, [MIN, 2 * MIN, 5 * MIN, 5 * MIN, 5 * MIN, 5 * MIN, 5 * MIN]);
-});
+// One poll of one copy of the widget, as main.qml's processNotifications() and
+// sendNotification() run it: notifyStep, then the claims it releases in the shared hub
+// under `source`, then what claimEvent leaves this copy to send.
+function poll(source, state, car, ms, opts) {
+    const r = L.notifyStep(state, car, ms, opts);
+    for (const key of r.released) Hub.release(source + "|" + key);
+    const sent = [];
+    for (const e of r.events) {
+        const mine = L.claimEvent(e, (key, windowMs) => Hub.claim(source + "|" + key, ms, windowMs));
+        if (mine) sent.push(mine);
+    }
+    return { state: r.state, sent };
+}
 
-// Copies of the widget showing one car, as main.qml runs them. Each polls every 15 seconds
-// from its own offset, runs notifyStep on carAt(second) and sends what claimEvent leaves it
-// after claiming in the shared hub under `source`. Returns what was sent, in time order, as
+// Copies of the widget showing one car. Each starts at its own offset, polls carAt(second)
+// and waits as main.qml's timer does: pollIntervalMs() with o.refresh[copy] (15 by default)
+// and o.idle[copy] seconds (none by default, so always the normal rate) for the state it
+// just saw, with the popup closed. Returns what was sent, in time order, as
 // [second, copy, type, ids].
 function copies(source, offsets, carAt, untilSec, o) {
-    const opts = { ...notifyOpts, ...o };
-    const polls = [];
-    offsets.forEach((offset, copy) => {
-        for (let s = offset; s <= untilSec; s += 15) polls.push([s, copy]);
-    });
-    polls.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const { refresh, idle, ...rest } = o || {};
+    const opts = { ...notifyOpts, ...rest };
+    const next = offsets.slice();
     const states = offsets.map(() => null);
     const sent = [];
-    for (const [s, copy] of polls) {
+    for (;;) {
+        let copy = 0;
+        for (let c = 1; c < next.length; c++) if (next[c] < next[copy]) copy = c;
+        const s = next[copy];
+        if (s > untilSec) break;
         const car = carAt(s);
-        const ms = T0 + s * 1000;
-        const r = L.notifyStep(states[copy], car, ms, opts);
+        const r = poll(source, states[copy], car, T0 + s * 1000, opts);
         states[copy] = r.state;
-        for (const e of r.events) {
-            const mine = L.claimEvent(e, car, opts.leftOpenMs, (key, windowMs) => Hub.claim(source + "|" + key, ms, windowMs));
-            if (mine) sent.push([s, copy, mine.type, (mine.items || []).map(i => i.id || i)]);
-        }
+        for (const mine of r.sent) sent.push([s, copy, mine.type, (mine.items || []).map(i => i.id || i)]);
+        next[copy] = s + L.pollIntervalMs(refresh ? refresh[copy] : 15, idle ? idle[copy] : 0, car.state, true, false) / 1000;
     }
     return sent;
 }
@@ -971,6 +1013,71 @@ test("claimEvent lets the car unlocked again notify again after a short delay, o
     const twice = [[75, 0, "unlocked", []], [195, 0, "unlocked", []]];
     assert.deepEqual(copies("short3", [0], carAt, 300, { leftOpenMs: MIN }), twice);
     assert.deepEqual(copies("short4", [0, 7], carAt, 300, { leftOpenMs: MIN }), twice);
+});
+
+test("claimEvent sends an update or a low tire once when copies poll minutes apart", () => {
+    // A panel copy every 15 seconds and a desktop copy every 10 minutes see it 495 s apart.
+    const none = { ...closed, update_available: "false", update_version: "" };
+    const v1 = { ...closed, update_available: "true", update_version: "2026.44.1" };
+    assert.deepEqual(copies("slow-update", [0, 0], s => s < 700 ? none : v1, 2000, { refresh: [15, 600] }),
+        [[705, 0, "update", []]]);
+    const low = { ...closed, tpms_soft_warning_rr: "true" };
+    assert.deepEqual(copies("slow-tires", [0, 0], s => s < 700 ? closed : low, 2000, { refresh: [15, 600] }),
+        [[705, 0, "tires", ["rr"]]]);
+    // Both copies wait the longest "While the car sleeps" allows, an hour, and the car wakes
+    // with an update between their polls.
+    const asleep = { ...none, state: "asleep" };
+    const staleMs = 3000 * 3600;
+    assert.deepEqual(copies("sleep-update", [0, 1800], s => s < 3000 ? asleep : v1, 9000,
+        { idle: [3600, 3600], staleMs }), [[3600, 0, "update", []]]);
+});
+
+test("claimEvent sends unlocked once when copies wake up at different times", () => {
+    // Both copies poll a sleeping car every 2 minutes, 90 s apart. A remote unlock wakes it,
+    // and with a 1 minute delay the second copy comes due after the first one's delay ran out.
+    const asleep = { ...closed, state: "asleep" };
+    const unlocked = { ...closed, locked: "false" };
+    assert.deepEqual(copies("wake-unlock", [0, 90], s => s < 100 ? asleep : unlocked, 600,
+        { idle: [120, 120], leftOpenMs: MIN }), [[180, 0, "unlocked", []]]);
+    const trunk = { ...closed, trunk_open: "true" };
+    assert.deepEqual(copies("wake-trunk", [0, 90], s => s < 100 ? asleep : trunk, 600,
+        { idle: [120, 120], leftOpenMs: MIN }), [[180, 0, "leftOpen", ["trunk"]]]);
+});
+
+test("claimEvent sends a stop once when TeslaMate suspends logging during the copies' holds", () => {
+    // The charge stops at 100 s. TeslaMate goes from online to suspended about 3 minutes
+    // later, with a new since, between the two copies' ends of the hold at 280 and 285 s.
+    const at = (car, s) => s < 283 ? { ...car, state: "online", since: "2026-11-04T20:01:40Z" }
+        : { ...car, state: "suspended", since: "2026-11-04T20:04:43Z" };
+    const carAt = s => s < 100 ? charging(60) : at(stopped(62), s);
+    assert.deepEqual(copies("suspend-stop", [0, 10], carAt, 900), [[280, 1, "chargeStopped", []]]);
+    const noPowerAt = s => s < 100 ? charging(60) : at(noPower(62), s);
+    assert.deepEqual(copies("suspend-nopower", [0, 10], noPowerAt, 900), [[280, 1, "chargerNoPower", []]]);
+});
+
+test("claimEvent sends a second charge to the same level, once across copies", () => {
+    // Charged to 80% at home, driven, and charged to 80% again within the hour.
+    const carAt = s => s < 600 ? charging(60) : s < 1200 ? complete(80) : s < 2400 ? unplugged
+        : s < 3600 ? charging(70) : complete(80);
+    assert.deepEqual(copies("again", [0, 7], carAt, 4000), [
+        [600, 0, "chargeComplete", []],
+        [3600, 0, "chargeComplete", []],
+    ]);
+});
+
+test("a copy that starts over releases the claim on what it finds closed", () => {
+    // The trunk notifies, the computer sleeps for half an hour while the trunk is closed,
+    // and the trunk opened again after that is news, though the first claim hasn't run out.
+    const trunk = { ...closed, trunk_open: "true" };
+    const opts = { ...notifyOpts };
+    const sent = [];
+    let state = null;
+    for (const [minute, car] of [[0, closed], ...every(1, 11, trunk), [40, closed], ...every(41, 52, trunk)]) {
+        const r = poll("restart", state, car, T0 + minute * MIN, opts);
+        state = r.state;
+        for (const e of r.sent) sent.push([minute, e.type]);
+    }
+    assert.deepEqual(sent, [[11, "leftOpen"], [51, "leftOpen"]]);
 });
 
 test("claimEvent sends each thing once when copies group them differently", () => {
@@ -1146,6 +1253,17 @@ test("mosquittoCommand takes the port, TLS and credentials from the host", () =>
     assert.equal(
         L.mosquittoCommand({ host: "u:p@h", user: "form", password: "secret", topics: [], wait: 2 }),
         "timeout 12 mosquitto_sub -h 'h' -p 1883 -v -W 2 -u 'form' -P 'secret'");
+});
+
+test("mosquittoCommand leaves out a password without a username", () => {
+    // mosquitto_sub won't start with -P alone, so an anonymous broker would never answer.
+    assert.equal(L.mosquittoCommand({ host: "h", user: "", password: "pw", topics: [], wait: 2 }),
+        "timeout 12 mosquitto_sub -h 'h' -p 1883 -v -W 2");
+    assert.equal(L.mosquittoCommand({ host: "mqtts://:secret@h", topics: [], wait: 2 }),
+        "timeout 12 mosquitto_sub -h 'h' -p 1883 -v -W 2 --tls-use-os-certs");
+    // A username from the host still pairs with the password from the form.
+    assert.equal(L.mosquittoCommand({ host: "u@h", password: "pw", topics: [], wait: 2 }),
+        "timeout 12 mosquitto_sub -h 'h' -p 1883 -v -W 2 -u 'u' -P 'pw'");
 });
 
 test("mosquittoCommand adds TLS with system certificates or a CA file", () => {

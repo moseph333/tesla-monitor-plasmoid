@@ -36,6 +36,11 @@ PlasmoidItem {
     property bool userRefreshing: false
     // What Logic.notifyStep() knew after the last poll, or null to start over.
     property var notifyState: null
+    // The car, as notifyhub.js knows it, so copies of the widget that show it share claims.
+    readonly property string notifySource: {
+        const b = Logic.parseBrokerHost(cfg.brokerHost)
+        return b.host.toLowerCase() + ":" + (b.port || cfg.brokerPort) + "|" + prefix
+    }
 
     // A card on the desktop counts as closed, so it polls at the idle rate while the car
     // sleeps.
@@ -93,11 +98,13 @@ PlasmoidItem {
         const v = Logic.distance(kmh, units.distance)
         return v === null ? "" : Math.round(v) + (units.distance === "mi" ? " mph" : " km/h")
     }
-    // A tenth of a bar matters, but psi and kPa are read in whole numbers.
+    // A tenth of a bar matters, but psi and kPa are read in whole numbers. The tenth takes
+    // the locale's decimal separator, as the other numbers on the card do.
     function tire(pos) {
         const p = Logic.pressure(Logic.num(car, "tpms_pressure_" + pos), units.pressure)
         return {
-            text: p === null ? "—" : (units.pressure === "bar" ? p.toFixed(1) : Math.round(p)) + " " + pressUnit,
+            text: p === null ? "—" : (units.pressure === "bar" ? p.toLocaleString(Qt.locale(), "f", 1) : Math.round(p))
+                                     + " " + pressUnit,
             warn: Logic.bool(car, "tpms_soft_warning_" + pos)
         }
     }
@@ -175,7 +182,7 @@ PlasmoidItem {
         if (chargerKw > 0) return chargerKw + " kW"
         const amps = Logic.num(car, "charger_actual_current")
         const volts = Logic.num(car, "charger_voltage")
-        if (amps > 0 && volts > 0) return (amps * volts / 1000).toFixed(1) + " kW"
+        if (amps > 0 && volts > 0) return (amps * volts / 1000).toLocaleString(Qt.locale(), "f", 1) + " kW"
         return i18n("Charging")
     }
 
@@ -367,6 +374,8 @@ PlasmoidItem {
             okGeofences: okGeofences
         })
         notifyState = r.state
+        // What's fine again ends its claim for every copy, so the next time is news.
+        for (const key of r.released) Hub.release(notifySource + "|" + key)
         for (const e of r.events) sendNotification(e)
     }
 
@@ -383,11 +392,8 @@ PlasmoidItem {
         if (!wanted[e.type]) return
         // Every copy of the widget that shows this car sees the event on its own poll, and
         // only the first to claim each part of it sends that part.
-        const b = Logic.parseBrokerHost(cfg.brokerHost)
-        const source = b.host.toLowerCase() + ":" + (b.port || cfg.brokerPort) + "|" + prefix
         const at = Date.now()
-        const mine = Logic.claimEvent(e, car, cfg.leftOpenMinutes * 60000,
-                                      (key, windowMs) => Hub.claim(source + "|" + key, at, windowMs))
+        const mine = Logic.claimEvent(e, (key, windowMs) => Hub.claim(notifySource + "|" + key, at, windowMs))
         if (!mine) return
         const content = notificationContent(mine, car.display_name || i18n("Tesla"))
         if (!content) return
@@ -550,7 +556,13 @@ PlasmoidItem {
         Layout.preferredWidth: Kirigami.Units.gridUnit * 21
         Layout.preferredHeight: Kirigami.Units.gridUnit * 27
         Layout.minimumWidth: Kirigami.Units.gridUnit * 17
-        Layout.minimumHeight: Kirigami.Units.gridUnit * 20
+        // Room for every row at its own height and the car drawing at its smallest, so an
+        // attention message or extra charging lines can't push the drawing and the footer
+        // out of the bottom of the card. Wrapped lines make the rows taller at a narrow
+        // width, and this follows them.
+        Layout.minimumHeight: Math.max(Kirigami.Units.gridUnit * 20,
+                                       content.implicitHeight - carStatus.implicitHeight
+                                       + carStatus.Layout.minimumHeight + 2 * Kirigami.Units.smallSpacing)
 
         PlasmaExtras.PlaceholderMessage {
             anchors.centerIn: parent
@@ -591,6 +603,7 @@ PlasmoidItem {
         }
 
         ColumnLayout {
+            id: content
             anchors.fill: parent
             anchors.margins: Kirigami.Units.smallSpacing
             visible: root.hasData
@@ -617,9 +630,12 @@ PlasmoidItem {
                         // With TeslaMate's address set, the name opens it. This covers only the
                         // text, not the empty width the layout gives the heading, and is what
                         // Tab and screen readers reach, so the heading keeps its own role while
-                        // there is no link.
+                        // there is no link. Plasma mirrors the popup and the desktop for a
+                        // right-to-left language, which draws the name at the right edge, so the
+                        // link goes wherever the text is.
                         Item {
                             id: nameLink
+                            x: carName.effectiveHorizontalAlignment === Text.AlignRight ? carName.width - width : 0
                             width: Math.min(carName.contentWidth, carName.width)
                             height: carName.height
                             activeFocusOnTab: root.teslamateUrl !== ""
@@ -758,7 +774,7 @@ PlasmoidItem {
                         text: {
                             const parts = []
                             const added = Logic.num(root.car, "charge_energy_added")
-                            if (added !== null) parts.push("+" + added.toFixed(1) + " kWh")
+                            if (added !== null) parts.push("+" + added.toLocaleString(Qt.locale(), "f", 1) + " kWh")
                             const amps = Logic.num(root.car, "charger_actual_current")
                             const volts = Logic.num(root.car, "charger_voltage")
                             if (amps !== null && volts !== null) {
@@ -943,6 +959,7 @@ PlasmoidItem {
 
             // Tires, doors, windows, openings, lock and Sentry on one car
             CarStatus {
+                id: carStatus
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.minimumHeight: Kirigami.Units.gridUnit * 4

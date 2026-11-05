@@ -42,7 +42,7 @@ Then add **Tesla Monitor** to a panel or the desktop and open its settings.
 | Setting | Value |
 | ------- | ----- |
 | Host, Port | Your MQTT broker. You can paste a URL such as `mqtts://user@broker:8883`, and the widget moves the port, TLS and username into their own fields |
-| Username, Password | A broker account, if the broker requires one |
+| Username, Password | A broker account, if the broker requires one. A password without a username isn't sent, since MQTT has no such login |
 | Use TLS, CA file | For a broker that uses TLS. See [TLS](#tls) |
 | Topic prefix | `teslamate/cars/1`, or `teslamate/<namespace>/cars/1` if TeslaMate sets `MQTT_NAMESPACE` |
 | Every (under Refresh) | 15 seconds by default |
@@ -102,7 +102,7 @@ If you leave the car unlocked on purpose somewhere, such as in your garage at ho
 - After a restart, values appear on the car's next state change. Some, such as tire pressures, need the car to be awake.
 - TeslaMate reports each door separately from 1.30 and each window from 4.1.1. With older versions it only says that some door or window is open, so the card outlines all four in orange and the doors don't swing out.
 - Whether a charge finished, stopped early or has no power needs TeslaMate 1.28 or newer. Older versions only show whether the car is charging or plugged in.
-- Navigation needs TeslaMate 1.29 or newer, which publishes `active_route`. The widget doesn't fall back to the older `active_route_destination`, which keeps its last value after a route ends and would show an old destination.
+- Navigation needs TeslaMate 1.29 or newer, which publishes `active_route`. The widget doesn't fall back to the older `active_route_destination`, which has no arrival details and reads `nil` between routes (TeslaMate 1.28.4 and 1.28.5 kept the last destination there instead).
 - Update download and install progress, and service mode, need TeslaMate 4.1 or newer.
 - TeslaMate 2.1 and newer don't retain `healthy`, so the widget only sees it when a poll happens to catch it, and keeps it for 10 minutes. The warning that TeslaMate is having trouble reaching the car can lag or be missed.
 - From TeslaMate 4.4, values the car stops reporting disappear from the card.

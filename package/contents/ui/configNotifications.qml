@@ -36,15 +36,24 @@ KCM.SimpleKCM {
         }
 
         // The delay belongs to the two settings above it, so it only matters while one of
-        // them is on.
-        QQC2.SpinBox {
-            id: leftOpenMinutes
+        // them is on. The unit sits beside the spin box, not in its text: Plasma's style
+        // takes the value as soon as the typed text reads as a number, so with the unit in
+        // the text only the first digit typed would be saved. The spin box's own text and
+        // parsing follow its locale, digits included, which parseInt() can't read.
+        RowLayout {
             Kirigami.FormData.label: i18n("For at least:")
             enabled: notifyLeftOpen.checked || notifyUnlocked.checked
-            from: 1
-            to: 120
-            textFromValue: (value) => i18np("%1 minute", "%1 minutes", value)
-            valueFromText: (text) => parseInt(text)
+            spacing: Kirigami.Units.smallSpacing
+
+            QQC2.SpinBox {
+                id: leftOpenMinutes
+                from: 1
+                to: 120
+            }
+
+            QQC2.Label {
+                text: i18ncp("@label unit after a spin box", "minute", "minutes", leftOpenMinutes.value)
+            }
         }
 
         QQC2.CheckBox {

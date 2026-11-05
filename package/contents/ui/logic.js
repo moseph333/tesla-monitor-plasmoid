@@ -53,6 +53,14 @@ var PARTS = ["driver_front", "driver_rear", "passenger_front", "passenger_rear"]
 var TIRES = ["fl", "fr", "rl", "rr"];
 // The attention() types that count as left open, which notify only after a delay.
 var LEFT = { door: 1, window: 1, frunk: 1, trunk: 1, sunroof: 1, port: 1 };
+// Every id attention() can give for something left open, the unlocked car or a tire, so a
+// snapshot can say which of them are fine whether or not this copy was tracking them.
+var TRACKABLE = (function () {
+    var out = ["frunk", "trunk", "sunroof", "port", "unlocked", "door:some", "window:some"];
+    for (var i = 0; i < PARTS.length; i++) out.push("door:" + PARTS[i], "window:" + PARTS[i]);
+    for (var t = 0; t < TIRES.length; t++) out.push("tire:" + TIRES[t]);
+    return out;
+})();
 
 // Every door or window (kind "door" or "window") by its TeslaMate name, as partOpen() reads
 // it, e.g. {driver_front: true, driver_rear: false, ...}.
@@ -203,8 +211,9 @@ function showPhases(car) {
 // The route the car is navigating, from TeslaMate's active_route JSON (1.29 and newer), as
 // {destination, minutes, trafficMinutes, energyAtArrival, km}, or null. Without a route
 // TeslaMate publishes {"error": "No active route available"}; with one, error is null. The
-// older active_route_destination topic isn't used because it stays retained after the
-// route ends, so it would show an old destination. Numbers TeslaMate leaves out are null.
+// older active_route_destination topic isn't used: it has no arrival details, reads "nil"
+// between routes on 1.29 and newer, and kept the last destination on 1.28.4 and 1.28.5.
+// Numbers TeslaMate leaves out are null.
 function activeRoute(car) {
     var text = car ? car.active_route : "";
     if (!text) return null;
@@ -334,7 +343,8 @@ function isResolved(car, id, okGeofences) {
 
 // Which notifications a new snapshot calls for. Pass the state it returns back in with the
 // next snapshot; prev is null at the start. opts = {leftOpenMs, staleMs, holdMs, okGeofences}.
-// Returns {state, events}, where each event is {type, ...} and QML words it.
+// Returns {state, events, released}, where each event is {type, ...} and QML words it, and
+// released lists the claim keys (see claimEvent) of what this snapshot shows is fine again.
 //
 // Notifications are for changes, so the first snapshot, and the first after a gap longer
 // than staleMs (a suspend or a broker outage), only record what's already the case.
@@ -395,12 +405,28 @@ function notifyStep(prev, car, nowMs, opts) {
     }
     // An item that's gone is forgotten only once its value says it's fine. A topic that went
     // empty keeps it, so the item doesn't notify again when the value comes back.
+    var released = [];
+    function release(key) {
+        if (released.indexOf(key) < 0) released.push(key);
+    }
     for (var id in old) {
-        if (!tracked.hasOwnProperty(id) && !isResolved(car, id, ok))
-            tracked[id] = { since: old[id].since, done: old[id].done };
+        if (tracked.hasOwnProperty(id)) continue;
+        if (isResolved(car, id, ok)) release(itemKey(id));
+        else tracked[id] = { since: old[id].since, done: old[id].done };
+    }
+    // Whatever is fine ends its claim even when this copy wasn't tracking it, such as right
+    // after it started over, since another copy, or this one before the gap, may hold it.
+    for (var r = 0; r < TRACKABLE.length; r++) {
+        if (isResolved(car, TRACKABLE[r], ok)) release(itemKey(TRACKABLE[r]));
     }
 
     var s = chargeStatus(car);
+    // A charge under way means the next finish or stop belongs to a new charge.
+    if (s === "charging") {
+        release(eventKey({ type: "chargeComplete" }));
+        release(eventKey({ type: "chargeStopped" }));
+        release(eventKey({ type: "chargerNoPower" }));
+    }
     var level = num(car, "battery_level");
     var limit = num(car, "charge_limit_soc");
     var chargeEvents = [];
@@ -485,13 +511,15 @@ function notifyStep(prev, car, nowMs, opts) {
         if (tiresDue.length > 0) events.push({ type: "tires", items: tiresDue });
         if (updateDue !== null) events.push({ type: "update", version: updateDue });
     }
-    return { state: { at: nowMs, charge: ch, tracked: tracked }, events: events };
+    return { state: { at: nowMs, charge: ch, tracked: tracked }, events: events, released: released };
 }
 
 // What makes an event from notifyStep() the same one, for copies of the widget that show
-// the same car and see it on their own polls. A charge event belongs to the car state it
-// happened in, so its since marks it.
-function eventKey(e, car) {
+// the same car and see it on their own polls. A charge event is named by its type alone.
+// Copies see a charge end at their own times, and the car's since can change in between:
+// TeslaMate stops logging about 3 minutes after a charge stops, just when each copy's hold
+// on that stop ends. notifyStep() releases the claim once the car charges again.
+function eventKey(e) {
     switch (e.type) {
     case "update": return "update|" + (e.version || "");
     case "unlocked": return "unlocked";
@@ -503,8 +531,19 @@ function eventKey(e, car) {
         keys.sort();
         return e.type + "|" + keys.join(",");
     }
-    default: return e.type + "|" + ((car && car.since) || "");
+    default: return e.type;
     }
+}
+
+// The claim key, as eventKey() names it, for an id that notifyStep() tracks.
+function itemKey(id) {
+    var colon = id.indexOf(":");
+    var type = colon < 0 ? id : id.slice(0, colon);
+    var part = colon < 0 ? "" : id.slice(colon + 1);
+    if (type === "unlocked") return eventKey({ type: "unlocked" });
+    if (type === "tire") return eventKey({ type: "tires", items: [part] });
+    if (type === "update") return eventKey({ type: "update", version: part });
+    return eventKey({ type: "leftOpen", items: [{ id: id }] });
 }
 
 // The part of an event from notifyStep() that this copy of the widget should send, or null
@@ -513,18 +552,17 @@ function eventKey(e, car) {
 //
 // Copies poll at their own times, so one can see a door and the trunk open on the same poll
 // and another on two, and group them differently. Each thing left open, and each low tire, is
-// claimed on its own, so it's still sent once. Copies see an event within a poll of each
-// other, which a claim of 5 minutes covers. Something closed or locked and then left again
-// comes due leftOpenMs later at the soonest, so for those a claim lasts no longer, or it would
-// swallow that notification.
-function claimEvent(e, car, leftOpenMs, claim) {
-    var windowMs = 300000;
-    if ((e.type === "leftOpen" || e.type === "unlocked") && leftOpenMs >= 0)
-        windowMs = Math.min(windowMs, leftOpenMs);
-    if (!e.items) return claim(eventKey(e, car), windowMs) ? e : null;
+// claimed on its own, so it's still sent once. A claim lasts until notifyStep() releases it,
+// when what it's for is fine again, so a door closed and left open again, or a new charge,
+// is news however soon it happens. Copies see an event within a poll of each other, and the
+// longest "While the car sleeps" setting puts polls an hour apart, so a claim nobody
+// releases lasts two hours.
+function claimEvent(e, claim) {
+    var windowMs = 7200000;
+    if (!e.items) return claim(eventKey(e), windowMs) ? e : null;
     var items = [];
     for (var i = 0; i < e.items.length; i++) {
-        if (claim(eventKey({ type: e.type, items: [e.items[i]] }, car), windowMs)) items.push(e.items[i]);
+        if (claim(eventKey({ type: e.type, items: [e.items[i]] }), windowMs)) items.push(e.items[i]);
     }
     if (items.length === 0) return null;
     var mine = {};
@@ -634,7 +672,10 @@ function mosquittoCommand(o) {
     var user = o.user || b.user;
     var password = o.password || b.password;
     if (user) cmd += " -u " + shellQuote(user);
-    if (password) cmd += " -P " + shellQuote(password);
+    // MQTT 3.1.1 has no password without a username, and mosquitto_sub refuses to start
+    // with one ("Problem setting username and/or password."). A password left behind after
+    // the username was cleared is dropped, so an anonymous broker still answers.
+    if (user && password) cmd += " -P " + shellQuote(password);
     return cmd;
 }
 
