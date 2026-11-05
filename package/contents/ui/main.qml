@@ -382,11 +382,14 @@ PlasmoidItem {
         }
         if (!wanted[e.type]) return
         // Every copy of the widget that shows this car sees the event on its own poll, and
-        // only the first to claim it sends it.
+        // only the first to claim each part of it sends that part.
         const b = Logic.parseBrokerHost(cfg.brokerHost)
         const source = b.host.toLowerCase() + ":" + (b.port || cfg.brokerPort) + "|" + prefix
-        if (!Hub.claim(source + "|" + Logic.eventKey(e, car), Date.now(), 300000)) return
-        const content = notificationContent(e, car.display_name || i18n("Tesla"))
+        const at = Date.now()
+        const mine = Logic.claimEvent(e, car, cfg.leftOpenMinutes * 60000,
+                                      (key, windowMs) => Hub.claim(source + "|" + key, at, windowMs))
+        if (!mine) return
+        const content = notificationContent(mine, car.display_name || i18n("Tesla"))
         if (!content) return
         const note = notificationComponent.createObject(root, {
             title: content.title,

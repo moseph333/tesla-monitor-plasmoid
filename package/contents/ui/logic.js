@@ -507,6 +507,32 @@ function eventKey(e, car) {
     }
 }
 
+// The part of an event from notifyStep() that this copy of the widget should send, or null
+// when other copies already sent all of it. claim(key, windowMs) is notifyhub.js's claim()
+// for this car, true for the first copy to ask.
+//
+// Copies poll at their own times, so one can see a door and the trunk open on the same poll
+// and another on two, and group them differently. Each thing left open, and each low tire, is
+// claimed on its own, so it's still sent once. Copies see an event within a poll of each
+// other, which a claim of 5 minutes covers. Something closed or locked and then left again
+// comes due leftOpenMs later at the soonest, so for those a claim lasts no longer, or it would
+// swallow that notification.
+function claimEvent(e, car, leftOpenMs, claim) {
+    var windowMs = 300000;
+    if ((e.type === "leftOpen" || e.type === "unlocked") && leftOpenMs >= 0)
+        windowMs = Math.min(windowMs, leftOpenMs);
+    if (!e.items) return claim(eventKey(e, car), windowMs) ? e : null;
+    var items = [];
+    for (var i = 0; i < e.items.length; i++) {
+        if (claim(eventKey({ type: e.type, items: [e.items[i]] }, car), windowMs)) items.push(e.items[i]);
+    }
+    if (items.length === 0) return null;
+    var mine = {};
+    for (var k in e) mine[k] = e[k];
+    mine.items = items;
+    return mine;
+}
+
 // Breeze battery icon name for a level (0..100).
 function batteryIcon(level, charging) {
     var step = level === null ? 50 : Math.max(0, Math.min(100, Math.round(level / 10) * 10));

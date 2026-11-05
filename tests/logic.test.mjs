@@ -680,8 +680,12 @@ test("notifyStep starts over after a gap longer than staleMs", () => {
     const later = { ...doorOpen, trunk_open: "true" };
     const n = run([[0, closed], [1, doorOpen], [20, doorOpen], [21, later], [31, later]]);
     assert.deepEqual(n.events[4].map(e => e.items.map(i => i.id)), [["trunk"]]);
-    // So does a clock set back.
-    assert.deepEqual(run([[60, closed], [61, doorOpen], [1, doorOpen], [30, doorOpen]]).all, []);
+    // So does a clock set back: the open door is recorded afresh, not left on a timer in the
+    // future that would notify an hour late. Every step after the set-back stays within
+    // staleMs, so only the set-back itself can start over.
+    const back = run([[60, closed], [61, doorOpen], [1, doorOpen]]);
+    assert.deepEqual(back.state.tracked["door:driver_front"], { since: T0 + MIN, done: true });
+    assert.deepEqual(run([[60, closed], [61, doorOpen], ...every(1, 72, doorOpen)]).all, []);
 });
 
 test("notifyStep doesn't start over after an idle gap shorter than staleMs", () => {
@@ -865,6 +869,119 @@ test("Hub.claim forgets keys from a clock that was set back", () => {
     assert.equal(Hub.claim("c", 5000000, 300000), true);
     assert.equal(Hub.claim("c", 1000, 300000), true);
     assert.equal(Hub.claim("c", 1000, 300000), false);
+});
+
+test("Hub.claim keeps the window each key was claimed with", () => {
+    assert.equal(Hub.claim("long", 0, 300000), true);
+    assert.equal(Hub.claim("short", 70000, 60000), true);
+    // A later claim with a short window doesn't cut an earlier long one short.
+    assert.equal(Hub.claim("long", 100000, 300000), false);
+    assert.equal(Hub.claim("short", 129999, 60000), false);
+    assert.equal(Hub.claim("short", 130000, 60000), true);
+    assert.equal(Hub.claim("long", 300000, 300000), true);
+});
+
+const door = { id: "door:driver_front", type: "door", part: "driver_front" };
+const trunk = { id: "trunk", type: "trunk", part: "" };
+
+test("claimEvent claims each item of an event on its own and keeps the ones it got", () => {
+    const asked = [];
+    const taken = new Set(["leftOpen|trunk", "tires|fl"]);
+    const claim = (key, windowMs) => {
+        asked.push([key, windowMs]);
+        return !taken.has(key);
+    };
+    const e = { type: "leftOpen", items: [door, trunk] };
+    assert.deepEqual(L.claimEvent(e, {}, 10 * MIN, claim), { type: "leftOpen", items: [door] });
+    assert.deepEqual(asked, [["leftOpen|door:driver_front", 5 * MIN], ["leftOpen|trunk", 5 * MIN]]);
+    assert.deepEqual(e.items, [door, trunk]);
+    asked.length = 0;
+    assert.deepEqual(L.claimEvent({ type: "tires", items: ["fl", "rr"] }, {}, 10 * MIN, claim),
+        { type: "tires", items: ["rr"] });
+    assert.deepEqual(asked, [["tires|fl", 5 * MIN], ["tires|rr", 5 * MIN]]);
+    // Nothing left for this copy to send.
+    assert.equal(L.claimEvent({ type: "leftOpen", items: [trunk] }, {}, 10 * MIN, claim), null);
+});
+
+test("claimEvent claims an event without items once", () => {
+    const asked = [];
+    const claim = (key, windowMs) => {
+        asked.push([key, windowMs]);
+        return key !== "unlocked";
+    };
+    const car = { since: "2026-11-04T19:55:00Z" };
+    const e = { type: "chargeComplete", level: 80 };
+    assert.equal(L.claimEvent(e, car, 10 * MIN, claim), e);
+    assert.equal(L.claimEvent({ type: "unlocked" }, car, 10 * MIN, claim), null);
+    assert.deepEqual(asked, [["chargeComplete|2026-11-04T19:55:00Z", 5 * MIN], ["unlocked", 5 * MIN]]);
+});
+
+test("claimEvent holds a left-open or unlocked claim no longer than leftOpenMs", () => {
+    const windows = [];
+    const claim = (key, windowMs) => {
+        windows.push(windowMs);
+        return true;
+    };
+    L.claimEvent({ type: "leftOpen", items: [door] }, {}, MIN, claim);
+    L.claimEvent({ type: "unlocked" }, {}, 2 * MIN, claim);
+    L.claimEvent({ type: "unlocked" }, {}, 30 * MIN, claim);
+    L.claimEvent({ type: "unlocked" }, {}, undefined, claim);
+    L.claimEvent({ type: "tires", items: ["fl"] }, {}, MIN, claim);
+    L.claimEvent({ type: "update", version: "2026.44.1" }, {}, MIN, claim);
+    L.claimEvent({ type: "chargeStopped" }, {}, MIN, claim);
+    assert.deepEqual(windows, [MIN, 2 * MIN, 5 * MIN, 5 * MIN, 5 * MIN, 5 * MIN, 5 * MIN]);
+});
+
+// Copies of the widget showing one car, as main.qml runs them. Each polls every 15 seconds
+// from its own offset, runs notifyStep on carAt(second) and sends what claimEvent leaves it
+// after claiming in the shared hub under `source`. Returns what was sent, in time order, as
+// [second, copy, type, ids].
+function copies(source, offsets, carAt, untilSec, o) {
+    const opts = { ...notifyOpts, ...o };
+    const polls = [];
+    offsets.forEach((offset, copy) => {
+        for (let s = offset; s <= untilSec; s += 15) polls.push([s, copy]);
+    });
+    polls.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const states = offsets.map(() => null);
+    const sent = [];
+    for (const [s, copy] of polls) {
+        const car = carAt(s);
+        const ms = T0 + s * 1000;
+        const r = L.notifyStep(states[copy], car, ms, opts);
+        states[copy] = r.state;
+        for (const e of r.events) {
+            const mine = L.claimEvent(e, car, opts.leftOpenMs, (key, windowMs) => Hub.claim(source + "|" + key, ms, windowMs));
+            if (mine) sent.push([s, copy, mine.type, (mine.items || []).map(i => i.id || i)]);
+        }
+    }
+    return sent;
+}
+
+test("claimEvent lets a door closed and opened again notify again after a short delay, once across copies", () => {
+    const carAt = s => s < 15 || (s >= 135 && s < 150) ? closed : doorOpen;
+    const twice = [[75, 0, "leftOpen", ["door:driver_front"]], [210, 0, "leftOpen", ["door:driver_front"]]];
+    assert.deepEqual(copies("short1", [0], carAt, 300, { leftOpenMs: MIN }), twice);
+    assert.deepEqual(copies("short2", [0, 7], carAt, 300, { leftOpenMs: MIN }), twice);
+});
+
+test("claimEvent lets the car unlocked again notify again after a short delay, once across copies", () => {
+    const unlocked = { ...closed, locked: "false" };
+    const carAt = s => s < 15 ? closed : s >= 120 && s < 135 ? { ...unlocked, is_user_present: "true" } : unlocked;
+    const twice = [[75, 0, "unlocked", []], [195, 0, "unlocked", []]];
+    assert.deepEqual(copies("short3", [0], carAt, 300, { leftOpenMs: MIN }), twice);
+    assert.deepEqual(copies("short4", [0, 7], carAt, 300, { leftOpenMs: MIN }), twice);
+});
+
+test("claimEvent sends each thing once when copies group them differently", () => {
+    // A door opens just after one copy's poll and the trunk just before the other's, so one
+    // copy sees them on one poll and the other on two.
+    const both = { ...doorOpen, trunk_open: "true" };
+    const carAt = s => s < 36 ? closed : s < 42 ? doorOpen : both;
+    assert.deepEqual(copies("group", [0, 7.5], carAt, 700), [
+        [637.5, 1, "leftOpen", ["door:driver_front"]],
+        [645, 0, "leftOpen", ["trunk"]],
+    ]);
 });
 
 test("batteryIcon rounds to Breeze's 10% steps", () => {

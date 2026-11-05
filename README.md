@@ -45,8 +45,8 @@ Then add **Tesla Monitor** to a panel or the desktop and open its settings.
 | Username, Password | A broker account, if the broker requires one |
 | Use TLS, CA file | For a broker that uses TLS. See [TLS](#tls) |
 | Topic prefix | `teslamate/cars/1`, or `teslamate/<namespace>/cars/1` if TeslaMate sets `MQTT_NAMESPACE` |
-| Refresh every | 15 seconds by default |
-| While the car sleeps | 2 minutes by default. Used while the car is asleep or offline and the popup is closed. A widget on the desktop has no popup, so it uses this whenever the car sleeps. It never polls faster than **Refresh every** |
+| Every (under Refresh) | 15 seconds by default |
+| While the car sleeps | 2 minutes by default. Used while the car is asleep or offline and the popup is closed. A widget on the desktop has no popup, so it uses this whenever the car sleeps. It never polls faster than **Every** |
 
 **Test Connection** tries the values on the page before you apply them, and says what went wrong if it can't read TeslaMate's data. **Find Cars** lists the cars TeslaMate publishes on the broker and fills in the topic prefix, or lets you choose when there are several.
 
