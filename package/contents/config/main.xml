@@ -16,11 +16,34 @@
         <entry name="brokerPassword" type="String">
             <default></default>
         </entry>
+        <entry name="useTls" type="Bool">
+            <default>false</default>
+        </entry>
+        <entry name="caFile" type="String">
+            <default></default>
+        </entry>
         <entry name="topicPrefix" type="String">
             <default>teslamate/cars/1</default>
         </entry>
+        <!-- No longer shown. Only the one-time unit migration in main.qml reads it. -->
         <entry name="imperial" type="Bool">
             <default>true</default>
+        </entry>
+        <!-- 0 follows the locale, 1 km, 2 mi. Speed uses the same unit. -->
+        <entry name="distanceUnit" type="Int">
+            <default>0</default>
+        </entry>
+        <!-- 0 follows the locale, 1 °C, 2 °F. -->
+        <entry name="temperatureUnit" type="Int">
+            <default>0</default>
+        </entry>
+        <!-- 0 follows the locale, 1 bar, 2 psi, 3 kPa. -->
+        <entry name="pressureUnit" type="Int">
+            <default>0</default>
+        </entry>
+        <!-- Not shown. main.qml sets it once the units above have been migrated. -->
+        <entry name="unitsMigrated" type="Bool">
+            <default>false</default>
         </entry>
         <entry name="rangeType" type="Int">
             <default>0</default>
@@ -28,11 +51,63 @@
         <entry name="refreshSeconds" type="Int">
             <default>15</default>
         </entry>
+        <!-- Seconds between polls while the car sleeps and the popup is closed. The widget
+             never polls faster than refreshSeconds. -->
+        <entry name="idleRefreshSeconds" type="Int">
+            <default>120</default>
+        </entry>
+        <!-- Whether the panel shows any text next to the icon. The name is from when it
+             could only show the percentage. -->
         <entry name="showPanelPercentage" type="Bool">
             <default>true</default>
         </entry>
+        <!-- 0 percentage, 1 range, 2 both. -->
+        <entry name="panelText" type="Int">
+            <default>0</default>
+        </entry>
+        <entry name="panelChargingTime" type="Bool">
+            <default>false</default>
+        </entry>
         <entry name="rightHandDrive" type="Bool">
             <default>false</default>
+        </entry>
+        <!-- Off by default, since the route names where the car is going. -->
+        <entry name="showNavigation" type="Bool">
+            <default>false</default>
+        </entry>
+        <!-- TeslaMate geofence names, separated by commas, where an unlocked car is fine. -->
+        <entry name="unlockedOkGeofences" type="String">
+            <default></default>
+        </entry>
+        <!-- TeslaMate's web address, which the car's name and the context menu open. Empty
+             means no link. -->
+        <entry name="teslamateUrl" type="String">
+            <default></default>
+        </entry>
+        <!-- Desktop notifications. notifyChargeStopped also covers a charger that loses
+             power during a charge. -->
+        <entry name="notifyChargeComplete" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="notifyChargeStopped" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="notifyLeftOpen" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="notifyUnlocked" type="Bool">
+            <default>true</default>
+        </entry>
+        <!-- Minutes something stays open, or the car unlocked with nobody inside, before it
+             notifies. 1 to 120. -->
+        <entry name="leftOpenMinutes" type="Int">
+            <default>10</default>
+        </entry>
+        <entry name="notifyTires" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="notifyUpdates" type="Bool">
+            <default>true</default>
         </entry>
     </group>
 </kcfg>

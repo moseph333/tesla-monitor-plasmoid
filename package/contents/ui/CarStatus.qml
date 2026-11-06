@@ -73,44 +73,23 @@ Item {
         return open === null ? "—" : (open ? i18n("Open") : i18n("Closed"))
     }
 
-    // "Closed", "driver front, passenger rear open", "At least one open" (total only) or "—".
-    function partsText(states) {
-        const names = {
-            driver_front: i18n("driver front"), driver_rear: i18n("driver rear"),
-            passenger_front: i18n("passenger front"), passenger_rear: i18n("passenger rear")
-        }
-        const open = Object.keys(names).filter(k => states[k] === true).map(k => names[k])
-        if (open.length > 0) return i18n("%1 open", open.join(", "))
-        const values = Object.keys(names).map(k => states[k])
-        if (values.indexOf("some") >= 0) return i18n("At least one open")
-        if (values.every(v => v === false)) return i18n("Closed")
-        return "—"
-    }
-
-    function partStates(fn) {
-        const out = {}
-        for (const seat of ["driver", "passenger"])
-            for (const row of ["front", "rear"])
-                out[seat + "_" + row] = fn(seat, row)
-        return out
-    }
-
     function summary() {
         const lines = []
         if (locked !== null) lines.push(locked ? i18n("Locked") : i18n("Unlocked"))
-        lines.push(i18n("Doors: %1", partsText(partStates(doorState))))
-        lines.push(i18n("Windows: %1", partsText(partStates(windowState))))
+        lines.push(i18n("Doors: %1", texts.partsText(Logic.parts(car, "door"))))
+        lines.push(i18n("Windows: %1", texts.partsText(Logic.parts(car, "window"))))
         lines.push(i18n("Frunk: %1", openText(frunkOpen)))
         lines.push(i18n("Trunk: %1", openText(trunkOpen)))
         lines.push(i18n("Charge port: %1", pluggedIn ? i18n("Plugged in") : openText(portOpen)))
         const sentryState = Logic.triState(car, "sentry_mode")
         lines.push(i18n("Sentry: %1", sentryState === null ? "—" : (sentryState ? i18n("On") : i18n("Off"))))
-        const low = [[fl, i18n("front left")], [fr, i18n("front right")],
-                     [rl, i18n("rear left")], [rr, i18n("rear right")]]
-            .filter(t => t[0].warn).map(t => t[1])
+        const low = [["fl", fl], ["fr", fr], ["rl", rl], ["rr", rr]]
+            .filter(t => t[1].warn).map(t => texts.tireName(t[0]))
         if (low.length > 0) lines.push(i18n("Low tire pressure: %1", low.join(", ")))
         return lines.join("\n")
     }
+
+    Texts { id: texts }
 
     implicitWidth: 2 * (labelWidth + gap) + Kirigami.Units.gridUnit * 3
     implicitHeight: Kirigami.Units.gridUnit * 7
