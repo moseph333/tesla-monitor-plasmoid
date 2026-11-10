@@ -274,11 +274,17 @@ test("updateProgress reports installing while the car updates", () => {
         { phase: "installing", percent: null });
 });
 
-test("updateProgress reports a download or install under way", () => {
+test("updateProgress reports a download under way", () => {
     assert.deepEqual(L.updateProgress({ update_available: "true", download_perc: "45" }),
         { phase: "downloading", percent: 45 });
-    assert.deepEqual(L.updateProgress({ update_available: "true", download_perc: "100", install_perc: "20" }),
-        { phase: "installing", percent: 20 });
+});
+
+test("updateProgress doesn't report installing unless the car is updating", () => {
+    const available = { phase: "available", percent: null };
+    assert.deepEqual(L.updateProgress({ state: "online", update_available: "true", install_perc: "1" }), available);
+    assert.deepEqual(L.updateProgress({ state: "asleep", update_available: "true", download_perc: "100", install_perc: "20" }), available);
+    assert.deepEqual(L.updateProgress({ update_available: "true", download_perc: "45", install_perc: "1" }),
+        { phase: "downloading", percent: 45 });
 });
 
 test("updateProgress shows an update as available at 0 or 100", () => {

@@ -181,17 +181,19 @@ function usableIfCold(car) {
 }
 
 // A software update's phase ("", available, downloading or installing) and its percent,
-// or null when that isn't known. TeslaMate's state is "updating" while the car installs,
-// and update_available may already be false by then, so that state comes first. A download
-// or install at 0 or 100 isn't under way, so the update then just shows as available.
+// or null when that isn't known. The car is installing only while TeslaMate's state is
+// "updating", and update_available may already be false by then, so that state comes first.
+// install_perc alone isn't trusted: the car often reports a leftover value, commonly 1,
+// while an update is only available or scheduled. A download at 0 or 100 isn't under way,
+// so the update then just shows as available.
 function updateProgress(car) {
-    var install = num(car, "install_perc");
-    if (car && car.state === "updating")
+    if (car && car.state === "updating") {
+        var install = num(car, "install_perc");
         return { phase: "installing", percent: install !== null && install > 0 ? install : null };
+    }
     if (!bool(car, "update_available")) return { phase: "", percent: null };
     var download = num(car, "download_perc");
     if (download !== null && download > 0 && download < 100) return { phase: "downloading", percent: download };
-    if (install !== null && install > 0 && install < 100) return { phase: "installing", percent: install };
     return { phase: "available", percent: null };
 }
 

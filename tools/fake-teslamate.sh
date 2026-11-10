@@ -292,10 +292,11 @@ scenario() {
     tires-empty) drop tpms_soft_warning_fl ;;
     # The version goes before update_available, so no poll sees an update without one,
     # which the widget would count as a different update.
+    # The car often reports a leftover install_perc of 1 while an update is only available.
     update)
         pub update_version 2024.45.32
         pub download_perc 0
-        pub install_perc 0
+        pub install_perc 1
         pub update_available true
         ;;
     downloading)
