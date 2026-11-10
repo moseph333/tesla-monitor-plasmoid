@@ -1109,6 +1109,51 @@ test("batteryIcon rounds to Breeze's 10% steps", () => {
     assert.equal(L.batteryIcon(60, true), "battery-060-charging");
 });
 
+test("paintColor gives a color for the paint names Tesla uses", () => {
+    const names = ["PearlWhite", "Pearl", "White", "SolidBlack", "Black", "ObsidianBlack", "DiamondBlack",
+        "MidnightSilver", "StealthGrey", "Quicksilver", "Silver", "LunarSilver", "SteelGrey",
+        "TitaniumCopper", "DeepBlue", "MetallicBlue", "GlacierBlue", "MarineBlue", "Red", "RedMulticoat",
+        "SignatureRed", "UltraRed", "MidnightCherryRed", "MetallicBrown", "MetallicGreen"];
+    for (const name of names) assert.match(L.paintColor(name), /^#[0-9a-f]{6}$/, name);
+});
+
+test("paintColor gives the same color for one paint under its different names", () => {
+    assert.equal(L.paintColor("Red"), L.paintColor("RedMulticoat"));
+    assert.equal(L.paintColor("Pearl"), L.paintColor("PearlWhite"));
+    assert.equal(L.paintColor("Black"), L.paintColor("SolidBlack"));
+    assert.equal(L.paintColor("DeepBlue"), L.paintColor("MetallicBlue"));
+    assert.equal(L.paintColor("Silver"), L.paintColor("LunarSilver"));
+});
+
+test("paintColor goes by the most specific word in the name", () => {
+    assert.notEqual(L.paintColor("MidnightSilver"), L.paintColor("Silver"));
+    assert.notEqual(L.paintColor("MidnightCherryRed"), L.paintColor("MidnightSilver"));
+    assert.notEqual(L.paintColor("MidnightCherryRed"), L.paintColor("RedMulticoat"));
+    assert.notEqual(L.paintColor("Quicksilver"), L.paintColor("Silver"));
+    assert.notEqual(L.paintColor("UltraRed"), L.paintColor("RedMulticoat"));
+    assert.notEqual(L.paintColor("StealthGrey"), L.paintColor("SteelGrey"));
+    assert.notEqual(L.paintColor("GlacierBlue"), L.paintColor("DeepBlue"));
+    assert.notEqual(L.paintColor("MarineBlue"), L.paintColor("DeepBlue"));
+    // "green" holds "gre" but not "grey".
+    assert.notEqual(L.paintColor("MetallicGreen"), L.paintColor("SteelGrey"));
+});
+
+test("paintColor ignores case, spaces and punctuation", () => {
+    const blue = L.paintColor("DeepBlue");
+    assert.equal(L.paintColor("deepblue"), blue);
+    assert.equal(L.paintColor(" Deep Blue "), blue);
+    assert.equal(L.paintColor("DEEP_BLUE"), blue);
+    assert.equal(L.paintColor("Deep-Blue Metallic"), blue);
+});
+
+test("paintColor gives nothing for a missing or unknown name", () => {
+    assert.equal(L.paintColor(undefined), "");
+    assert.equal(L.paintColor(null), "");
+    assert.equal(L.paintColor(""), "");
+    assert.equal(L.paintColor("Chartreuse"), "");
+    assert.equal(L.paintColor("12345"), "");
+});
+
 test("pollIntervalMs slows down while the car sleeps and the popup is closed", () => {
     assert.equal(L.pollIntervalMs(15, 120, "asleep", true, false), 120000);
     assert.equal(L.pollIntervalMs(15, 120, "offline", true, false), 120000);

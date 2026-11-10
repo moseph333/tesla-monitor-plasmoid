@@ -580,6 +580,45 @@ function batteryIcon(level, charging) {
     return charging ? name + "-charging" : name;
 }
 
+// Tesla's paints by a word in their names, most specific first, so "MidnightCherryRed" isn't
+// taken for Midnight Silver or for Red, and "Quicksilver" isn't taken for Silver. The colors
+// are close to the paints rather than exact, and black is lifted a little so the drawing's
+// shading still shows on it.
+var PAINTS = [
+    ["cherry", "#5a1a25"],
+    ["ultrared", "#b5141f"],
+    ["red", "#a31e27"],
+    ["glacier", "#a3b9c9"],
+    ["marine", "#2c5a7a"],
+    ["blue", "#1f3f77"],
+    ["pearl", "#f0f1f2"],
+    ["white", "#f0f1f2"],
+    ["black", "#17191c"],
+    ["midnight", "#44484d"],
+    ["stealth", "#4a4d51"],
+    ["quicksilver", "#a2a6aa"],
+    ["steel", "#6c7074"],
+    ["titanium", "#7a6a5b"],
+    ["copper", "#7a6a5b"],
+    ["silver", "#bfc2c6"],
+    ["grey", "#6c7074"],
+    ["gray", "#6c7074"],
+    ["brown", "#4c3629"],
+    ["green", "#1f4b3a"]
+];
+
+// The color to paint the car drawing for TeslaMate's exterior_color, such as "DeepBlue" or
+// "PearlWhite", as "#rrggbb". A missing name, or one it doesn't know, gives "", which leaves
+// the drawing in theme colors. Case, spaces and punctuation don't matter, since the car
+// reports the same paint as "RedMulticoat" or "Red" depending on its age.
+function paintColor(name) {
+    var s = String(name || "").toLowerCase().replace(/[^a-z]/g, "");
+    for (var i = 0; i < PAINTS.length; i++) {
+        if (s.indexOf(PAINTS[i][0]) >= 0) return PAINTS[i][1];
+    }
+    return "";
+}
+
 // How long to wait between polls, in ms. A sleeping car's values don't change, so once
 // there's data and nobody has the popup open, the idle setting applies; it never polls
 // faster than the normal rate. Without data it keeps trying at the normal rate, since the
