@@ -5,17 +5,17 @@ A KDE Plasma 6 widget that shows a Tesla's status from [TeslaMate](https://docs.
 The card shows:
 
 - The car's name, what it's doing, the TeslaMate geofence it's in and for how long, such as "Parked · Home · 3h". If you set TeslaMate's address in the settings, clicking the name opens TeslaMate in your browser
-- Battery level, range and charge limit. While charging it shows the power, energy added, current and voltage with the number of phases, the current the car asks for when that's less than the charger offers, and the time left with when it'll be done. Otherwise it says whether the car is plugged in, finished charging, stopped early, waiting for a scheduled start, or plugged into a charger that has no power
+- Battery level and range in a ring. A tick marks the charge limit, and the track up to it is a shade stronger than beyond it. While charging, a bolt sits above the level and the stretch still to charge takes the ring's color and pulses slowly while the popup is open, and the card shows the power, the time left with when it'll be done, the energy added, current and voltage with the number of phases, and the current the car asks for when that's less than the charger offers. Otherwise it says whether the car is plugged in, finished charging, stopped early, waiting for a scheduled start, or plugged into a charger that has no power, and gives the charge limit with about how far a charge to it goes
 - While driving, the power the battery gives, or takes back while regenerating. If you turn on navigation, also the destination, the time to arrival with any traffic delay, the distance left and the battery level on arrival
 - How much of the battery is usable while it's cold
 - Inside and outside temperature, climate and odometer
-- A top-down drawing of the car with each tire's pressure, each door and window, the trunk, frunk and charge port, the lock and Sentry. Open doors swing out, anything open turns orange, the charge cable shows while plugged in, and a red camera on the windshield means Sentry is on. Hover over the car to see the same status as text
+- A top-down drawing of the car in its own paint, lying on its side with its nose to the right so it fills the card, with each tire's pressure, each door and window, the trunk, frunk and charge port, the lock and Sentry. Open doors swing out, anything open turns orange, a low tire turns red, the charge cable shows while plugged in, and a red lens on the windshield means Sentry is on. Hover over the car to see the same status as text. The paint is the one TeslaMate reports. When it reports none, or one the widget doesn't know, the car is drawn in tints of your color scheme, which you can also choose in the settings
 - One warning that lists everything that needs attention: open doors, windows, frunk, trunk, sunroof or charge port, the car unlocked with nobody inside, low tire pressure, service mode, and TeslaMate having trouble reaching the car. The panel icon's tooltip lists the same
 - Software version, available updates and their download and install progress
 
 It can also send desktop notifications when charging finishes or stops early, when something is left open or the car is unlocked with nobody inside, when a tire's pressure is low, and when a software update is available. See [Notifications](#notifications).
 
-The widget runs `mosquitto_sub` every 15 seconds by default, and every 2 minutes while the car sleeps and the popup is closed, to read TeslaMate's retained messages from the broker. It never talks to the car. Opening the popup, or pressing the refresh button in its header, updates right away. If the broker stops answering, the card keeps the last data, the panel icon dims and its tooltip says when the data was last updated.
+The widget runs `mosquitto_sub` every 15 seconds by default, and every 2 minutes while the car sleeps and the popup is closed, to read TeslaMate's retained messages from the broker. It never talks to the car. Opening the popup, or pressing the refresh button in its header, updates right away. If the broker stops answering, the card keeps the last data and fades it, the panel icon dims, and the card's footer and the icon's tooltip say when the data was last updated.
 
 ## Requirements
 
@@ -60,6 +60,7 @@ Then add **Tesla Monitor** to a panel or the desktop and open its settings.
 | Text | What the panel shows next to the car: the battery percentage (the default), the range, or both |
 | While charging, show the time to full | Off by default. While the car charges, the panel shows the time left to reach the charge limit, instead of the range when Text includes it |
 | Right-hand drive | Off by default. TeslaMate names doors and windows by driver and passenger side, so turn this on if the steering wheel is on the right |
+| Car color | **The car's paint** by default: the drawing's body takes the color TeslaMate reports as `exterior_color`. **Theme colors** draws it in tints of your color scheme instead, which is also what you get when TeslaMate reports no paint or one the widget doesn't know |
 | Show the destination and arrival while driving | Off by default. While the car follows a route, the card shows the destination, the time to arrival with any traffic delay, the distance left and the battery level on arrival. Needs TeslaMate 1.29 or newer |
 | Unlocked is OK at | TeslaMate geofence names, separated by commas, such as `Home, Work`. There an unlocked car isn't shown as a warning or notified, for a garage or home where you leave it unlocked on purpose |
 | TeslaMate | TeslaMate's web address, such as `http://teslamate.local:4000`. Clicking the car's name in the popup, or **Open TeslaMate** in the widget's context menu, opens it in your browser. `http://` is added if you leave it out |
@@ -106,6 +107,7 @@ If you leave the car unlocked on purpose somewhere, such as in your garage at ho
 - Update download and install progress, and service mode, need TeslaMate 4.1 or newer.
 - TeslaMate 2.1 and newer don't retain `healthy`, so the widget only sees it when a poll happens to catch it, and keeps it for 10 minutes. The warning that TeslaMate is having trouble reaching the car can lag or be missed.
 - From TeslaMate 4.4, values the car stops reporting disappear from the card.
+- TeslaMate reports the paint as the car names it, such as `DeepBlue`, `PearlWhite` or `RedMulticoat`. The widget knows Tesla's paints by the words in those names and draws a close color, not the exact one. For any other name it uses theme colors.
 
 ## Development
 
@@ -150,4 +152,10 @@ Set the widget's host to `localhost` and its port to 1884. The values are retain
 
 Notifications are for changes, so run a scenario, let the widget poll, then run the next. `charging` and then `complete` notifies that charging finished, and `charging` and then `stopped` notifies about 3 minutes later. `parked` removes `healthy`, as TeslaMate 2.1 and newer don't retain it, so a warning from `unhealthy` stays on the card for 10 minutes.
 
-With `isMask: true`, use `-symbolic` icon names. Some icon themes, such as WhiteSur, map plain names to full-color icons, which then render as a solid block.
+`parked` also gives the fake car a Deep Blue paint. To see the drawing in another, publish that paint's name:
+
+```bash
+mosquitto_pub -p 1884 -r -t teslamate/cars/1/exterior_color -m PearlWhite
+```
+
+The card draws its own lock, Sentry and bolt signs instead of taking them from the icon theme, so they look the same in every theme. If you add a theme icon with `isMask: true`, use a `-symbolic` name. Some icon themes, such as WhiteSur, map plain names to full-color icons, which then render as a solid block.
