@@ -4,8 +4,9 @@ import org.kde.kirigami as Kirigami
 import org.kde.plasma.components as PlasmaComponents3
 
 // The battery level as a 270° arc that is open at the bottom, around the level in figures,
-// the range and, while the battery is cold, how much of it is usable. A tick marks the
-// charge limit, and the track from the level up to it is a shade stronger than beyond it.
+// the range and, while the battery is cold, how much of it is usable. A notch on the inside
+// of the track marks the charge limit, and the track from the level up to it is a shade
+// stronger than beyond it.
 // While the car charges, a bolt sits above the level and that stretch takes the ring's
 // color and pulses.
 // value and marker are 0..1, and a marker below 0 means the limit isn't known.
@@ -61,9 +62,10 @@ Item {
 
     // The stretch to the limit is what the car will still fill. While it charges, that is
     // what is happening, and the stretch takes the ring's color at part of its strength.
-    // Otherwise it is a stronger shade of the track, so that color always means charge that
-    // is there, and a long stretch on a nearly empty battery can't pass for the level.
-    property color targetColor: charging ? look.tint(color, 0.4) : look.tint(Kirigami.Theme.textColor, 0.2)
+    // Otherwise it is a shade over the track, so that color always means charge that is
+    // there. The shade is a light one: a long stretch on a nearly empty battery mustn't
+    // weigh more than the level, and without color to tell them apart it mustn't pass for it.
+    property color targetColor: charging ? look.tint(color, 0.4) : look.tint(Kirigami.Theme.textColor, 0.1)
     Behavior on targetColor {
         ColorAnimation { duration: Kirigami.Units.longDuration }
     }
@@ -104,20 +106,22 @@ Item {
                 }
             }
 
-            // The charge limit: a tick inside the track, where neither arc reaches it, so it
-            // also shows while the level is above the limit. A limit of 100% is the end of
-            // the track, which marks it well enough: a tick there would sit right after the
-            // note.
+            // The charge limit: a notch that starts on the track's inner edge and points to
+            // the middle, where neither arc reaches it, so it also shows while the level is
+            // above the limit. Away from the track it would read as a dash after the level's
+            // "%", which it lies beside at the usual limit of 80%. A limit of 100% is the end
+            // of the track, which marks it well enough: a notch there would sit right after
+            // the note.
             ShapePath {
                 id: tick
                 readonly property bool drawn: ring.marker >= 0 && ring.limit < 1
-                readonly property real outer: ring.radius - ring.thickness * 0.75
-                readonly property real inner: outer - ring.thickness * 0.8
+                readonly property real outer: ring.radius - ring.thickness * 0.5
+                readonly property real inner: outer - ring.thickness * 0.9
 
                 fillColor: "transparent"
                 strokeColor: drawn ? look.tint(Kirigami.Theme.textColor, look.secondary) : "transparent"
                 strokeWidth: Math.max(1.5, ring.thickness * 0.25)
-                capStyle: ShapePath.RoundCap
+                capStyle: ShapePath.FlatCap
                 startX: ring.cx + outer * Math.cos(ring.limitRadians)
                 startY: ring.cy + outer * Math.sin(ring.limitRadians)
                 PathLine {

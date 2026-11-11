@@ -262,13 +262,13 @@ Item {
         }
         return along(0, (before + after) / 2)
     }
-    // A place across the car on the left side, or its mirror image on the right.
-    function mirror(onLeft, x) { return onLeft ? x : boxWidth - x }
+    // A place across the car on the left side, or its reflection on the right.
+    function reflect(onLeft, x) { return onLeft ? x : boxWidth - x }
     // A chain of curves through points given as [x, y]: the first, then three for each
     // curve. Drawn on the left side of the car and again, mirrored, on the right.
     function onBothSides(points, closed) {
         const one = onLeft => points.map((p, i) => (i === 0 ? "M " : i % 3 === 1 ? "C " : "")
-                                                  + mirror(onLeft, p[0]) + " " + p[1]).join(" ")
+                                                  + reflect(onLeft, p[0]) + " " + p[1]).join(" ")
         return one(true) + (closed ? " Z " : " ") + one(false) + (closed ? " Z" : "")
     }
 
@@ -278,10 +278,10 @@ Item {
         const front = snap(axle - 33)
         const rear = snap(axle + 33)
         const r = 4.5
-        return ["M", mirror(onLeft, flankAt(front)), front, "H", mirror(onLeft, face + r),
-                "Q", mirror(onLeft, face), front, mirror(onLeft, face), front + r, "V", rear - r,
-                "Q", mirror(onLeft, face), rear, mirror(onLeft, face + r), rear,
-                "H", mirror(onLeft, flankAt(rear)), "Z"].join(" ")
+        return ["M", reflect(onLeft, flankAt(front)), front, "H", reflect(onLeft, face + r),
+                "Q", reflect(onLeft, face), front, reflect(onLeft, face), front + r, "V", rear - r,
+                "Q", reflect(onLeft, face), rear, reflect(onLeft, face + r), rear,
+                "H", reflect(onLeft, flankAt(rear)), "Z"].join(" ")
     }
     // Windows and doors are rounded at their corners by a share of their width.
     function windowPath(onLeft, from, to) {
@@ -376,6 +376,15 @@ Item {
                                               (wholeWidth / 2 - pad - readingWidth - lineGap)
                                               / (boxHeight / 2 - frontAxle - readingReach))
     readonly property bool sideways: unitSide > unitUp
+    // The least height at which the car lies on its side, in an item that is wider than
+    // high. In less, the readings above and below the wheels leave the car less room than
+    // it has standing nose up: this is where (h - readings) / the car's width passes
+    // (h - pad) / the car's length.
+    readonly property real sidewaysHeight: {
+        const across = boxWidth - 2 * wheelInset
+        return Math.floor((2 * (readingHeight + lineGap) * boxHeight - 2 * pad * across)
+                          / (boxHeight - across)) + 1
+    }
     // Rounded down to a car that is a whole number of pixels wide. It sits on whole pixels,
     // so its two sides fall on the pixel grid alike and are drawn alike.
     readonly property real unit: Math.max(0, Math.floor((sideways ? unitSide : unitUp) * boxWidth) / boxWidth)
@@ -631,6 +640,8 @@ Item {
             opacity: reading.known ? 1 : look.faint
             font.weight: reading.tire.warn && reading.known ? Font.DemiBold : Font.Normal
             font.features: { "tnum": 1 }
+            // A screen reader gets the pressure and its unit as one text.
+            Accessible.name: reading.tire.text
         }
         PlasmaComponents3.Label {
             id: unitLabel
@@ -639,6 +650,7 @@ Item {
             text: reading.tire.unit
             opacity: look.secondary
             font.pointSize: Kirigami.Theme.smallFont.pointSize
+            Accessible.ignored: true
         }
     }
 
@@ -653,8 +665,6 @@ Item {
     // ---------- the car ----------
 
     PixelLayer {
-        id: canvas
-
         // Drawn nose up and turned as a whole. From bottom to top: tires, body, frunk and
         // trunk, door seams, the glass over the cabin with its beams, lights, side windows,
         // doors with their mirrors, charge port and cable.

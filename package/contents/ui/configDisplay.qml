@@ -114,7 +114,7 @@ KCM.SimpleKCM {
             wrapMode: Text.Wrap
             font: Kirigami.Theme.smallFont
             opacity: 0.7
-            text: i18n("TeslaMate reports doors and windows by driver and passenger side. This puts the driver on the right of the car drawing.")
+            text: i18n("TeslaMate reports doors and windows by driver and passenger side. This puts the driver on the car's right-hand side.")
         }
 
         QQC2.ComboBox {

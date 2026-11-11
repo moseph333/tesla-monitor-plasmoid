@@ -10,7 +10,6 @@ Item {
 
     property string label
     property string value
-    property color valueColor: Kirigami.Theme.textColor
     // A small dot in the highlight color before the value, for something that is on.
     property bool dot: false
     // The hairline on the side the row starts from, which a row's first cell turns off.
@@ -63,7 +62,6 @@ Item {
             PlasmaComponents3.Label {
                 Layout.fillWidth: true
                 text: stat.value
-                color: stat.valueColor
                 opacity: stat.unknown ? look.faint : 1
                 font.weight: stat.unknown ? Font.Normal : Font.DemiBold
                 font.features: { "tnum": 1 }

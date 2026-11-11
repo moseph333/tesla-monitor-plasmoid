@@ -262,9 +262,11 @@ PlasmoidItem {
     // The charge limit, with the range a charge to it gives when that can be worked out.
     function limitText() {
         if (limit < 0) return ""
-        return limit > 0 && level > 0 && rangeKm !== null
-            ? i18n("Limit %1% · about %2", limit, fmtDistance(rangeKm / level * limit))
-            : i18n("Limit %1%", limit)
+        const parts = [i18n("Limit %1%", limit)]
+        if (limit > 0 && level > 0 && rangeKm !== null)
+            parts.push(i18nc("the range a charge to the limit gives", "about %1",
+                             fmtDistance(rangeKm / level * limit)))
+        return parts.join(" · ")
     }
 
     // When a scheduled charge starts. The status line already says so while the car waits
@@ -290,9 +292,10 @@ PlasmoidItem {
         }
     }
 
-    // When the data on the card arrived, for the footer.
+    // When the data on the card arrived, for the footer: "Updated 2:30 PM", or "Updated Mon
+    // 2:30 PM" once that was not today.
     function updatedText(time) {
-        return i18n("Updated %1", shortTime(time))
+        return i18n("Updated %1", clock(time.getTime()))
     }
 
     // The browser takes over, so the popup closes rather than stay open behind it.
@@ -644,16 +647,29 @@ PlasmoidItem {
     // ---------- desktop / popup ----------
 
     fullRepresentation: Item {
+        // What every row but the car's needs, with the margins around them. Wrapped lines
+        // make the rows taller at a narrow width, and this follows them.
+        readonly property real rowsHeight: content.implicitHeight - carStatus.implicitHeight
+                                           + 2 * content.anchors.margins
+
+        // A message that needs attention makes the popup taller rather than the car
+        // smaller: one line of it, with its frame and the space before it, is three grid
+        // units high. This goes by whether there is one and not by its height, which
+        // Kirigami animates. Rows that need much more than usual, as they do in a large
+        // font, make the popup taller too, rather than leave the car a sliver.
+        readonly property real popupHeight: Math.max(Kirigami.Units.gridUnit * (root.attentionLines.length > 0 ? 30 : 27),
+                                                     rowsHeight + Kirigami.Units.gridUnit * 8)
+
         Layout.preferredWidth: Kirigami.Units.gridUnit * 21
-        Layout.preferredHeight: Kirigami.Units.gridUnit * 27
+        // A card on the desktop keeps one height to ask for: Plasma lets a widget there
+        // grow to a larger one, and never shrinks it again.
+        Layout.preferredHeight: Plasmoid.formFactor === PlasmaCore.Types.Planar ? Kirigami.Units.gridUnit * 27
+                                                                                : popupHeight
         Layout.minimumWidth: Kirigami.Units.gridUnit * 17
         // Room for every row at its own height and the car drawing at its smallest, so an
         // attention message or extra charging lines can't push the drawing and the footer
-        // out of the bottom of the card. Wrapped lines make the rows taller at a narrow
-        // width, and this follows them.
-        Layout.minimumHeight: Math.max(Kirigami.Units.gridUnit * 20,
-                                       content.implicitHeight - carStatus.implicitHeight
-                                       + carStatus.Layout.minimumHeight + 2 * content.anchors.margins)
+        // out of the bottom of the card.
+        Layout.minimumHeight: Math.max(Kirigami.Units.gridUnit * 20, rowsHeight + carStatus.Layout.minimumHeight)
 
         // Created here rather than on the root item, which lives in the panel: the card's
         // colors have to be the popup's.
@@ -701,9 +717,11 @@ PlasmoidItem {
             id: content
 
             // The rows that show the car fade while the data is old, as the panel icon
-            // does, so a level from hours ago doesn't pass for now. The header and the
-            // footer stay as they are: they say what is shown and how old it is.
-            property real dataOpacity: root.stale ? 0.5 : 1
+            // does, so a level from hours ago doesn't pass for now. They fade less than
+            // the icon: old values are all there is to read then, and their text has to
+            // stay readable. The header and the footer stay as they are: they say what is
+            // shown and how old it is.
+            property real dataOpacity: root.stale ? 0.7 : 1
             Behavior on dataOpacity {
                 NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.InOutQuad }
             }
@@ -867,7 +885,8 @@ PlasmoidItem {
                     numberText: root.level >= 0 ? String(root.level) : "—"
                     unitText: root.level >= 0 ? "%" : ""
                     charging: root.charging
-                    animated: root.popupOpen
+                    // Old data can't say that the car is charging right now.
+                    animated: root.popupOpen && !root.stale
                     faded: content.dataOpacity < 1
                     subText: root.fmtDistance(root.rangeKm)
                     noteText: root.usableCold !== null ? i18n("%1% usable", root.usableCold) : ""
@@ -876,7 +895,11 @@ PlasmoidItem {
                 // The same lines in the same order whatever the car is doing: a figure and
                 // its caption, then a title, a sentence and notes. A line with nothing to
                 // say is left out.
-                ColumnLayout {
+                // They are stacked by columns and not by layouts. A line that wraps is only
+                // as high as it gets once it has its width, and a layout that needs more
+                // than two rounds to settle that logs a polish loop on Qt 6.6, as these did
+                // with a destination of two lines.
+                Column {
                     id: details
 
                     // The car takes energy back. This goes by the whole kW the figure
@@ -893,6 +916,7 @@ PlasmoidItem {
                     // text does. Every line is as wide as this column, and a label that
                     // read its own width here would change it by setting its text.
                     function brokenBetweenParts(line, metrics) {
+                        metrics.font // re-evaluate when the font changes
                         const lines = []
                         for (const part of line.split(" · ").reverse()) {
                             if (lines.length > 0 && metrics.advanceWidth(part + " · " + lines[0]) + 1 <= width)
@@ -908,6 +932,7 @@ PlasmoidItem {
                     // joined when they fit in a line with a little to spare, since text
                     // that can't wrap at a space is cut in the middle of a word.
                     function noBreakAtEnd(sentence, metrics) {
+                        metrics.font // re-evaluate when the font changes
                         return sentence.replace(/[^ ]+ [^ ]+$/, words =>
                             metrics.advanceWidth(words) + Kirigami.Units.smallSpacing <= width
                                 ? words.replace(" ", "\u00a0") : words)
@@ -920,7 +945,6 @@ PlasmoidItem {
                     // of the ring. The row grows when they need more than the ring.
                     Layout.topMargin: content.spacing
                     Layout.bottomMargin: content.spacing
-                    spacing: 0
 
                     FontMetrics {
                         id: titleMetrics
@@ -939,7 +963,7 @@ PlasmoidItem {
                     // in green when it takes it back.
                     PlasmaExtras.Heading {
                         id: figure
-                        Layout.fillWidth: true
+                        width: details.width
                         visible: root.charging || (root.driving && root.power !== null)
                         level: 1
                         wrapMode: Text.Wrap
@@ -951,7 +975,7 @@ PlasmoidItem {
                             : root.power !== null ? root.fmtPower(root.power) : ""
                     }
                     PlasmaComponents3.Label {
-                        Layout.fillWidth: true
+                        width: details.width
                         visible: !root.charging && root.driving && root.power !== null
                         wrapMode: Text.Wrap
                         font.pointSize: Kirigami.Theme.smallFont.pointSize
@@ -959,14 +983,16 @@ PlasmoidItem {
                         text: details.regenerating ? i18n("Regenerating") : i18n("Battery power")
                     }
 
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        // With no line to show, a layout would take all the height the row
-                        // has and leave the figure at the top instead of beside the ring's
-                        // middle.
-                        Layout.fillHeight: false
-                        // Set apart from the figure, which is semi-bold as a title is.
-                        Layout.topMargin: figure.visible && implicitHeight > 0 ? Kirigami.Units.largeSpacing : 0
+                    // Sets the lines apart from the figure, which is semi-bold as a title is.
+                    Item {
+                        width: details.width
+                        height: Kirigami.Units.largeSpacing
+                        visible: figure.visible && detailLines.height > 0
+                    }
+
+                    Column {
+                        id: detailLines
+                        width: details.width
                         spacing: Kirigami.Units.smallSpacing
 
                         // The charge port's status while parked. Smart and solar chargers
@@ -974,7 +1000,7 @@ PlasmoidItem {
                         // than a warning.
                         PlasmaComponents3.Label {
                             id: title
-                            Layout.fillWidth: true
+                            width: detailLines.width
                             visible: !root.charging && !root.driving && text !== ""
                             wrapMode: Text.Wrap
                             font.weight: Font.DemiBold
@@ -986,7 +1012,7 @@ PlasmoidItem {
                         // Where the car is going, when navigation is turned on and it has a
                         // route. A destination can be a whole address, so it gets two lines.
                         PlasmaComponents3.Label {
-                            Layout.fillWidth: true
+                            width: detailLines.width
                             visible: !root.charging && root.route !== null
                             wrapMode: Text.Wrap
                             maximumLineCount: 2
@@ -998,7 +1024,7 @@ PlasmoidItem {
                         // When the charge is done, or when the car arrives.
                         PlasmaComponents3.Label {
                             id: body
-                            Layout.fillWidth: true
+                            width: detailLines.width
                             visible: text !== ""
                             wrapMode: Text.Wrap
                             font.features: { "tnum": 1 }
@@ -1010,7 +1036,7 @@ PlasmoidItem {
                         // both.
                         PlasmaComponents3.Label {
                             id: note
-                            Layout.fillWidth: true
+                            width: detailLines.width
                             visible: text !== ""
                             wrapMode: Text.Wrap
                             font.pointSize: Kirigami.Theme.smallFont.pointSize
@@ -1022,7 +1048,7 @@ PlasmoidItem {
                         }
                         // What the car asks of the charger, or when a schedule starts.
                         PlasmaComponents3.Label {
-                            Layout.fillWidth: true
+                            width: detailLines.width
                             visible: text !== ""
                             wrapMode: Text.Wrap
                             font.pointSize: Kirigami.Theme.smallFont.pointSize
@@ -1109,7 +1135,10 @@ PlasmoidItem {
                         Layout.fillWidth: true
                         Layout.preferredWidth: Math.max(implicitWidth, stats.share)
                         label: stats.preconditioning ? i18n("Preconditioning") : i18n("Climate")
-                        value: stats.preconditioning || stats.climateOn ? i18n("On") : i18n("Off")
+                        // A dash, like the readings beside it, while TeslaMate hasn't said
+                        // whether the climate is on.
+                        value: stats.preconditioning || stats.climateOn ? i18n("On")
+                            : Logic.triState(root.car, "is_climate_on") === null ? "—" : i18n("Off")
                         dot: stats.preconditioning || stats.climateOn
                     }
                     Stat {
@@ -1127,9 +1156,10 @@ PlasmoidItem {
                 id: carStatus
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                // Enough for the car to lie on its side, as it does in the popup. In less
-                // it stands nose up and is a third of the size.
-                Layout.minimumHeight: Kirigami.Units.gridUnit * 5
+                // Enough for the car to lie on its side, as it does in the popup, however
+                // large the font of its readings is. In less it stands nose up and is a
+                // third of the size.
+                Layout.minimumHeight: Math.max(Kirigami.Units.gridUnit * 5, carStatus.sidewaysHeight)
                 opacity: content.dataOpacity
                 car: root.car
                 rightHandDrive: root.cfg.rightHandDrive
@@ -1162,11 +1192,16 @@ PlasmoidItem {
                 columnSpacing: Kirigami.Units.largeSpacing
                 rowSpacing: Kirigami.Units.smallSpacing * 1.5
 
-                // An hour of two digits, on a 12 hour clock and on a 24 hour clock.
+                // An hour of two digits, on a 12 hour clock and on a 24 hour clock, and
+                // today, so no weekday comes with it.
                 TextMetrics {
                     id: widestUpdated
                     font: updated.font
-                    text: root.updatedText(new Date(2000, 0, 1, 22, 0))
+                    text: {
+                        const late = new Date()
+                        late.setHours(22, 0, 0, 0)
+                        return root.updatedText(late)
+                    }
                 }
 
                 PlasmaComponents3.Label {
@@ -1283,7 +1318,10 @@ PlasmoidItem {
                         font.features: { "tnum": 1 }
                         opacity: root.stale ? 1 : look.secondary
                         color: root.stale ? Kirigami.Theme.neutralTextColor : Kirigami.Theme.textColor
-                        text: root.lastUpdated ? root.updatedText(root.lastUpdated) : ""
+                        text: {
+                            root.now // re-evaluate on tick: at midnight the time gets its weekday
+                            return root.lastUpdated ? root.updatedText(root.lastUpdated) : ""
+                        }
                     }
                 }
             }
