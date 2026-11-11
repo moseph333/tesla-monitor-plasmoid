@@ -77,6 +77,9 @@ PlasmoidItem {
     readonly property var softwareUpdate: Logic.updateProgress(car)
     // "" while no address is set, which hides the link and the context menu entry.
     readonly property string teslamateUrl: Logic.normalizeUrl(cfg.teslamateUrl)
+    // The body color for the car drawing, or "" for theme colors: when that's the setting,
+    // or TeslaMate reports no paint the widget knows.
+    readonly property string paint: cfg.carColor === 0 ? Logic.paintColor(car.exterior_color) : ""
 
     readonly property string distUnit: units.distance
     readonly property string tempUnit: "°" + units.temperature
@@ -90,29 +93,36 @@ PlasmoidItem {
         const digits = keepTenths && d < 10 ? 1 : 0
         return (digits ? d : Math.round(d)).toLocaleString(Qt.locale(), "f", digits) + " " + distUnit
     }
+    // A whole number with a minus sign (U+2212) that is as wide as the digits, unlike a
+    // hyphen. Rounded before the sign is chosen, so a small negative value can't show as "−0".
+    function signed(n) {
+        const r = Math.round(n)
+        return (r < 0 ? "−" : "") + Math.abs(r)
+    }
     function fmtTemp(c) {
         const t = Logic.temperature(c, units.temperature)
-        return t === null ? "—" : Math.round(t) + tempUnit
+        return t === null ? "—" : signed(t) + tempUnit
     }
     function fmtSpeed(kmh) {
         const v = Logic.distance(kmh, units.distance)
         return v === null ? "" : Math.round(v) + (units.distance === "mi" ? " mph" : " km/h")
     }
     // A tenth of a bar matters, but psi and kPa are read in whole numbers. The tenth takes
-    // the locale's decimal separator, as the other numbers on the card do.
+    // the locale's decimal separator, as the other numbers on the card do. The card shows
+    // the value and the unit in different sizes; a notification takes the text.
     function tire(pos) {
         const p = Logic.pressure(Logic.num(car, "tpms_pressure_" + pos), units.pressure)
+        const value = p === null ? "—"
+            : String(units.pressure === "bar" ? p.toLocaleString(Qt.locale(), "f", 1) : Math.round(p))
         return {
-            text: p === null ? "—" : (units.pressure === "bar" ? p.toLocaleString(Qt.locale(), "f", 1) : Math.round(p))
-                                     + " " + pressUnit,
+            value: value,
+            unit: p === null ? "" : pressUnit,
+            text: p === null ? "—" : value + " " + pressUnit,
             warn: Logic.bool(car, "tpms_soft_warning_" + pos)
         }
     }
-    // Rounded before the sign is chosen, so a small negative value can't show as "−0". The
-    // minus sign (U+2212) is as wide as the digits, unlike a hyphen.
     function fmtPower(kw) {
-        const r = Math.round(kw)
-        return (r < 0 ? "−" : "") + Math.abs(r) + " kW"
+        return signed(kw) + " kW"
     }
 
     // The text next to the panel icon. While charging, the time to full can take the
@@ -175,7 +185,7 @@ PlasmoidItem {
         }
     }
 
-    // The charging block's heading. The charger reports no power yet while it starts, and
+    // The charging block's figure. The charger reports no power yet while it starts, and
     // current × voltage stands in when it reports 0 kW, as it can for a slow charge.
     function chargePowerText() {
         if (chargeStatus === "starting") return i18n("Starting…")
@@ -186,22 +196,103 @@ PlasmoidItem {
         return i18n("Charging")
     }
 
-    function stateColor() {
-        switch (carState) {
-        case "charging": return Kirigami.Theme.positiveTextColor
-        case "driving": return Kirigami.Theme.highlightColor
-        case "online": return Kirigami.Theme.positiveTextColor
-        case "updating": return Kirigami.Theme.neutralTextColor
-        case "offline": return Kirigami.Theme.negativeTextColor
-        default: return Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.35)
+    // How long the charge still takes: "1h 30m to 80%", or "1h 30m left" while the car
+    // reports no limit to name. "" when it doesn't say how long.
+    function chargeRemainingText() {
+        const t = Logic.formatHours(hoursToFull)
+        if (!t) return ""
+        return limit >= 0 ? i18n("%1 to %2%", t, limit) : i18nc("how long a charge still takes", "%1 left", t)
+    }
+
+    // While charging: how long until the limit, and when that is. The car's estimate counts
+    // from when it was published, which the last poll is nearest to, so the time doesn't
+    // creep later while data is old.
+    function chargeTimeText() {
+        const remaining = chargeRemainingText()
+        if (!remaining || !lastUpdated) return remaining
+        return remaining + " · " + i18nc("follows how long a charge still takes", "done by %1",
+                                         clock(lastUpdated.getTime() + hoursToFull * 3600000))
+    }
+
+    // While charging: the energy added so far and what the charger supplies.
+    function chargeSupplyText() {
+        const parts = []
+        const added = Logic.num(car, "charge_energy_added")
+        if (added !== null) parts.push("+" + added.toLocaleString(Qt.locale(), "f", 1) + " kWh")
+        const amps = Logic.num(car, "charger_actual_current")
+        const volts = Logic.num(car, "charger_voltage")
+        if (amps !== null && volts !== null) {
+            parts.push(amps + " A", volts + " V")
+            const phases = Logic.showPhases(car)
+            // ki18n takes the plural form from an integer only, and a number read from a
+            // payload is a real even when it's whole.
+            if (phases !== null) parts.push(i18np("%1 phase", "%1 phases", phases | 0))
+        }
+        return parts.join(" · ")
+    }
+
+    // The car asks for less than the charger offers when its charge current has been
+    // turned down, which explains a slow charge.
+    function chargeRequestText() {
+        const request = Logic.num(car, "charge_current_request")
+        const requestMax = Logic.num(car, "charge_current_request_max")
+        return request !== null && requestMax !== null && request < requestMax
+            ? i18n("Requested %1 of %2 A", request, requestMax) : ""
+    }
+
+    // On a route: when the car arrives, and how much of that is traffic.
+    function routeArrivalText() {
+        const t = route !== null && route.minutes !== null ? Logic.formatHours(route.minutes / 60) : ""
+        if (!t) return ""
+        const arriving = i18n("Arriving in %1", t)
+        return route.trafficMinutes >= 1
+            ? arriving + " · " + i18n("+%1 traffic", Logic.formatHours(route.trafficMinutes / 60)) : arriving
+    }
+
+    // On a route: how far it still is, and the battery level the car expects to arrive with.
+    function routeRemainingText() {
+        if (route === null) return ""
+        const parts = []
+        if (route.km !== null) parts.push(i18n("%1 to go", fmtDistance(route.km, true)))
+        // Negative when the battery won't last as far as the destination.
+        if (route.energyAtArrival !== null) parts.push(i18n("%1% on arrival", signed(route.energyAtArrival)))
+        return parts.join(" · ")
+    }
+
+    // The charge limit, with the range a charge to it gives when that can be worked out.
+    function limitText() {
+        if (limit < 0) return ""
+        return limit > 0 && level > 0 && rangeKm !== null
+            ? i18n("Limit %1% · about %2", limit, fmtDistance(rangeKm / level * limit))
+            : i18n("Limit %1%", limit)
+    }
+
+    // When a scheduled charge starts. The status line already says so while the car waits
+    // for it.
+    function scheduleText() {
+        if (chargeStatus === "scheduled") return ""
+        const t = Date.parse(car.scheduled_charging_start_time || "")
+        return isNaN(t) ? "" : i18n("Scheduled %1", shortTime(new Date(t)))
+    }
+
+    // The update's status in the footer.
+    function updateText() {
+        const v = car.update_version || ""
+        switch (softwareUpdate.phase) {
+        case "downloading": {
+            const p = softwareUpdate.percent !== null ? Math.round(softwareUpdate.percent) : 0
+            return v ? i18n("Downloading %1 · %2%", v, p) : i18n("Downloading update · %1%", p)
+        }
+        case "installing":
+            return v ? i18n("Installing %1", v) : i18n("Installing update")
+        default:
+            return v ? i18n("%1 available", v) : i18n("Update available")
         }
     }
 
-    function batteryColor() {
-        if (charging) return Kirigami.Theme.positiveTextColor
-        if (level >= 0 && level < 10) return Kirigami.Theme.negativeTextColor
-        if (level >= 0 && level < 20) return Kirigami.Theme.neutralTextColor
-        return Kirigami.Theme.highlightColor
+    // When the data on the card arrived, for the footer.
+    function updatedText(time) {
+        return i18n("Updated %1", shortTime(time))
     }
 
     // The browser takes over, so the popup closes rather than stay open behind it.
@@ -223,8 +314,8 @@ PlasmoidItem {
         if (!hasData) return errorText || i18n("Connecting…")
         let s = stateLabel()
         if (level >= 0) s += " · " + level + "% · " + fmtDistance(rangeKm)
-        const toFull = Logic.formatHours(hoursToFull)
-        if (charging && toFull) s += " · " + i18n("%1 to %2%", toFull, limit)
+        const remaining = chargeRemainingText()
+        if (charging && remaining) s += " · " + remaining
         // Every attention line, since the panel icon has no other way to show them.
         const lines = [s].concat(attentionLines)
         if (stale)
@@ -562,7 +653,11 @@ PlasmoidItem {
         // width, and this follows them.
         Layout.minimumHeight: Math.max(Kirigami.Units.gridUnit * 20,
                                        content.implicitHeight - carStatus.implicitHeight
-                                       + carStatus.Layout.minimumHeight + 2 * Kirigami.Units.smallSpacing)
+                                       + carStatus.Layout.minimumHeight + 2 * content.anchors.margins)
+
+        // Created here rather than on the root item, which lives in the panel: the card's
+        // colors have to be the popup's.
+        Look { id: look }
 
         PlasmaExtras.PlaceholderMessage {
             anchors.centerIn: parent
@@ -604,15 +699,24 @@ PlasmoidItem {
 
         ColumnLayout {
             id: content
+
+            // The rows that show the car fade while the data is old, as the panel icon
+            // does, so a level from hours ago doesn't pass for now. The header and the
+            // footer stay as they are: they say what is shown and how old it is.
+            property real dataOpacity: root.stale ? 0.5 : 1
+            Behavior on dataOpacity {
+                NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.InOutQuad }
+            }
+
             anchors.fill: parent
-            anchors.margins: Kirigami.Units.smallSpacing
+            anchors.margins: Kirigami.Units.largeSpacing
             visible: root.hasData
-            spacing: Kirigami.Units.largeSpacing
+            spacing: Kirigami.Units.largeSpacing + Kirigami.Units.smallSpacing
 
             // Header
             RowLayout {
                 Layout.fillWidth: true
-                spacing: Kirigami.Units.smallSpacing * 2
+                spacing: Kirigami.Units.largeSpacing
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -622,6 +726,7 @@ PlasmoidItem {
                         id: carName
                         Layout.fillWidth: true
                         level: 3
+                        font.weight: Font.DemiBold
                         text: root.car.display_name || i18n("Tesla")
                         elide: Text.ElideRight
                         // Underlined like a link while pointed at or focused, once it is one.
@@ -678,18 +783,30 @@ PlasmoidItem {
                         Layout.fillWidth: true
                         spacing: Kirigami.Units.smallSpacing
 
+                        // The state's dot inside a soft halo of its own color. The layout
+                        // places the halo, so it stays inside the header's line.
                         Rectangle {
-                            implicitWidth: Kirigami.Units.smallSpacing * 2
+                            implicitWidth: stateDot.width + 2 * Math.round(Kirigami.Units.smallSpacing * 0.75)
                             implicitHeight: implicitWidth
                             radius: width / 2
-                            color: root.stateColor()
+                            color: look.tint(stateDot.color, stateDot.color.a * 0.25)
+
+                            Rectangle {
+                                id: stateDot
+                                anchors.centerIn: parent
+                                width: Kirigami.Units.smallSpacing * 2
+                                height: width
+                                radius: width / 2
+                                color: look.stateColor(root.carState)
+                            }
                         }
 
                         PlasmaComponents3.Label {
                             Layout.fillWidth: true
                             elide: Text.ElideRight
                             font.pointSize: Kirigami.Theme.smallFont.pointSize
-                            opacity: 0.8
+                            font.features: { "tnum": 1 }
+                            opacity: look.secondary
                             text: {
                                 root.now // re-evaluate on tick
                                 const parts = [root.stateLabel()]
@@ -703,12 +820,17 @@ PlasmoidItem {
                 }
 
                 // Only for a refresh someone asked for, and beside the button rather than
-                // over it, so the button keeps its icon.
-                PlasmaComponents3.BusyIndicator {
-                    Layout.preferredWidth: Kirigami.Units.iconSizes.small
-                    Layout.preferredHeight: Kirigami.Units.iconSizes.small
-                    visible: root.userRefreshing
-                    running: visible
+                // over it, so the button keeps its icon. Its place is kept while it's
+                // hidden, so the header doesn't move when it shows.
+                Item {
+                    implicitWidth: Kirigami.Units.iconSizes.small
+                    implicitHeight: Kirigami.Units.iconSizes.small
+
+                    PlasmaComponents3.BusyIndicator {
+                        anchors.fill: parent
+                        visible: root.userRefreshing
+                        running: visible
+                    }
                 }
 
                 // Always visible and enabled, even while refreshing, so it never takes
@@ -727,177 +849,187 @@ PlasmoidItem {
                 }
             }
 
-            // Battery + charging
+            // Battery, and what the car is doing. The ring is open at the bottom: its arc
+            // ends well above the edge of its square, which leaves more than a row's
+            // distance already, so the next row follows the square without another.
             RowLayout {
                 Layout.fillWidth: true
+                Layout.bottomMargin: -content.spacing
                 spacing: Kirigami.Units.largeSpacing * 2
+                opacity: content.dataOpacity
 
                 BatteryRing {
                     Layout.preferredWidth: Kirigami.Units.gridUnit * 8
                     Layout.preferredHeight: Kirigami.Units.gridUnit * 8
                     value: root.level >= 0 ? root.level / 100 : 0
                     marker: root.limit >= 0 ? root.limit / 100 : -1
-                    color: root.batteryColor()
-                    centerText: root.level >= 0 ? root.level + "%" : "—"
+                    color: look.batteryColor(root.level, root.charging)
+                    numberText: root.level >= 0 ? String(root.level) : "—"
+                    unitText: root.level >= 0 ? "%" : ""
+                    charging: root.charging
+                    animated: root.popupOpen
+                    faded: content.dataOpacity < 1
                     subText: root.fmtDistance(root.rangeKm)
                     noteText: root.usableCold !== null ? i18n("%1% usable", root.usableCold) : ""
                 }
 
+                // The same lines in the same order whatever the car is doing: a figure and
+                // its caption, then a title, a sentence and notes. A line with nothing to
+                // say is left out.
                 ColumnLayout {
+                    id: details
+
+                    // The car takes energy back. This goes by the whole kW the figure
+                    // shows, so "0 kW" is never called regenerating.
+                    readonly property bool regenerating: root.power !== null && Math.round(root.power) < 0
+
+                    // A line of parts joined by " · ", broken between its parts where it
+                    // is too long, so "done by" can't end a line that "4:00 PM" starts
+                    // and no line ends in a dot. The lines fill from the last part back,
+                    // which leaves the short line first: "+4.2 kWh" over "16 A · 230 V ·
+                    // 3 phases". Parts share a line when they fit with a pixel to spare,
+                    // since the layout also counts how far the last letter overhangs,
+                    // which FontMetrics doesn't. A part too long for a line wraps as any
+                    // text does. Every line is as wide as this column, and a label that
+                    // read its own width here would change it by setting its text.
+                    function brokenBetweenParts(line, metrics) {
+                        const lines = []
+                        for (const part of line.split(" · ").reverse()) {
+                            if (lines.length > 0 && metrics.advanceWidth(part + " · " + lines[0]) + 1 <= width)
+                                lines[0] = part + " · " + lines[0]
+                            else
+                                lines.unshift(part)
+                        }
+                        return lines.join("\n")
+                    }
+                    // A sentence that keeps its last two words together, so it doesn't
+                    // end in a line of one word. A time such as "7:00 AM" has a no-break
+                    // space of its own and counts as one word. The two words are only
+                    // joined when they fit in a line with a little to spare, since text
+                    // that can't wrap at a space is cut in the middle of a word.
+                    function noBreakAtEnd(sentence, metrics) {
+                        return sentence.replace(/[^ ]+ [^ ]+$/, words =>
+                            metrics.advanceWidth(words) + Kirigami.Units.smallSpacing <= width
+                                ? words.replace(" ", "\u00a0") : words)
+                    }
+
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignVCenter
-                    spacing: Kirigami.Units.smallSpacing
+                    // The lines have no such space below them and keep the distance
+                    // themselves, above as well, which leaves them level with the middle
+                    // of the ring. The row grows when they need more than the ring.
+                    Layout.topMargin: content.spacing
+                    Layout.bottomMargin: content.spacing
+                    spacing: 0
 
-                    // Smart and solar chargers report no power every evening, so that's a
-                    // neutral status rather than a warning.
-                    PlasmaComponents3.Label {
-                        Layout.fillWidth: true
-                        visible: !root.charging && !root.driving && text !== ""
-                        wrapMode: Text.Wrap
-                        font.pointSize: Kirigami.Theme.smallFont.pointSize
-                        opacity: root.chargeStatus === "nopower" ? 1 : 0.7
-                        color: root.chargeStatus === "nopower" ? Kirigami.Theme.neutralTextColor : Kirigami.Theme.textColor
-                        text: root.chargeStatusText()
+                    FontMetrics {
+                        id: titleMetrics
+                        font: title.font
+                    }
+                    FontMetrics {
+                        id: bodyMetrics
+                        font: body.font
+                    }
+                    FontMetrics {
+                        id: noteMetrics
+                        font: note.font
                     }
 
-                    // While charging
+                    // What the charger supplies, or what the battery gives while driving,
+                    // in green when it takes it back.
                     PlasmaExtras.Heading {
-                        visible: root.charging
-                        level: 2
-                        color: Kirigami.Theme.positiveTextColor
-                        text: root.chargePowerText()
-                    }
-                    PlasmaComponents3.Label {
+                        id: figure
                         Layout.fillWidth: true
-                        visible: root.charging && text.length > 0
+                        visible: root.charging || (root.driving && root.power !== null)
+                        level: 1
                         wrapMode: Text.Wrap
-                        text: {
-                            const parts = []
-                            const added = Logic.num(root.car, "charge_energy_added")
-                            if (added !== null) parts.push("+" + added.toLocaleString(Qt.locale(), "f", 1) + " kWh")
-                            const amps = Logic.num(root.car, "charger_actual_current")
-                            const volts = Logic.num(root.car, "charger_voltage")
-                            if (amps !== null && volts !== null) {
-                                const phases = Logic.showPhases(root.car)
-                                parts.push(amps + " A · " + volts + " V"
-                                           + (phases !== null ? " · " + i18np("%1 phase", "%1 phases", phases) : ""))
-                            }
-                            return parts.join("\n")
-                        }
-                    }
-                    // The car asks for less than the charger offers when its charge current
-                    // has been turned down, which explains a slow charge.
-                    PlasmaComponents3.Label {
-                        readonly property var request: Logic.num(root.car, "charge_current_request")
-                        readonly property var requestMax: Logic.num(root.car, "charge_current_request_max")
-
-                        Layout.fillWidth: true
-                        visible: root.charging && text !== "" && request < requestMax
-                        wrapMode: Text.Wrap
-                        font.pointSize: Kirigami.Theme.smallFont.pointSize
-                        opacity: 0.7
-                        text: request !== null && requestMax !== null
-                            ? i18n("Requested %1 of %2 A", request, requestMax) : ""
-                    }
-                    PlasmaComponents3.Label {
-                        Layout.fillWidth: true
-                        visible: root.charging && text.length > 0
                         font.weight: Font.DemiBold
-                        text: {
-                            const t = Logic.formatHours(root.hoursToFull)
-                            return t ? i18n("%1 to %2%", t, root.limit) : ""
-                        }
+                        font.features: { "tnum": 1 }
+                        color: root.charging || details.regenerating ? Kirigami.Theme.positiveTextColor
+                                                                     : Kirigami.Theme.textColor
+                        text: root.charging ? root.chargePowerText()
+                            : root.power !== null ? root.fmtPower(root.power) : ""
                     }
-                    // The car's estimate counts from when it was published, which the last
-                    // poll is nearest to, so the time doesn't creep later while data is old.
                     PlasmaComponents3.Label {
                         Layout.fillWidth: true
-                        visible: root.charging && text.length > 0
+                        visible: !root.charging && root.driving && root.power !== null
                         wrapMode: Text.Wrap
                         font.pointSize: Kirigami.Theme.smallFont.pointSize
-                        opacity: 0.7
-                        text: root.hoursToFull > 0 && root.lastUpdated
-                            ? i18n("Done by %1", root.clock(root.lastUpdated.getTime() + root.hoursToFull * 3600000)) : ""
+                        opacity: look.secondary
+                        text: details.regenerating ? i18n("Regenerating") : i18n("Battery power")
                     }
 
-                    // While driving: what the battery gives, or takes back while regenerating
-                    PlasmaExtras.Heading {
-                        visible: root.driving && !root.charging && root.power !== null
-                        level: 2
-                        color: root.power < 0 ? Kirigami.Theme.positiveTextColor : Kirigami.Theme.textColor
-                        text: root.power !== null ? root.fmtPower(root.power) : ""
-                    }
-                    PlasmaComponents3.Label {
+                    ColumnLayout {
                         Layout.fillWidth: true
-                        visible: root.driving && !root.charging && root.power !== null
-                        font.pointSize: Kirigami.Theme.smallFont.pointSize
-                        opacity: 0.7
-                        text: root.power < 0 ? i18n("Regenerating") : i18n("Battery power")
-                    }
-                    // Navigation, when it's turned on and the car has a route
-                    PlasmaComponents3.Label {
-                        Layout.fillWidth: true
-                        visible: !root.charging && root.route !== null
-                        elide: Text.ElideRight
-                        font.weight: Font.DemiBold
-                        text: root.route !== null ? i18n("To %1", root.route.destination) : ""
-                    }
-                    PlasmaComponents3.Label {
-                        Layout.fillWidth: true
-                        visible: !root.charging && root.route !== null && text !== ""
-                        wrapMode: Text.Wrap
-                        text: {
-                            const t = root.route !== null && root.route.minutes !== null
-                                ? Logic.formatHours(root.route.minutes / 60) : ""
-                            if (!t) return ""
-                            const delay = root.route.trafficMinutes >= 1
-                                ? " · " + i18n("+%1 traffic", Logic.formatHours(root.route.trafficMinutes / 60)) : ""
-                            return i18n("Arriving in %1", t) + delay
-                        }
-                    }
-                    PlasmaComponents3.Label {
-                        Layout.fillWidth: true
-                        visible: !root.charging && root.route !== null && text !== ""
-                        wrapMode: Text.Wrap
-                        font.pointSize: Kirigami.Theme.smallFont.pointSize
-                        opacity: 0.7
-                        text: {
-                            if (root.route === null) return ""
-                            const parts = []
-                            if (root.route.km !== null) parts.push(i18n("%1 to go", root.fmtDistance(root.route.km, true)))
-                            if (root.route.energyAtArrival !== null)
-                                parts.push(i18n("%1% on arrival", Math.round(root.route.energyAtArrival)))
-                            return parts.join(" · ")
-                        }
-                    }
+                        // With no line to show, a layout would take all the height the row
+                        // has and leave the figure at the top instead of beside the ring's
+                        // middle.
+                        Layout.fillHeight: false
+                        // Set apart from the figure, which is semi-bold as a title is.
+                        Layout.topMargin: figure.visible && implicitHeight > 0 ? Kirigami.Units.largeSpacing : 0
+                        spacing: Kirigami.Units.smallSpacing
 
-                    // Not charging. A route takes the limit lines' place while driving.
-                    PlasmaComponents3.Label {
-                        Layout.fillWidth: true
-                        visible: !root.charging && root.route === null && root.limit >= 0
-                        font.weight: Font.DemiBold
-                        text: i18n("Limit %1%", root.limit)
-                    }
-                    PlasmaComponents3.Label {
-                        Layout.fillWidth: true
-                        visible: !root.charging && root.route === null && root.limit > 0 && root.level > 0
-                                 && root.rangeKm !== null
-                        wrapMode: Text.Wrap
-                        font.pointSize: Kirigami.Theme.smallFont.pointSize
-                        opacity: 0.7
-                        text: i18n("≈ %1 at limit", root.fmtDistance(root.rangeKm / root.level * root.limit))
-                    }
-                    // The status line already says when a waiting charge starts.
-                    PlasmaComponents3.Label {
-                        Layout.fillWidth: true
-                        visible: !root.charging && !root.driving && root.chargeStatus !== "scheduled"
-                                 && !!root.car.scheduled_charging_start_time
-                        wrapMode: Text.Wrap
-                        font.pointSize: Kirigami.Theme.smallFont.pointSize
-                        opacity: 0.7
-                        text: {
-                            const t = Date.parse(root.car.scheduled_charging_start_time || "")
-                            return isNaN(t) ? "" : i18n("Scheduled %1", root.shortTime(new Date(t)))
+                        // The charge port's status while parked. Smart and solar chargers
+                        // report no power every evening, so that's a neutral status rather
+                        // than a warning.
+                        PlasmaComponents3.Label {
+                            id: title
+                            Layout.fillWidth: true
+                            visible: !root.charging && !root.driving && text !== ""
+                            wrapMode: Text.Wrap
+                            font.weight: Font.DemiBold
+                            font.features: { "tnum": 1 }
+                            color: root.chargeStatus === "nopower" ? Kirigami.Theme.neutralTextColor
+                                                                   : Kirigami.Theme.textColor
+                            text: details.noBreakAtEnd(root.chargeStatusText(), titleMetrics)
+                        }
+                        // Where the car is going, when navigation is turned on and it has a
+                        // route. A destination can be a whole address, so it gets two lines.
+                        PlasmaComponents3.Label {
+                            Layout.fillWidth: true
+                            visible: !root.charging && root.route !== null
+                            wrapMode: Text.Wrap
+                            maximumLineCount: 2
+                            elide: Text.ElideRight
+                            font.weight: Font.DemiBold
+                            text: root.route !== null ? i18n("To %1", root.route.destination) : ""
+                        }
+
+                        // When the charge is done, or when the car arrives.
+                        PlasmaComponents3.Label {
+                            id: body
+                            Layout.fillWidth: true
+                            visible: text !== ""
+                            wrapMode: Text.Wrap
+                            font.features: { "tnum": 1 }
+                            text: details.brokenBetweenParts(root.charging ? root.chargeTimeText()
+                                                             : root.routeArrivalText(), bodyMetrics)
+                        }
+
+                        // A route takes the limit's place while driving, and a charge takes
+                        // both.
+                        PlasmaComponents3.Label {
+                            id: note
+                            Layout.fillWidth: true
+                            visible: text !== ""
+                            wrapMode: Text.Wrap
+                            font.pointSize: Kirigami.Theme.smallFont.pointSize
+                            font.features: { "tnum": 1 }
+                            opacity: look.secondary
+                            text: details.brokenBetweenParts(root.charging ? root.chargeSupplyText()
+                                                             : root.route !== null ? root.routeRemainingText()
+                                                             : root.limitText(), noteMetrics)
+                        }
+                        // What the car asks of the charger, or when a schedule starts.
+                        PlasmaComponents3.Label {
+                            Layout.fillWidth: true
+                            visible: text !== ""
+                            wrapMode: Text.Wrap
+                            font.pointSize: Kirigami.Theme.smallFont.pointSize
+                            font.features: { "tnum": 1 }
+                            opacity: look.secondary
+                            text: root.charging ? root.chargeRequestText()
+                                : root.driving ? "" : root.scheduleText()
                         }
                     }
                 }
@@ -920,108 +1052,239 @@ PlasmoidItem {
                 }
             }
 
-            Kirigami.Separator { Layout.fillWidth: true }
-
-            // Climate + odometer
-            RowLayout {
+            // Climate and odometer on one tinted surface
+            Rectangle {
                 Layout.fillWidth: true
-                spacing: Kirigami.Units.smallSpacing
+                implicitHeight: stats.implicitHeight + stats.anchors.topMargin + stats.anchors.bottomMargin
+                radius: look.radius
+                color: look.surface
+                opacity: content.dataOpacity
 
-                Stat {
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 1
-                    label: i18n("Inside")
-                    value: root.fmtTemp(Logic.num(root.car, "inside_temp"))
-                }
-                Stat {
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 1
-                    label: i18n("Outside")
-                    value: root.fmtTemp(Logic.num(root.car, "outside_temp"))
-                }
-                Stat {
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 1
-                    label: i18n("Climate")
-                    value: Logic.bool(root.car, "is_preconditioning") ? i18n("Precond.")
-                         : Logic.bool(root.car, "is_climate_on") ? i18n("On") : i18n("Off")
-                    valueColor: Logic.bool(root.car, "is_climate_on") ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
-                }
-                Stat {
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 1
-                    label: i18n("Odometer")
-                    value: root.fmtDistance(Logic.num(root.car, "odometer"))
+                RowLayout {
+                    id: stats
+
+                    readonly property bool climateOn: Logic.bool(root.car, "is_climate_on")
+                    readonly property bool preconditioning: Logic.bool(root.car, "is_preconditioning")
+                    // The cells are as wide as each other, except one whose texts need
+                    // more than its share, as "Preconditioning" does. That one gets what
+                    // it asks for and the others share the rest, so the hairlines hardly
+                    // move when a text changes. This is the width of the cells that
+                    // share. It is 0 when the strip is too narrow for what the cells ask
+                    // for, and the layout then shrinks them all.
+                    readonly property real share: {
+                        const needs = [inside, outside, climate, odometer].map(cell => cell.implicitWidth)
+                        needs.sort((a, b) => b - a)
+                        let room = width
+                        let cells = needs.length
+                        for (const need of needs) {
+                            if (need * cells <= room) break
+                            room -= need
+                            cells--
+                        }
+                        return cells > 0 ? room / cells : 0
+                    }
+
+                    anchors.fill: parent
+                    anchors.topMargin: Kirigami.Units.smallSpacing * 1.5
+                    anchors.bottomMargin: Kirigami.Units.smallSpacing * 1.5
+                    spacing: 0
+
+                    Stat {
+                        id: inside
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: Math.max(implicitWidth, stats.share)
+                        divider: false
+                        label: i18n("Inside")
+                        value: root.fmtTemp(Logic.num(root.car, "inside_temp"))
+                    }
+                    Stat {
+                        id: outside
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: Math.max(implicitWidth, stats.share)
+                        label: i18n("Outside")
+                        value: root.fmtTemp(Logic.num(root.car, "outside_temp"))
+                    }
+                    Stat {
+                        id: climate
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: Math.max(implicitWidth, stats.share)
+                        label: stats.preconditioning ? i18n("Preconditioning") : i18n("Climate")
+                        value: stats.preconditioning || stats.climateOn ? i18n("On") : i18n("Off")
+                        dot: stats.preconditioning || stats.climateOn
+                    }
+                    Stat {
+                        id: odometer
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: Math.max(implicitWidth, stats.share)
+                        label: i18n("Odometer")
+                        value: root.fmtDistance(Logic.num(root.car, "odometer"))
+                    }
                 }
             }
-
-            Kirigami.Separator { Layout.fillWidth: true }
 
             // Tires, doors, windows, openings, lock and Sentry on one car
             CarStatus {
                 id: carStatus
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.minimumHeight: Kirigami.Units.gridUnit * 4
+                // Enough for the car to lie on its side, as it does in the popup. In less
+                // it stands nose up and is a third of the size.
+                Layout.minimumHeight: Kirigami.Units.gridUnit * 5
+                opacity: content.dataOpacity
                 car: root.car
                 rightHandDrive: root.cfg.rightHandDrive
+                paint: root.paint
                 fl: root.tire("fl")
                 fr: root.tire("fr")
                 rl: root.tire("rl")
                 rr: root.tire("rr")
             }
 
-            // Footer
-            RowLayout {
+            // Footer. An update's status moves to a line of its own when one line can't
+            // hold everything, as on a narrow card or during a download. The version and
+            // the status are as wide as their texts, to the next whole pixel, and give way
+            // when even that is too much, so a long version elides rather than widen the
+            // card.
+            GridLayout {
+                id: footer
+
+                // Moving the status to the other line resizes the car, which mustn't
+                // happen each time a poll fails or the hour gains a digit. So the warning
+                // icon keeps its place while it's hidden, and the time counts as wide as
+                // it gets.
+                readonly property bool oneLine: softwareVersion.implicitWidth + updateStatus.implicitWidth
+                                                + freshness.implicitWidth
+                                                + Math.max(0, widestUpdated.advanceWidth - updated.implicitWidth)
+                                                + 2 * columnSpacing <= width
+
                 Layout.fillWidth: true
+                columns: 3
+                columnSpacing: Kirigami.Units.largeSpacing
+                rowSpacing: Kirigami.Units.smallSpacing * 1.5
+
+                // An hour of two digits, on a 12 hour clock and on a 24 hour clock.
+                TextMetrics {
+                    id: widestUpdated
+                    font: updated.font
+                    text: root.updatedText(new Date(2000, 0, 1, 22, 0))
+                }
 
                 PlasmaComponents3.Label {
+                    id: softwareVersion
+                    Layout.row: 0
+                    Layout.column: 0
+                    Layout.fillWidth: true
+                    Layout.maximumWidth: Math.ceil(implicitWidth)
+                    visible: text !== ""
+                    elide: Text.ElideRight
                     font.pointSize: Kirigami.Theme.smallFont.pointSize
-                    opacity: 0.6
+                    font.features: { "tnum": 1 }
+                    opacity: look.secondary
                     text: root.car.version ? i18n("Software %1", root.car.version) : ""
                 }
 
-                // Elides rather than pushing the update time out of the footer.
-                PlasmaComponents3.Label {
+                // The update's status on a tint of the highlight color, which fills from
+                // the start as the download or the installation goes on. The tint is a
+                // little taller than the line of text, without making the footer taller.
+                Item {
+                    id: updateStatus
+
+                    property real progress: root.softwareUpdate.percent !== null
+                        ? Math.max(0, Math.min(1, root.softwareUpdate.percent / 100)) : 0
+                    Behavior on progress {
+                        NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.InOutQuad }
+                    }
+
+                    Layout.row: footer.oneLine ? 0 : 1
+                    Layout.column: footer.oneLine ? 1 : 0
+                    Layout.columnSpan: footer.oneLine ? 1 : 3
                     Layout.fillWidth: true
+                    Layout.maximumWidth: Math.ceil(implicitWidth)
                     visible: root.softwareUpdate.phase !== ""
-                    elide: Text.ElideRight
-                    font.pointSize: Kirigami.Theme.smallFont.pointSize
-                    color: Kirigami.Theme.highlightColor
-                    text: {
-                        const v = root.car.update_version || ""
-                        const p = root.softwareUpdate.percent !== null ? Math.round(root.softwareUpdate.percent) : 0
-                        switch (root.softwareUpdate.phase) {
-                        case "downloading":
-                            return v ? i18n("Downloading %1 · %2%", v, p) : i18n("Downloading update · %1%", p)
-                        case "installing":
-                            return v ? i18n("Installing %1", v) : i18n("Installing update")
-                        default:
-                            return v ? i18n("→ %1 available", v) : i18n("Update available")
+                    implicitWidth: updateLabel.implicitWidth + 2 * updateLabel.anchors.leftMargin
+                    implicitHeight: updateLabel.implicitHeight
+
+                    Rectangle {
+                        id: pill
+                        anchors.fill: parent
+                        anchors.topMargin: -Kirigami.Units.smallSpacing / 2
+                        anchors.bottomMargin: -Kirigami.Units.smallSpacing / 2
+                        radius: height / 2
+                        color: look.tint(Kirigami.Theme.highlightColor, 0.2)
+
+                        Item {
+                            anchors.left: parent.left
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            width: parent.width * updateStatus.progress
+                            clip: true
+
+                            Rectangle {
+                                anchors.left: parent.left
+                                anchors.top: parent.top
+                                anchors.bottom: parent.bottom
+                                width: pill.width
+                                radius: pill.radius
+                                color: look.tint(Kirigami.Theme.highlightColor, 0.3)
+                            }
                         }
                     }
-                }
 
-                Item { Layout.fillWidth: true }
-
-                Kirigami.Icon {
-                    visible: root.errorText.length > 0
-                    source: "data-warning"
-                    Layout.preferredWidth: Kirigami.Units.iconSizes.small
-                    Layout.preferredHeight: Kirigami.Units.iconSizes.small
-                    HoverHandler { id: warnHover }
-                    PlasmaComponents3.ToolTip {
-                        visible: warnHover.hovered
-                        text: i18n("Showing last good data.\n%1", root.errorText)
+                    PlasmaComponents3.Label {
+                        id: updateLabel
+                        anchors.fill: parent
+                        anchors.leftMargin: Kirigami.Units.largeSpacing
+                        anchors.rightMargin: Kirigami.Units.largeSpacing
+                        elide: Text.ElideRight
+                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                        font.features: { "tnum": 1 }
+                        text: root.updateText()
                     }
                 }
 
-                // Stands out while the data is old, since this time then says how old.
-                PlasmaComponents3.Label {
-                    font.pointSize: Kirigami.Theme.smallFont.pointSize
-                    opacity: root.stale ? 1 : 0.6
-                    color: root.stale ? Kirigami.Theme.neutralTextColor : Kirigami.Theme.textColor
-                    text: root.lastUpdated ? root.shortTime(root.lastUpdated) : ""
+                RowLayout {
+                    id: freshness
+                    Layout.row: 0
+                    Layout.column: 2
+                    Layout.fillWidth: true
+                    // The filler before the icon would count a spacing as width the row
+                    // needs, so the time keeps its distance from the icon by a margin.
+                    spacing: 0
+
+                    Item { Layout.fillWidth: true }
+
+                    // The icon is a pixel taller than the line of text. It hangs over the
+                    // line rather than stretch it, so the rows above don't move each time
+                    // a poll fails or works again.
+                    Item {
+                        implicitWidth: warning.width
+                        implicitHeight: updated.implicitHeight
+
+                        Kirigami.Icon {
+                            id: warning
+                            y: Math.round((parent.height - height) / 2)
+                            width: Kirigami.Units.iconSizes.small
+                            height: width
+                            visible: root.errorText.length > 0
+                            source: "data-warning"
+                            HoverHandler { id: warnHover }
+                            PlasmaComponents3.ToolTip {
+                                visible: warnHover.hovered
+                                text: i18n("Showing last good data.\n%1", root.errorText)
+                            }
+                        }
+                    }
+
+                    // Stands out while the data is old, since this time then says how old.
+                    PlasmaComponents3.Label {
+                        id: updated
+                        Layout.leftMargin: Kirigami.Units.smallSpacing
+                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                        font.features: { "tnum": 1 }
+                        opacity: root.stale ? 1 : look.secondary
+                        color: root.stale ? Kirigami.Theme.neutralTextColor : Kirigami.Theme.textColor
+                        text: root.lastUpdated ? root.updatedText(root.lastUpdated) : ""
+                    }
                 }
             }
         }
