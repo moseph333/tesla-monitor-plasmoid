@@ -12,6 +12,9 @@ import "logic.js" as Logic
 // Sentry. Hovering lists the same status as text.
 // The car lies on its side with its nose to the right, like the panel icon, or stands nose
 // up, whichever draws it larger in the room the item has.
+// Its body is filled with the car's own paint, or with tints of the theme's text color when
+// no paint is given. Either way orange means open, green plugged in, and red a low tire or
+// Sentry, so nothing else on the car uses those colors.
 // The body, mirrors and axles use the car's real dimensions: 1 unit = 10 mm, the body is
 // 185 × 469.4 and starts 12 units in from the left so the mirrors fit. The wheels sit
 // further out than the real track so they stay visible from above.
@@ -30,7 +33,7 @@ Item {
     // TeslaMate names doors and windows by driver and passenger, not left and right.
     property bool rightHandDrive: false
 
-    // Whether the body is drawn in the car's paint. Nothing looks different for it yet.
+    // Whether the body is drawn in the car's paint, or in theme colors.
     readonly property bool painted: paint !== ""
 
     // ---------- state ----------
@@ -54,32 +57,106 @@ Item {
     // ---------- colors and lines ----------
 
     readonly property color textColor: Kirigami.Theme.textColor
-    readonly property color lineColor: look.tint(textColor, 0.35)
-    readonly property color faintColor: look.tint(textColor, 0.15)
-    readonly property color glassColor: look.tint(textColor, 0.07)
-    readonly property color tireColor: lineColor
+    // Light text on a dark background. A tint of the text color darkens what is under it in
+    // a light scheme and lightens it in a dark one, so the car in theme colors has to turn
+    // its shading around to keep its glass darker than its body.
+    readonly property bool darkScheme: luma(textColor) > luma(Kirigami.Theme.backgroundColor)
+    readonly property color bodyColor: painted ? paint : textColor
+    // How light the paint is, from 0 to 1.
+    readonly property real paintLuma: luma(bodyColor)
+    // A paint so dark that a darker line would not show on it.
+    readonly property bool darkPaint: painted && paintLuma < 0.2
+
+    function luma(c) { return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b }
+    // A color mixed with black and with white.
+    function shade(c, share) { return Qt.rgba(c.r * (1 - share), c.g * (1 - share), c.b * (1 - share), 1) }
+    function glow(c, share) {
+        return Qt.rgba(c.r + (1 - c.r) * share, c.g + (1 - c.g) * share, c.b + (1 - c.b) * share, 1)
+    }
+
+    // The body under a light from above: 0 is the paint itself, 1 is where the light falls
+    // straight on it and -1 is where it turns away at the flank. A dark paint shows the
+    // light more than the shade, and a light paint the other way round. In theme colors
+    // the body is a tint of the text color, a stronger one where a paint would be darker
+    // in a light scheme and where it would be lighter in a dark one.
+    function bodyTone(level) {
+        if (painted)
+            return level > 0 ? glow(bodyColor, level * (0.03 + 0.08 * (1 - paintLuma)))
+                             : shade(bodyColor, -level * 0.34)
+        if (darkScheme)
+            return look.tint(textColor, 0.46 + level * (level > 0 ? 0.08 : 0.18))
+        return look.tint(textColor, 0.10 - level * (level > 0 ? 0.04 : 0.17))
+    }
+    // Across the car, from the flank to the middle.
+    readonly property color bodyEdge: bodyTone(-1)
+    readonly property color bodyTurn: bodyTone(-0.5)
+    readonly property color bodyShoulder: bodyTone(-0.24)
+    readonly property color bodySide: bodyTone(0)
+    readonly property color bodyHigh: bodyTone(0.45)
+    readonly property color bodyCrown: bodyTone(1)
+    // The nose and the tail fall away from the light.
+    readonly property color tipShade: Qt.rgba(0, 0, 0, 0.26)
+    readonly property color endShade: Qt.rgba(0, 0, 0, 0.10)
+    readonly property color noShade: Qt.rgba(0, 0, 0, 0)
+    // The light on the hood and on the trunk lid.
+    readonly property color sheenColor: Qt.rgba(1, 1, 1, 0.03 + 0.06 * (1 - paintLuma))
+    readonly property color noSheen: Qt.rgba(1, 1, 1, 0)
+    // The line around the body, in both looks: it is what tells a black car from a dark
+    // popup and a white one from a light popup.
+    readonly property color outlineColor: look.tint(textColor, 0.4)
+    // Hood, trunk and door seams.
+    readonly property color seamColor: !painted ? look.tint(textColor, 0.18)
+                                                : darkPaint ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(0, 0, 0, 0.22)
+    readonly property color faintSeamColor: Qt.rgba(seamColor.r, seamColor.g, seamColor.b, seamColor.a * 0.4)
+    // Glass along the car: lighter at the foot of the windshield and of the rear window,
+    // where it slopes, than on the roof. Then the beams across the roof and the line
+    // around a pane.
+    readonly property color glassFront: painted ? "#222931" : look.tint(textColor, darkScheme ? 0.10 : 0.86)
+    readonly property color glassColor: painted ? "#0c0e11" : look.tint(textColor, darkScheme ? 0.03 : 0.97)
+    readonly property color glassRear: painted ? "#1a2027" : look.tint(textColor, darkScheme ? 0.08 : 0.90)
+    readonly property color beamColor: painted ? "#2a2e33" : look.tint(textColor, darkScheme ? 0.14 : 0.72)
+    readonly property color glassLine: painted ? "#24282d" : glassColor
+    readonly property color faintGlassColor: Qt.rgba(glassColor.r, glassColor.g, glassColor.b, glassColor.a * 0.45)
+    // What is written on the glass.
+    readonly property color glassInk: darkScheme ? textColor : "#f4f5f6"
+    // Tires are rubber in both looks: dark in a light scheme, and in a dark one just light
+    // enough to show beside the popup.
+    readonly property color tireColor: look.tint(textColor, darkScheme ? 0.25 : 0.85)
     // A low tire and its reading
     readonly property color lowColor: Kirigami.Theme.negativeTextColor
+    // Lights are colorless. At the front a clear lens with a blade of light in it, at the
+    // rear a smoked lens with a dim line: bright is the face and dark is the tail, on a
+    // white car as on a black one.
+    readonly property color lensColor: painted ? "#b9c3cd" : look.tint(textColor, 0.5)
+    readonly property color lensLine: painted ? Qt.rgba(0, 0, 0, 0.28) : "transparent"
+    readonly property color headlightColor: painted ? "#ffffff" : "transparent"
+    readonly property color tailLensColor: painted ? Qt.rgba(0.03, 0.04, 0.05, 0.8) : look.tint(textColor, 0.3)
+    readonly property color taillightColor: painted ? Qt.rgba(1, 1, 1, 0.38) : "transparent"
+    // A mirror has the body's tone where the body turns down to the flank.
+    readonly property color mirrorColor: bodyShoulder
     readonly property color openColor: Kirigami.Theme.neutralTextColor
-    readonly property color openFill: look.tint(openColor, 0.3)
+    readonly property color openEdge: Qt.darker(openColor, 1.3)
     readonly property color pluggedColor: Kirigami.Theme.positiveTextColor
-    readonly property color lockedColor: textColor
+    readonly property color lockedColor: glassInk
     readonly property color unlockedColor: Kirigami.Theme.neutralTextColor
     readonly property color sentryColor: Kirigami.Theme.negativeTextColor
 
-    // Stroke for a part that can be open (true, or "some" when only the total is known).
-    function edgeColor(open) {
-        return open === true || open === "some" ? openColor : open === null ? faintColor : lineColor
+    // A part that can be open is solid when it is, outlined when only the total says that
+    // some part of its kind is open, and faint while nothing is known about it.
+    function openFill(open, closed) { return open === true ? openColor : closed }
+    function openLine(open, closed, unknown) {
+        return open === true ? openEdge : open === "some" ? openColor : open === null ? unknown : closed
     }
-    // The charge port is green with a cable in it, orange when open and empty, a ring when
-    // closed, and not drawn while TeslaMate hasn't reported it.
+    // The charge port is green with a cable in it, orange when open and empty, and not
+    // drawn when closed or while TeslaMate hasn't reported it.
     readonly property color portFill: pluggedIn ? pluggedColor : portOpen ? openColor : "transparent"
-    readonly property color portLine: pluggedIn || portOpen !== false ? "transparent" : lineColor
+    readonly property color portLine: pluggedIn ? Qt.darker(pluggedColor, 1.3) : portOpen ? openEdge : "transparent"
 
     // The width of the line around a part, around the body, and of the cable.
     readonly property real lineWidth: 1
     readonly property real bodyLineWidth: 1.5
     readonly property real cableWidth: 2
+    readonly property real lightWidth: 1.5
 
     // ---------- the car, in units, nose up ----------
 
@@ -149,27 +226,107 @@ Item {
         "L", boxWidth - roofEdge, "292 C 134 295 75 295", roofEdge, "292 Z",
         "M", roofEdge, "298 C 75 301 134 301", boxWidth - roofEdge, "298 L 159 390 C 134 395 75 395 50 390 Z"
     ].join(" ")
-    // Tires, windows and doors are rounded at their corners by a share of their width, and
-    // mirrors by a share of their length.
-    function tirePath(onLeft, axle) {
-        const w = 23.5
-        const [left, right] = side(onLeft, wheelInset, wheelInset + w)
-        return box(left, axle - 33, right, axle + 33, w * 0.4, 0)
+    // The two beams across the roof, between the panes of glass.
+    readonly property string beamPath: [
+        "M", roofEdge, "198 C 75 202 134 202", boxWidth - roofEdge, "198",
+        "L", boxWidth - roofEdge, "204 C 134 208 75 208", roofEdge, "204 Z",
+        "M", roofEdge, "292 C 75 295 134 295", boxWidth - roofEdge, "292",
+        "L", boxWidth - roofEdge, "298 C 134 301 75 301", roofEdge, "298 Z"
+    ].join(" ")
+    // The body with the glass left out of it, for a body that is not opaque: all of
+    // bodyPath, and inside it, as holes, the panes, the beams and the side windows.
+    readonly property string openBodyPath: [
+        bodyPath, glassPath, beamPath,
+        windowHole(true, 178, 264), windowHole(true, 272, 330),
+        windowHole(false, 178, 264), windowHole(false, 272, 330)
+    ].join(" ")
+
+    // The body's left edge beside a wheel, from the two curves of bodyPath that pass the
+    // axles. Along both of them y only grows, so the place on a curve is found by halving.
+    function flankAt(y) {
+        const curve = y < boxHeight / 2 ? [[20.5, 34], [15.5, 50], [13, 72], [flank, 104]]
+                                        : [[flank, 330], [flank, 385], [13.5, 422], [16.5, 441]]
+        const along = (axis, t) => {
+            const s = 1 - t
+            return s * s * s * curve[0][axis] + 3 * s * s * t * curve[1][axis]
+                    + 3 * s * t * t * curve[2][axis] + t * t * t * curve[3][axis]
+        }
+        let before = 0
+        let after = 1
+        for (let i = 0; i < 16; i++) {
+            const t = (before + after) / 2
+            if (along(1, t) < y)
+                before = t
+            else
+                after = t
+        }
+        return along(0, (before + after) / 2)
     }
+    // A place across the car on the left side, or its mirror image on the right.
+    function mirror(onLeft, x) { return onLeft ? x : boxWidth - x }
+    // A chain of curves through points given as [x, y]: the first, then three for each
+    // curve. Drawn on the left side of the car and again, mirrored, on the right.
+    function onBothSides(points, closed) {
+        const one = onLeft => points.map((p, i) => (i === 0 ? "M " : i % 3 === 1 ? "C " : "")
+                                                  + mirror(onLeft, p[0]) + " " + p[1]).join(" ")
+        return one(true) + (closed ? " Z " : " ") + one(false) + (closed ? " Z" : "")
+    }
+
+    // What shows of a tire: its outer face and its two ends, from the body's edge outwards.
+    function tirePath(onLeft, axle) {
+        const face = snap(wheelInset)
+        const front = snap(axle - 33)
+        const rear = snap(axle + 33)
+        const r = 4.5
+        return ["M", mirror(onLeft, flankAt(front)), front, "H", mirror(onLeft, face + r),
+                "Q", mirror(onLeft, face), front, mirror(onLeft, face), front + r, "V", rear - r,
+                "Q", mirror(onLeft, face), rear, mirror(onLeft, face + r), rear,
+                "H", mirror(onLeft, flankAt(rear)), "Z"].join(" ")
+    }
+    // Windows and doors are rounded at their corners by a share of their width.
     function windowPath(onLeft, from, to) {
         const w = 14
         const [left, right] = side(onLeft, 29, 29 + w)
         return box(left, from, right, to, w * 0.4, lineWidth)
+    }
+    // All that a window covers, its line included.
+    function windowHole(onLeft, from, to) {
+        const w = 14
+        const [left, right] = side(onLeft, 29, 29 + w)
+        return box(left, from, right, to, w * 0.4, 0)
     }
     // A door that is w wide and l long once it is on whole pixels, and the mirror on a
     // front door, both measured from the door's own front left corner.
     function doorPath(w, l) {
         return box(0, 0, w, l, doorWidth * 0.35, lineWidth)
     }
+    // A mirror grows out of the body: 12 out, swept back at the front and straight at the
+    // rear, where its glass is. Its path starts and ends on the flank and is not closed, so
+    // its line leaves the body's own line whole.
     function mirrorPath(onLeft, w) {
-        const r = (15 - 4) * 0.45
-        return onLeft ? box(-14, 4, 0, 15, r, lineWidth) : box(w, 4, w + 14, 15, r, lineWidth)
+        const base = snap(14) - flank - inUnits(bodyLineWidth / 2)
+        const x = out => onLeft ? -out : w + out
+        return ["M", x(base), 3, "C", x(base + 4), 3.4, x(9.5), 6.2, x(11.8), 9.4,
+                "C", x(13.6), 11.8, x(12.6), 14.4, x(10.4), 14.4, "L", x(base), 14.4].join(" ")
     }
+    // Lights follow the corners of the car between its outline and the hood or the trunk:
+    // a lens, and a line of light inside it.
+    readonly property string headlightPath: onBothSides([[70.3, 3.8], [52, 6.7], [30.1, 11.6], [22.2, 34.5],
+                                                         [21.2, 38], [20.4, 41.5], [19.7, 45.5],
+                                                         [23.5, 43.5], [28.5, 41], [31.6, 37.6],
+                                                         [37.3, 20.1], [51.8, 13.8], [68.7, 10.3]], true)
+    readonly property string headlightLine: onBothSides([[64.5, 7.7], [51.9, 10.3], [33.7, 15.9], [27.2, 33.5]], false)
+    readonly property string taillightPath: onBothSides([[16.2, 420], [16.7, 428], [17.4, 435], [18.3, 440.7],
+                                                         [23.7, 459.9], [48, 464.7], [74.1, 466.7],
+                                                         [74.1, 466.7], [73.2, 459.2], [73.2, 459.2],
+                                                         [52, 457.5], [31.5, 451.5], [25, 436.5],
+                                                         [22.5, 430.5], [18.5, 424.5], [16.2, 420]], true)
+    readonly property string taillightLine: onBothSides([[21, 434], [25.5, 455], [49, 461], [70, 462.8]], false)
+    // Where one door ends and the next begins, across the shoulder from the flank to the glass.
+    readonly property string seamPath: [152, 268, 336].map(y => {
+        const at = crisp(y, lineWidth)
+        return ["M", flank, at, "H 29 M", boxWidth - flank, at, "H", boxWidth - 29].join(" ")
+    }).join(" ")
     // The charge port is always on the left rear. It keeps a size that can be seen when the
     // car gets small, and then moves back to stay clear of the rear wheel.
     readonly property real portRadius: Math.max(5.5, inUnits(Kirigami.Units.smallSpacing * 0.75))
@@ -301,8 +458,8 @@ Item {
         property real to
         property var open
         path: root.windowPath(onLeft, from, to)
-        fillColor: open === true ? root.openFill : root.glassColor
-        strokeColor: root.edgeColor(open)
+        fillColor: root.openFill(open, open === null ? root.faintGlassColor : root.glassColor)
+        strokeColor: root.openLine(open, root.glassLine, root.faintGlassColor)
     }
 
     // Hinged at its front edge. Swings out and fills only when TeslaMate says which door is
@@ -314,7 +471,6 @@ Item {
         property real from
         property real to
         property var open
-        readonly property bool shown: open === true || open === "some"
         readonly property var across: root.side(onLeft, 14, 14 + root.doorWidth)
         property real swing: open === true ? root.doorSwing : 0
         Behavior on swing {
@@ -330,11 +486,11 @@ Item {
             angle: door.onLeft ? door.swing : -door.swing
         }
 
+        // A closed door is not drawn: the seams on the body show where it is.
         Part {
             path: root.doorPath(root.inUnits(door.width), root.inUnits(door.height))
-            fillColor: door.open === true ? root.openFill : "transparent"
-            // Closed doors are faint seams so the side doesn't read as three parallel lines.
-            strokeColor: door.shown ? root.openColor : door.open === null ? "transparent" : root.faintColor
+            fillColor: root.openFill(door.open, "transparent")
+            strokeColor: root.openLine(door.open, "transparent", "transparent")
         }
     }
 
@@ -346,7 +502,8 @@ Item {
 
         Part {
             path: root.mirrorPath(frontDoor.onLeft, root.inUnits(frontDoor.width))
-            strokeColor: root.lineColor
+            fillColor: root.mirrorColor
+            strokeColor: root.outlineColor
         }
     }
 
@@ -499,8 +656,8 @@ Item {
         id: canvas
 
         // Drawn nose up and turned as a whole. From bottom to top: tires, body, frunk and
-        // trunk, the glass over the cabin, side windows, doors with their mirrors, charge
-        // port and cable.
+        // trunk, door seams, the glass over the cabin with its beams, lights, side windows,
+        // doors with their mirrors, charge port and cable.
         Item {
             id: drawing
             x: Math.round(root.sideways ? (root.wholeWidth + height) / 2 : (root.wholeWidth - width) / 2)
@@ -519,25 +676,127 @@ Item {
                 Tire { onLeft: true; axle: root.rearAxle; low: root.rl.warn }
                 Tire { onLeft: false; axle: root.rearAxle; low: root.rr.warn }
 
+                // The body, shaded across the car. A gradient is laid out in the Shape's own
+                // pixels, whatever the path's scale. A path with a gradient keeps a fill
+                // color that is not transparent, or it would not be filled at all.
+                Part {
+                    path: root.painted ? root.bodyPath : root.openBodyPath
+                    fillColor: root.bodySide
+                    fillGradient: LinearGradient {
+                        x1: root.u(root.flank)
+                        y1: 0
+                        x2: root.u(root.boxWidth - root.flank)
+                        y2: 0
+                        GradientStop { position: 0; color: root.bodyEdge }
+                        GradientStop { position: 0.035; color: root.bodyTurn }
+                        GradientStop { position: 0.09; color: root.bodyShoulder }
+                        GradientStop { position: 0.22; color: root.bodySide }
+                        GradientStop { position: 0.36; color: root.bodyHigh }
+                        GradientStop { position: 0.5; color: root.bodyCrown }
+                        GradientStop { position: 0.64; color: root.bodyHigh }
+                        GradientStop { position: 0.78; color: root.bodySide }
+                        GradientStop { position: 0.91; color: root.bodyShoulder }
+                        GradientStop { position: 0.965; color: root.bodyTurn }
+                        GradientStop { position: 1; color: root.bodyEdge }
+                    }
+                }
+                // The same along the car, over the paint, and the line around the body.
+                LinearGradient {
+                    id: endShading
+                    x1: 0
+                    y1: 0
+                    x2: 0
+                    y2: root.u(469.4)
+                    GradientStop { position: 0; color: root.tipShade }
+                    GradientStop { position: 0.035; color: root.endShade }
+                    GradientStop { position: 0.11; color: root.noShade }
+                    GradientStop { position: 0.86; color: root.noShade }
+                    GradientStop { position: 0.955; color: root.endShade }
+                    GradientStop { position: 1; color: root.tipShade }
+                }
                 Part {
                     path: root.bodyPath
-                    strokeColor: root.lineColor
+                    fillColor: root.painted ? "black" : "transparent"
+                    fillGradient: root.painted ? endShading : null
+                    strokeColor: root.outlineColor
                     strokeWidth: root.bodyLineWidth
+                }
+                // Hood and trunk lid: a soft light on the closed panel, solid when open.
+                LinearGradient {
+                    id: hoodSheen
+                    x1: 0
+                    y1: root.u(9)
+                    x2: 0
+                    y2: root.u(116)
+                    GradientStop { position: 0; color: root.noSheen }
+                    GradientStop { position: 0.4; color: root.sheenColor }
+                    GradientStop { position: 1; color: root.noSheen }
+                }
+                LinearGradient {
+                    id: trunkSheen
+                    x1: 0
+                    y1: root.u(397)
+                    x2: 0
+                    y2: root.u(459)
+                    GradientStop { position: 0; color: root.noSheen }
+                    GradientStop { position: 0.55; color: root.sheenColor }
+                    GradientStop { position: 1; color: root.noSheen }
                 }
                 Part {
                     path: root.frunkPath
-                    fillColor: root.frunkOpen === true ? root.openFill : "transparent"
-                    strokeColor: root.edgeColor(root.frunkOpen)
+                    fillColor: root.openFill(root.frunkOpen, root.painted ? "white" : "transparent")
+                    fillGradient: root.painted && root.frunkOpen !== true ? hoodSheen : null
+                    strokeColor: root.openLine(root.frunkOpen, root.seamColor, root.faintSeamColor)
                 }
                 Part {
                     path: root.trunkPath
-                    fillColor: root.trunkOpen === true ? root.openFill : "transparent"
-                    strokeColor: root.edgeColor(root.trunkOpen)
+                    fillColor: root.openFill(root.trunkOpen, root.painted ? "white" : "transparent")
+                    fillGradient: root.painted && root.trunkOpen !== true ? trunkSheen : null
+                    strokeColor: root.openLine(root.trunkOpen, root.seamColor, root.faintSeamColor)
+                }
+                Part {
+                    path: root.seamPath
+                    strokeColor: root.seamColor
+                    capStyle: ShapePath.FlatCap
+                }
+                Part {
+                    path: root.beamPath
+                    fillColor: root.beamColor
                 }
                 Part {
                     path: root.glassPath
                     fillColor: root.glassColor
-                    strokeColor: root.lineColor
+                    fillGradient: LinearGradient {
+                        x1: 0
+                        y1: root.u(118)
+                        x2: 0
+                        y2: root.u(395)
+                        GradientStop { position: 0; color: root.glassFront }
+                        GradientStop { position: 0.3; color: root.glassColor }
+                        GradientStop { position: 0.66; color: root.glassColor }
+                        GradientStop { position: 1; color: root.glassRear }
+                    }
+                    strokeColor: root.glassLine
+                }
+                Part {
+                    path: root.headlightPath
+                    fillColor: root.lensColor
+                    strokeColor: root.lensLine
+                }
+                Part {
+                    path: root.headlightLine
+                    strokeColor: root.headlightColor
+                    strokeWidth: root.lightWidth
+                    capStyle: ShapePath.RoundCap
+                }
+                Part {
+                    path: root.taillightPath
+                    fillColor: root.tailLensColor
+                }
+                Part {
+                    path: root.taillightLine
+                    strokeColor: root.taillightColor
+                    capStyle: ShapePath.RoundCap
                 }
 
                 SideWindow { onLeft: true; from: 178; to: 264; open: root.windowState(root.leftSeat, "front") }

@@ -165,7 +165,7 @@ TIRES="fl fr rl rr"
 
 # Every value this script publishes, for clear.
 keys() {
-    echo display_name state since healthy version update_available update_version \
+    echo display_name exterior_color state since healthy version update_available update_version \
         download_perc install_perc geofence shift_state speed power locked sentry_mode \
         is_user_present doors_open windows_open frunk_open trunk_open sun_roof_installed \
         sun_roof_percent_open is_climate_on is_preconditioning inside_temp outside_temp \
@@ -193,6 +193,7 @@ scenario() {
     case $1 in
     parked)
         pub display_name "Fake Model 3"
+        pub exterior_color DeepBlue
         state online
         # TeslaMate 2.1 and newer don't retain healthy, so it's removed, as there. The card
         # keeps a warning from unhealthy for 10 minutes, as it does with a real TeslaMate.
