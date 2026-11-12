@@ -6,8 +6,9 @@ import org.kde.kirigami as Kirigami
 // draws nothing, because Kirigami.Theme's colors follow the tree of items: created inside a
 // part, it has the colors of the popup or desktop that part is shown in, which can differ
 // from the panel's, where the widget's root item lives.
+// It has no size, and it stays visible: in a panel's popup, Kirigami gives an item that is
+// not visible black for every theme color.
 Item {
-    visible: false
 
     // Secondary text, such as labels, captions and units, and a value that isn't known.
     readonly property real secondary: 0.7
