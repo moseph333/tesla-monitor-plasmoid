@@ -110,12 +110,13 @@ Item {
     readonly property color faintSeamColor: Qt.rgba(seamColor.r, seamColor.g, seamColor.b, seamColor.a * 0.4)
     // Glass along the car: lighter at the foot of the windshield and of the rear window,
     // where it slopes, than on the roof. Then the beams across the roof and the line
-    // around a pane.
+    // around a pane, which is light on a paint as dark as the glass itself: there it is
+    // all that tells the panes from the body.
     readonly property color glassFront: painted ? "#222931" : look.tint(textColor, darkScheme ? 0.10 : 0.86)
     readonly property color glassColor: painted ? "#0c0e11" : look.tint(textColor, darkScheme ? 0.03 : 0.97)
     readonly property color glassRear: painted ? "#1a2027" : look.tint(textColor, darkScheme ? 0.08 : 0.90)
     readonly property color beamColor: painted ? "#2a2e33" : look.tint(textColor, darkScheme ? 0.14 : 0.72)
-    readonly property color glassLine: painted ? "#24282d" : glassColor
+    readonly property color glassLine: !painted ? glassColor : darkPaint ? Qt.rgba(1, 1, 1, 0.17) : "#24282d"
     readonly property color faintGlassColor: Qt.rgba(glassColor.r, glassColor.g, glassColor.b, glassColor.a * 0.45)
     // What is written on the glass.
     readonly property color glassInk: darkScheme ? textColor : "#f4f5f6"
@@ -141,8 +142,10 @@ Item {
     readonly property color unlockedColor: Kirigami.Theme.neutralTextColor
     readonly property color sentryColor: Kirigami.Theme.negativeTextColor
 
-    // A part that can be open is solid when it is, outlined when only the total says that
-    // some part of its kind is open, and faint while nothing is known about it.
+    // A part that can be open is solid when it is, and faint while nothing is known about
+    // it. When only the total says that some part of its kind is open it gets a line and
+    // no fill: around it, or for a door, whose outline would crowd the window's, along its
+    // outer edge.
     function openFill(open, closed) { return open === true ? openColor : closed }
     function openLine(open, closed, unknown) {
         return open === true ? openEdge : open === "some" ? openColor : open === null ? unknown : closed
@@ -156,6 +159,10 @@ Item {
     readonly property real lineWidth: 1
     readonly property real bodyLineWidth: 1.5
     readonly property real cableWidth: 2
+    // The line that stands for a door when only the total says that some door is open, and
+    // how far inside the door's outer edge it starts: clear of the body's own line.
+    readonly property real doorEdgeWidth: 2
+    readonly property real doorEdgeInset: 1
     readonly property real lightWidth: 1.5
 
     // ---------- the car, in units, nose up ----------
@@ -170,6 +177,9 @@ Item {
     // rear corner of a front door, which is 114 long and hinged 14 inside the box, is then
     // doorReach outside the box (114 × sin 30° − 14).
     readonly property real doorWidth: 13
+    // An open door shows its whole leaf, which is this much wider towards the cabin, so
+    // that it is a panel and not a stick. Its outer edge, and with it doorReach, stays.
+    readonly property real leafExtra: 6
     readonly property real doorSwing: 30
     readonly property real doorReach: 43
     // How far a reading above or below a wheel may reach towards the middle of the car: an
@@ -234,12 +244,18 @@ Item {
         "L", boxWidth - roofEdge, "298 C 134 301 75 301", roofEdge, "298 Z"
     ].join(" ")
     // The body with the glass left out of it, for a body that is not opaque: all of
-    // bodyPath, and inside it, as holes, the panes, the beams and the side windows.
+    // bodyPath, and inside it, as holes, the panes, the beams, the side windows and the
+    // doorways of open doors.
     readonly property string openBodyPath: [
         bodyPath, glassPath, beamPath,
         windowHole(true, 178, 264), windowHole(true, 272, 330),
-        windowHole(false, 178, 264), windowHole(false, 272, 330)
+        windowHole(false, 178, 264), windowHole(false, 272, 330),
+        doorwaysPath
     ].join(" ")
+    // The doorways of the open doors, as one path. A doorway comes and goes with the
+    // door's leaf, which is drawn only while the door is open.
+    readonly property string doorwaysPath: [leftFrontDoor, leftRearDoor, rightFrontDoor, rightRearDoor]
+        .filter(door => door.open === true).map(door => doorwayPath(door.onLeft, door.from, door.to)).join(" ")
 
     // The body's left edge beside a wheel, from the two curves of bodyPath that pass the
     // axles. Along both of them y only grows, so the place on a curve is found by halving.
@@ -296,9 +312,30 @@ Item {
         return box(left, from, right, to, w * 0.4, 0)
     }
     // A door that is w wide and l long once it is on whole pixels, and the mirror on a
-    // front door, both measured from the door's own front left corner.
+    // front door, both measured from the door's own front left corner. An open door's
+    // leaf reaches further towards the cabin, which is to its right on the left side.
     function doorPath(w, l) {
         return box(0, 0, w, l, doorWidth * 0.35, lineWidth)
+    }
+    function leafPath(onLeft, w, l) {
+        return onLeft ? box(0, 0, w + leafExtra, l, 4, lineWidth) : box(-leafExtra, 0, w, l, 4, lineWidth)
+    }
+    // The outer edge of a door, as a line that lies inside the door, on whole pixels, and
+    // whose round ends stop short of the door's: on a small car two doors' lines would
+    // otherwise meet across the seam.
+    function doorEdgePath(onLeft, w, l) {
+        const half = inUnits(doorEdgeWidth / 2)
+        const x = inUnits(doorEdgeInset) + half
+        return ["M", onLeft ? x : w - x, 3 + half, "V", l - 3 - half].join(" ")
+    }
+    // The opening an open door leaves in the flank: where the closed door was, short of
+    // the seams at its two ends, and of the window by doorwayGap pixels of paint, so that
+    // a closed window beside it stays a shape of its own.
+    readonly property real doorwayGap: 2
+    function doorwayPath(onLeft, from, to) {
+        const left = snap(14)
+        const right = Math.max(left, snap(29) - inUnits(doorwayGap))
+        return box(reflect(onLeft, onLeft ? left : right), from + 2, reflect(onLeft, onLeft ? right : left), to - 2, 2, 0)
     }
     // A mirror grows out of the body: 12 out, swept back at the front and straight at the
     // rear, where its glass is. Its path starts and ends on the flank and is not closed, so
@@ -472,8 +509,10 @@ Item {
     }
 
     // Hinged at its front edge. Swings out and fills only when TeslaMate says which door is
-    // open; when it only reports that some door is open, all four get an orange outline.
-    // It sits on whole pixels, like the parts that don't move.
+    // open; when it only reports that some door is open, all four get an orange line along
+    // their outer edge, just inside the body's own line. A door's whole outline there would
+    // be a second capsule beside each outlined window, and the least certain state would be
+    // the busiest. It sits on whole pixels, like the parts that don't move.
     component Door: Shape {
         id: door
         property bool onLeft
@@ -497,9 +536,14 @@ Item {
 
         // A closed door is not drawn: the seams on the body show where it is.
         Part {
-            path: root.doorPath(root.inUnits(door.width), root.inUnits(door.height))
+            readonly property real w: root.inUnits(door.width)
+            readonly property real l: root.inUnits(door.height)
+            path: door.open === true ? root.leafPath(door.onLeft, w, l)
+                : door.open === "some" ? root.doorEdgePath(door.onLeft, w, l) : root.doorPath(w, l)
             fillColor: root.openFill(door.open, "transparent")
             strokeColor: root.openLine(door.open, "transparent", "transparent")
+            strokeWidth: door.open === "some" ? root.doorEdgeWidth : root.lineWidth
+            capStyle: ShapePath.RoundCap
         }
     }
 
@@ -771,6 +815,11 @@ Item {
                     strokeColor: root.seamColor
                     capStyle: ShapePath.FlatCap
                 }
+                // Behind an open door the flank is open: dark like the cabin's glass.
+                Part {
+                    path: root.doorwaysPath
+                    fillColor: root.glassColor
+                }
                 Part {
                     path: root.beamPath
                     fillColor: root.beamColor
@@ -817,10 +866,10 @@ Item {
                 SideWindow { onLeft: false; from: 272; to: 330; open: root.windowState(root.rightSeat, "rear") }
             }
 
-            FrontDoor { onLeft: true; open: root.doorState(root.leftSeat, "front") }
-            Door { onLeft: true; from: 270; to: 336; open: root.doorState(root.leftSeat, "rear") }
-            FrontDoor { onLeft: false; open: root.doorState(root.rightSeat, "front") }
-            Door { onLeft: false; from: 270; to: 336; open: root.doorState(root.rightSeat, "rear") }
+            FrontDoor { id: leftFrontDoor; onLeft: true; open: root.doorState(root.leftSeat, "front") }
+            Door { id: leftRearDoor; onLeft: true; from: 270; to: 336; open: root.doorState(root.leftSeat, "rear") }
+            FrontDoor { id: rightFrontDoor; onLeft: false; open: root.doorState(root.rightSeat, "front") }
+            Door { id: rightRearDoor; onLeft: false; from: 270; to: 336; open: root.doorState(root.rightSeat, "rear") }
 
             // An open port is expected while plugged in.
             Shape {
