@@ -420,15 +420,27 @@ PlasmoidItem {
         onTriggered: root.now = Date.now()
     }
 
+    // The connection settings the data was asked with.
+    property string connectionSeen: ""
+    function connectionNow() {
+        return JSON.stringify([cfg.brokerHost, cfg.brokerPort, cfg.brokerUser, cfg.brokerPassword,
+                               cfg.topicPrefix, cfg.useTls, cfg.caFile])
+    }
+
     Connections {
         target: Plasmoid.configuration
         // Only connection settings need fresh data. The display settings (units, range type,
-        // right-hand drive, panel text) update through their bindings. Keys the widget
-        // writes itself, such as unitsMigrated, must stay off this list, or writing them
-        // would throw away the data and poll again.
+        // right-hand drive, panel text) update through their bindings. Plasma sends
+        // valueChanged for every key when the configuration is read again, whatever was
+        // changed, so this goes by the values: a key that kept its value must not throw
+        // away the data and poll again.
         function onValueChanged(key) {
-            if (["brokerHost", "brokerPort", "brokerUser", "brokerPassword", "topicPrefix", "useTls", "caFile"].indexOf(key) >= 0)
-                configSettle.restart()
+            if (["brokerHost", "brokerPort", "brokerUser", "brokerPassword", "topicPrefix", "useTls", "caFile"].indexOf(key) < 0)
+                return
+            const now = root.connectionNow()
+            if (now === root.connectionSeen) return
+            root.connectionSeen = now
+            configSettle.restart()
         }
     }
 
@@ -449,6 +461,7 @@ PlasmoidItem {
     }
 
     Component.onCompleted: {
+        connectionSeen = connectionNow()
         // 1.5 replaced the imperial checkbox with a setting for each unit. This keeps what an
         // existing widget showed, once; libplasma saves the new values a moment later.
         const m = Logic.unitMigration(cfg.unitsMigrated, cfg.brokerHost, cfg.imperial)
@@ -669,7 +682,14 @@ PlasmoidItem {
         // Room for every row at its own height and the car drawing at its smallest, so an
         // attention message or extra charging lines can't push the drawing and the footer
         // out of the bottom of the card.
-        Layout.minimumHeight: Math.max(Kirigami.Units.gridUnit * 20, rowsHeight + carStatus.Layout.minimumHeight)
+        // In the popup this stops at the height the popup has without tall rows. For a
+        // moment after a message appears its text is wrapped a word to a line, and Plasma
+        // makes a popup as tall as its minimum but never shorter again when that falls.
+        Layout.minimumHeight: Math.max(Kirigami.Units.gridUnit * 20,
+                                       Plasmoid.formFactor === PlasmaCore.Types.Planar
+                                       ? rowsHeight + carStatus.Layout.minimumHeight
+                                       : Math.min(rowsHeight + carStatus.Layout.minimumHeight,
+                                                  Kirigami.Units.gridUnit * (root.attentionLines.length > 0 ? 30 : 27)))
 
         // Created here rather than on the root item, which lives in the panel: the card's
         // colors have to be the popup's.

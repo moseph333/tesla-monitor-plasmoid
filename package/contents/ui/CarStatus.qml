@@ -95,8 +95,8 @@ Item {
     readonly property color bodyHigh: bodyTone(0.45)
     readonly property color bodyCrown: bodyTone(1)
     // The nose and the tail fall away from the light.
-    readonly property color tipShade: Qt.rgba(0, 0, 0, 0.26)
-    readonly property color endShade: Qt.rgba(0, 0, 0, 0.10)
+    readonly property color tipShade: painted ? Qt.rgba(0, 0, 0, 0.26) : noShade
+    readonly property color endShade: painted ? Qt.rgba(0, 0, 0, 0.10) : noShade
     readonly property color noShade: Qt.rgba(0, 0, 0, 0)
     // The light on the hood and on the trunk lid.
     readonly property color sheenColor: Qt.rgba(1, 1, 1, 0.03 + 0.06 * (1 - paintLuma))
@@ -726,8 +726,10 @@ Item {
                 }
                 Part {
                     path: root.bodyPath
-                    fillColor: root.painted ? "black" : "transparent"
-                    fillGradient: root.painted ? endShading : null
+                    // Always filled, with a shade of nothing in theme colors: a fill that
+                    // only comes with the paint is drawn over the lights instead of under them.
+                    fillColor: "black"
+                    fillGradient: endShading
                     strokeColor: root.outlineColor
                     strokeWidth: root.bodyLineWidth
                 }
