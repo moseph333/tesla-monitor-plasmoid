@@ -77,11 +77,12 @@ Item {
 
     readonly property real limit: Math.min(1, marker)
     readonly property real limitRadians: (135 + 270 * limit) * Math.PI / 180
-    // What is left to the limit, along the middle of the stroke. The arc to the limit is
-    // left out while that is less than a stroke width: half of it lies under the level's
-    // round end, and the rest would be a speck beside it.
+    // What is left to the limit, along the middle of the stroke. Beside a notch the arc
+    // to the limit is left out while that is less than a stroke width: half of it lies
+    // under the level's round end, and the rest would be a speck beside it. Before a gap
+    // it stays at any length, since the track's round end shows there anyway.
     readonly property real toLimit: (limit - shown) * 270 * Math.PI / 180 * radius
-    readonly property bool targetShown: marker >= 0 && levelKnown && toLimit >= thickness
+    readonly property bool targetShown: marker >= 0 && levelKnown && (split ? toLimit > 0 : toLimit >= thickness)
 
     // The charge limit is a gap in the track: the track ends round at the limit, as the
     // level does, and starts again after the gap. It is a real gap and no patch in the

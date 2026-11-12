@@ -311,14 +311,29 @@ Item {
         const [left, right] = side(onLeft, 29, 29 + w)
         return box(left, from, right, to, w * 0.4, 0)
     }
-    // A door that is w wide and l long once it is on whole pixels, and the mirror on a
-    // front door, both measured from the door's own front left corner. An open door's
-    // leaf reaches further towards the cabin, which is to its right on the left side.
-    function doorPath(w, l) {
-        return box(0, 0, w, l, doorWidth * 0.35, lineWidth)
-    }
+    // The leaf of an open door that is w wide and l long once it is on whole pixels,
+    // measured, like the mirror on a front door, from the door's own front left corner.
+    // It reaches further towards the cabin, which is to its right on the left side.
+    // The corner of the leaf's extra width at the hinge is cut off along the flank, as the
+    // swung door lies: square, it would reach the window behind a rear door's hinge, and an
+    // open door and an open window would be one shape.
     function leafPath(onLeft, w, l) {
-        return onLeft ? box(0, 0, w + leafExtra, l, 4, lineWidth) : box(-leafExtra, 0, w, l, 4, lineWidth)
+        const d = inUnits(lineWidth / 2)
+        const r = 4
+        const cut = leafExtra / Math.tan(doorSwing * Math.PI / 180)
+        const x0 = snap(onLeft ? 0 : -leafExtra) + d
+        const x1 = snap(onLeft ? w + leafExtra : w) - d
+        const y0 = d
+        const y1 = snap(l) - d
+        return onLeft
+            ? ["M", x0 + r, y0, "H", x1 - leafExtra, "L", x1, y0 + cut,
+               "V", y1 - r, "A", r, r, 0, 0, 1, x1 - r, y1,
+               "H", x0 + r, "A", r, r, 0, 0, 1, x0, y1 - r,
+               "V", y0 + r, "A", r, r, 0, 0, 1, x0 + r, y0, "Z"].join(" ")
+            : ["M", x0 + leafExtra, y0, "H", x1 - r, "A", r, r, 0, 0, 1, x1, y0 + r,
+               "V", y1 - r, "A", r, r, 0, 0, 1, x1 - r, y1,
+               "H", x0 + r, "A", r, r, 0, 0, 1, x0, y1 - r,
+               "V", y0 + cut, "Z"].join(" ")
     }
     // The outer edge of a door, as a line that lies inside the door, on whole pixels, and
     // whose round ends stop short of the door's: on a small car two doors' lines would
@@ -331,11 +346,14 @@ Item {
     // The opening an open door leaves in the flank: where the closed door was, short of
     // the seams at its two ends, and of the window by doorwayGap pixels of paint, so that
     // a closed window beside it stays a shape of its own.
+    // It starts behind the leaf's slanted front edge: ahead of that it would be a dark
+    // nick between the hinge and the seam.
     readonly property real doorwayGap: 2
     function doorwayPath(onLeft, from, to) {
         const left = snap(14)
         const right = Math.max(left, snap(29) - inUnits(doorwayGap))
-        return box(reflect(onLeft, onLeft ? left : right), from + 2, reflect(onLeft, onLeft ? right : left), to - 2, 2, 0)
+        const front = from + 2 + (right - left) * Math.tan(doorSwing * Math.PI / 180)
+        return box(reflect(onLeft, onLeft ? left : right), Math.min(front, to - 2), reflect(onLeft, onLeft ? right : left), to - 2, 2, 0)
     }
     // A mirror grows out of the body: 12 out, swept back at the front and straight at the
     // rear, where its glass is. Its path starts and ends on the flank and is not closed, so
@@ -531,7 +549,9 @@ Item {
         transform: Rotation {
             origin.x: door.onLeft ? 0 : door.width
             origin.y: 0
-            angle: door.onLeft ? door.swing : -door.swing
+            // The line that stands for a door of which only the total is known lies on
+            // the flank at once, also where a door was open before.
+            angle: door.open === "some" ? 0 : door.onLeft ? door.swing : -door.swing
         }
 
         // A closed door is not drawn: the seams on the body show where it is.
@@ -539,7 +559,7 @@ Item {
             readonly property real w: root.inUnits(door.width)
             readonly property real l: root.inUnits(door.height)
             path: door.open === true ? root.leafPath(door.onLeft, w, l)
-                : door.open === "some" ? root.doorEdgePath(door.onLeft, w, l) : root.doorPath(w, l)
+                : door.open === "some" ? root.doorEdgePath(door.onLeft, w, l) : ""
             fillColor: root.openFill(door.open, "transparent")
             strokeColor: root.openLine(door.open, "transparent", "transparent")
             strokeWidth: door.open === "some" ? root.doorEdgeWidth : root.lineWidth
