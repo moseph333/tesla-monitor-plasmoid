@@ -204,14 +204,13 @@ PlasmoidItem {
         return limit >= 0 ? i18n("%1 to %2%", t, limit) : i18nc("how long a charge still takes", "%1 left", t)
     }
 
-    // While charging: how long until the limit, and when that is. The car's estimate counts
-    // from when it was published, which the last poll is nearest to, so the time doesn't
-    // creep later while data is old.
-    function chargeTimeText() {
-        const remaining = chargeRemainingText()
-        if (!remaining || !lastUpdated) return remaining
-        return remaining + " · " + i18nc("follows how long a charge still takes", "done by %1",
-                                         clock(lastUpdated.getTime() + hoursToFull * 3600000))
+    // While charging: when the limit is reached, on the line after how long that takes.
+    // The car's estimate counts from when it was published, which the last poll is nearest
+    // to, so the time doesn't creep later while data is old.
+    function chargeDoneText() {
+        if (!chargeRemainingText() || !lastUpdated) return ""
+        return i18nc("follows how long a charge still takes", "done by %1",
+                     clock(lastUpdated.getTime() + hoursToFull * 3600000))
     }
 
     // While charging: the energy added so far and what the charger supplies.
@@ -668,10 +667,12 @@ PlasmoidItem {
         // A message that needs attention makes the popup taller rather than the car
         // smaller: one line of it, with its frame and the space before it, is three grid
         // units high. This goes by whether there is one and not by its height, which
-        // Kirigami animates. Rows that need much more than usual, as they do in a large
-        // font, make the popup taller too, rather than leave the car a sliver.
+        // Kirigami animates. Rows that need more than usual, as they do in a larger font
+        // or with a second line in the footer, make the popup taller by as much, so the
+        // car keeps its width: 10.5 grid units is nearly what the rows of a parked card
+        // leave it in the 27, and still leaves a card with a two-line message at its 30.
         readonly property real popupHeight: Math.max(Kirigami.Units.gridUnit * (root.attentionLines.length > 0 ? 30 : 27),
-                                                     rowsHeight + Kirigami.Units.gridUnit * 8)
+                                                     rowsHeight + Kirigami.Units.gridUnit * 10.5)
 
         Layout.preferredWidth: Kirigami.Units.gridUnit * 21
         // A card on the desktop keeps one height to ask for: Plasma lets a widget there
@@ -1015,19 +1016,22 @@ PlasmoidItem {
                         width: details.width
                         spacing: Kirigami.Units.smallSpacing
 
-                        // The charge port's status while parked. Smart and solar chargers
-                        // report no power every evening, so that's a neutral status rather
-                        // than a warning.
+                        // The charge port's status while parked, or how long the charge
+                        // still takes, which is the answer then. With the time it is done
+                        // on a line of its own, the block has as many lines at any time
+                        // of day. Smart and solar chargers report no power every evening,
+                        // so that's a neutral status rather than a warning.
                         PlasmaComponents3.Label {
                             id: title
                             width: detailLines.width
-                            visible: !root.charging && !root.driving && text !== ""
+                            visible: !root.driving && text !== ""
                             wrapMode: Text.Wrap
                             font.weight: Font.DemiBold
                             font.features: { "tnum": 1 }
                             color: root.chargeStatus === "nopower" ? Kirigami.Theme.neutralTextColor
                                                                    : Kirigami.Theme.textColor
-                            text: details.noBreakAtEnd(root.chargeStatusText(), titleMetrics)
+                            text: details.noBreakAtEnd(root.charging ? root.chargeRemainingText()
+                                                       : root.chargeStatusText(), titleMetrics)
                         }
                         // Where the car is going, when navigation is turned on and it has a
                         // route. A destination can be a whole address, so it gets two lines.
@@ -1048,7 +1052,7 @@ PlasmoidItem {
                             visible: text !== ""
                             wrapMode: Text.Wrap
                             font.features: { "tnum": 1 }
-                            text: details.brokenBetweenParts(root.charging ? root.chargeTimeText()
+                            text: details.brokenBetweenParts(root.charging ? root.chargeDoneText()
                                                              : root.routeArrivalText(), bodyMetrics)
                         }
 
@@ -1330,14 +1334,16 @@ PlasmoidItem {
                         }
                     }
 
-                    // Stands out while the data is old, since this time then says how old.
+                    // At full strength while the data is old, since this time then says how
+                    // old. It stays in the text color: the icon before it carries the
+                    // warning's color, which some themes make too pale to read as text.
                     PlasmaComponents3.Label {
                         id: updated
                         Layout.leftMargin: Kirigami.Units.smallSpacing
                         font.pointSize: Kirigami.Theme.smallFont.pointSize
                         font.features: { "tnum": 1 }
                         opacity: root.stale ? 1 : look.secondary
-                        color: root.stale ? Kirigami.Theme.neutralTextColor : Kirigami.Theme.textColor
+                        color: Kirigami.Theme.textColor
                         text: {
                             root.now // re-evaluate on tick: at midnight the time gets its weekday
                             return root.lastUpdated ? root.updatedText(root.lastUpdated) : ""
