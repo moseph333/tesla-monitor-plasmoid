@@ -4,9 +4,9 @@ import org.kde.kirigami as Kirigami
 import org.kde.plasma.components as PlasmaComponents3
 
 // The battery level as a 270° arc that is open at the bottom, around the level in figures,
-// the range and, while the battery is cold, how much of it is usable. A notch on the inside
-// of the track marks the charge limit, and the track from the level up to it is a shade
-// stronger than beyond it.
+// the range and, while the battery is cold, how much of it is usable. A gap in the track
+// marks the charge limit, and the track from the level up to it is a shade stronger than
+// beyond it.
 // While the car charges, a bolt sits above the level and that stretch takes the ring's
 // color and pulses.
 // value and marker are 0..1, and a marker below 0 means the limit isn't known.
@@ -48,6 +48,11 @@ Item {
     readonly property string dash: "—"
     readonly property bool levelKnown: numberText !== "" && numberText !== dash
 
+    // A nearly empty battery that isn't being charged: the figure then takes the red the
+    // ring has, or the most urgent level would be the calmest card. The threshold is the
+    // one below which Look.batteryColor() gives red. Orange stays with the arc alone.
+    readonly property bool critical: !charging && levelKnown && value < 0.1
+
     readonly property real clamped: Math.max(0, Math.min(1, value))
     property real shown: clamped
     Behavior on shown {
@@ -78,6 +83,17 @@ Item {
     readonly property real toLimit: (limit - shown) * 270 * Math.PI / 180 * radius
     readonly property bool targetShown: marker >= 0 && levelKnown && toLimit >= thickness
 
+    // The charge limit is a gap in the track: the track ends round at the limit, as the
+    // level does, and starts again after the gap. It is a real gap and no patch in the
+    // background's color, so a translucent popup shows through it. A round end reaches half
+    // a stroke width past where its arc ends, which capDegrees is in degrees.
+    // The track stays whole, and a notch marks the limit, where a gap can't: under a level
+    // above the limit, and with a limit from 95%, which would leave a dot of track after it.
+    // The margin keeps a level at the limit, which arrives as a sum of fractions, below it.
+    readonly property real capDegrees: thickness / 2 / radius * 180 / Math.PI
+    readonly property real gapDegrees: Math.max(2, thickness * 0.35) / radius * 180 / Math.PI
+    readonly property bool split: marker >= 0 && limit < 0.95 && shown < limit + 0.001
+
     Look { id: look }
 
     // The arcs. The level's round end lies over the start of the stretch to the limit, and
@@ -102,19 +118,36 @@ Item {
                 PathAngleArc {
                     centerX: ring.cx; centerY: ring.cy
                     radiusX: ring.radius; radiusY: ring.radius
-                    startAngle: 135; sweepAngle: 270
+                    startAngle: 135; sweepAngle: ring.split ? 270 * ring.limit : 270
                 }
             }
 
-            // The charge limit: a notch that starts on the track's inner edge and points to
-            // the middle, where neither arc reaches it, so it also shows while the level is
-            // above the limit. Away from the track it would read as a dash after the level's
-            // "%", which it lies beside at the usual limit of 80%. A limit of 100% is the end
-            // of the track, which marks it well enough: a notch there would sit right after
-            // the note.
+            // The track beyond the gap. Its color goes while the track is whole, since a
+            // stroke of no length would still be drawn as a dot by some renderers.
+            ShapePath {
+                id: beyond
+                readonly property real start: 135 + 270 * ring.limit + 2 * ring.capDegrees + ring.gapDegrees
+
+                fillColor: "transparent"
+                strokeColor: ring.split ? look.hairline : "transparent"
+                strokeWidth: ring.thickness
+                capStyle: ShapePath.RoundCap
+                PathAngleArc {
+                    centerX: ring.cx; centerY: ring.cy
+                    radiusX: ring.radius; radiusY: ring.radius
+                    startAngle: ring.split ? beyond.start : 404; sweepAngle: 405 - startAngle
+                }
+            }
+
+            // The charge limit where the track has no gap for it: a notch that starts on the
+            // track's inner edge and points to the middle, where neither arc reaches it, so
+            // it shows while the level is above the limit. Beside the usual limit of 80% it
+            // reads as a dash after the level's "%", which is why the gap marks the limit
+            // wherever it can. A limit of 100% is the end of the track, which marks it well
+            // enough: a notch there would sit right after the note.
             ShapePath {
                 id: tick
-                readonly property bool drawn: ring.marker >= 0 && ring.limit < 1
+                readonly property bool drawn: ring.marker >= 0 && ring.limit < 1 && !ring.split
                 readonly property real outer: ring.radius - ring.thickness * 0.5
                 readonly property real inner: outer - ring.thickness * 0.9
 
@@ -133,9 +166,10 @@ Item {
 
         // From the level to the limit: what the car is charging, or would charge if it were
         // plugged in. It starts under the level's round end, which it follows while the
-        // level sweeps, and is cut off flat at the limit, or ends round with the track at
-        // 100%. It is an item of its own, so that the pulse can move its opacity, which
-        // needs no new geometry for each frame as a color would.
+        // level sweeps, and ends as the track under it does: round at the gap or at 100%,
+        // and cut off flat at a limit that the notch marks. It is an item of its own, so
+        // that the pulse can move its opacity, which needs no new geometry for each frame
+        // as a color would.
         Shape {
             id: targetArc
             anchors.fill: parent
@@ -178,7 +212,7 @@ Item {
                 fillColor: "transparent"
                 strokeColor: ring.targetColor
                 strokeWidth: ring.thickness
-                capStyle: ring.limit < 1 ? ShapePath.FlatCap : ShapePath.RoundCap
+                capStyle: ring.split || ring.limit >= 1 ? ShapePath.RoundCap : ShapePath.FlatCap
                 PathAngleArc {
                     centerX: ring.cx; centerY: ring.cy
                     radiusX: ring.radius; radiusY: ring.radius
@@ -247,6 +281,7 @@ Item {
             font.pixelSize: Math.round(ring.diameter * 0.235)
             font.weight: ring.levelKnown ? Font.DemiBold : Font.Normal
             font.features: { "tnum": 1 }
+            color: ring.critical ? Kirigami.Theme.negativeTextColor : Kirigami.Theme.textColor
             opacity: ring.levelKnown ? 1 : look.faint
             Accessible.name: ring.numberText + ring.unitText
         }
