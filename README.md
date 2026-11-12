@@ -2,6 +2,14 @@
 
 A KDE Plasma 6 widget that shows a Tesla's status from [TeslaMate](https://docs.teslamate.org) over MQTT. On the desktop it's a full card. In a panel it's a Model 3-shaped battery icon, with the battery percentage or the range beside it, that opens the card when clicked. It's drawn like Plasma's battery icon: a thin outline with a solid fill that grows from left to right, and a bolt while charging. The panel icon also works from the keyboard, where Space or Enter opens the card, and screen readers read out the same status as its tooltip.
 
+<p>
+<img src="screenshots/parked.png" width="270" alt="The card of a parked car in Breeze Dark: battery ring at 72%, temperatures, and the car in its blue paint">
+<img src="screenshots/charging.png" width="270" alt="The card while charging in Breeze Light: 11 kW, 1h 30m to 80%">
+<img src="screenshots/door-open.png" width="270" alt="The card with the driver's door and the trunk open, and the warning that lists them">
+</p>
+
+The popup on Plasma 6.8 with the data of `tools/fake-teslamate.sh`.
+
 The card shows:
 
 - The car's name, what it's doing, the TeslaMate geofence it's in and for how long, such as "Parked · Home · 3h". If you set TeslaMate's address in the settings, clicking the name opens TeslaMate in your browser
