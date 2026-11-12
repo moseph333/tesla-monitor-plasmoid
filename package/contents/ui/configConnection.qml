@@ -116,7 +116,7 @@ KCM.SimpleKCM {
         QQC2.TextField {
             id: brokerHost
             Kirigami.FormData.label: i18n("Host:")
-            placeholderText: "192.168.1.x or mqtt.moseph.net"
+            placeholderText: i18nc("example broker addresses", "192.168.1.x or mqtt.example.com")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
             onTextChanged: page.brokerEdited()
             // People paste whatever their broker's docs show, such as

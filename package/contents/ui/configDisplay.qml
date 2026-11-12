@@ -15,6 +15,7 @@ KCM.SimpleKCM {
     property alias cfg_panelText: panelText.currentIndex
     property alias cfg_panelChargingTime: panelChargingTime.checked
     property alias cfg_rightHandDrive: rightHandDrive.checked
+    property alias cfg_carColor: carColor.currentIndex
     property alias cfg_showNavigation: showNavigation.checked
     property alias cfg_unlockedOkGeofences: unlockedOkGeofences.text
     property alias cfg_teslamateUrl: teslamateUrl.text
@@ -113,7 +114,21 @@ KCM.SimpleKCM {
             wrapMode: Text.Wrap
             font: Kirigami.Theme.smallFont
             opacity: 0.7
-            text: i18n("TeslaMate reports doors and windows by driver and passenger side. This puts the driver on the right of the car drawing.")
+            text: i18n("TeslaMate reports doors and windows by driver and passenger side. This puts the driver on the car's right-hand side.")
+        }
+
+        QQC2.ComboBox {
+            id: carColor
+            Kirigami.FormData.label: i18n("Car color:")
+            model: [i18n("The car's paint"), i18n("Theme colors")]
+        }
+
+        QQC2.Label {
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            wrapMode: Text.Wrap
+            font: Kirigami.Theme.smallFont
+            opacity: 0.7
+            text: i18n("The paint comes from TeslaMate. When it's missing or unknown, the car is drawn in theme colors.")
         }
 
         QQC2.CheckBox {

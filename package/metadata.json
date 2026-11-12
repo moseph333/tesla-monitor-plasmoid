@@ -11,7 +11,7 @@
         "Id": "net.moseph.teslamonitor",
         "License": "MIT",
         "Name": "Tesla Monitor",
-        "Version": "1.5.1"
+        "Version": "1.6.0"
     },
     "KPackageStructure": "Plasma/Applet",
     "X-Plasma-API-Minimum-Version": "6.0"
