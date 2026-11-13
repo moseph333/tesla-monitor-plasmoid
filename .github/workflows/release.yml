@@ -1,0 +1,57 @@
+name: Release
+
+# Push a tag such as v1.7.0 to publish a release. The tag must match Version in
+# package/metadata.json, and CHANGELOG.md should have a "## [1.7.0]" section.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: make test
+
+      - name: Check the tag matches metadata.json
+        id: version
+        run: |
+          version=$(jq -r .KPlugin.Version package/metadata.json)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match Version $version in package/metadata.json"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        run: |
+          make build
+          cp dist/tesla-monitor.plasmoid "dist/tesla-monitor-$GITHUB_REF_NAME.plasmoid"
+
+      - name: Extract release notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          awk -v v="$VERSION" '
+            index($0, "## [" v "]") == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then
+            echo "See [CHANGELOG.md](CHANGELOG.md)." > notes.md
+          fi
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Tesla Monitor $GITHUB_REF_NAME" \
+            --notes-file notes.md \
+            "dist/tesla-monitor-$GITHUB_REF_NAME.plasmoid"
