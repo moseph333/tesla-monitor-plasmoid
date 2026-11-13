@@ -1,0 +1,7 @@
+* text=auto eol=lf
+*.png binary
+
+# Leave development files out of `git archive` source tarballs.
+.github/        export-ignore
+.editorconfig   export-ignore
+.gitattributes  export-ignore

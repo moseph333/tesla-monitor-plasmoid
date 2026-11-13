@@ -1,0 +1,22 @@
+name: Feature request
+description: Suggest something the widget could show or do
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to see?
+      description: Describe what you want to know at a glance, or do, and why.
+    validations:
+      required: true
+  - type: textarea
+    id: data
+    attributes:
+      label: TeslaMate data
+      description: >
+        The widget can only show what TeslaMate publishes over MQTT. If you know which topic
+        holds the value, name it.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered

@@ -1,0 +1,71 @@
+name: Bug report
+description: Something in the widget doesn't work as described
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. Please check the README's
+        [Troubleshooting](https://github.com/moseph333/tesla-monitor-plasmoid#troubleshooting)
+        section first. Remove your broker's address, usernames and passwords from anything you paste.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead. Screenshots help.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: If a `tools/fake-teslamate.sh` scenario shows the problem, name it.
+      placeholder: |
+        1. Run `tools/fake-teslamate.sh parked charging`
+        2. Open the popup
+        3. ...
+  - type: input
+    id: widget-version
+    attributes:
+      label: Widget version
+      description: Shown in the widget's settings under About, or in `package/metadata.json`.
+      placeholder: "1.7.0"
+    validations:
+      required: true
+  - type: input
+    id: plasma
+    attributes:
+      label: Plasma and Qt versions
+      description: From **System Settings → About this System**, or `plasmashell --version`.
+      placeholder: "Plasma 6.4.5, Qt 6.9.2"
+    validations:
+      required: true
+  - type: input
+    id: distro
+    attributes:
+      label: Distribution
+      placeholder: "Fedora 43"
+  - type: input
+    id: teslamate
+    attributes:
+      label: TeslaMate version
+      placeholder: "2.1.1"
+  - type: input
+    id: mosquitto
+    attributes:
+      label: mosquitto_sub version
+      description: The first line of `mosquitto_sub --help`.
+  - type: dropdown
+    id: placement
+    attributes:
+      label: Where is the widget?
+      options:
+        - Panel
+        - Desktop
+        - Both
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Output of `journalctl --user -b -u plasma-plasmashell | grep -i -A3 tesla`
+      render: text

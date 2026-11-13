@@ -5,13 +5,15 @@
                 "Name": "moseph333"
             }
         ],
+        "BugReportUrl": "https://github.com/moseph333/tesla-monitor-plasmoid/issues",
         "Category": "System Information",
         "Description": "Battery, charging, climate, tire, door and lock status from TeslaMate over MQTT, with notifications",
         "Icon": "battery-080",
         "Id": "net.moseph.teslamonitor",
         "License": "MIT",
         "Name": "Tesla Monitor",
-        "Version": "1.6.0"
+        "Version": "1.7.0",
+        "Website": "https://github.com/moseph333/tesla-monitor-plasmoid"
     },
     "KPackageStructure": "Plasma/Applet",
     "X-Plasma-API-Minimum-Version": "6.0"

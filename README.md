@@ -1,5 +1,12 @@
 # Tesla Monitor
 
+[![CI](https://github.com/moseph333/tesla-monitor-plasmoid/actions/workflows/ci.yml/badge.svg)](https://github.com/moseph333/tesla-monitor-plasmoid/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/moseph333/tesla-monitor-plasmoid)](https://github.com/moseph333/tesla-monitor-plasmoid/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Plasma 6](https://img.shields.io/badge/KDE%20Plasma-6-1d99f3?logo=kde)
+
+> An unofficial community project. It isn't affiliated with or endorsed by Tesla, Inc. or the TeslaMate project. See [Disclaimer](#disclaimer).
+
 A KDE Plasma 6 widget that shows a Tesla's status from [TeslaMate](https://docs.teslamate.org) over MQTT. On the desktop it's a full card. In a panel it's a Model 3-shaped battery icon, with the battery percentage or the range beside it, that opens the card when clicked. It's drawn like Plasma's battery icon: a thin outline with a solid fill that grows from left to right, and a bolt while charging. The panel icon also works from the keyboard, where Space or Enter opens the card, and screen readers read out the same status as its tooltip.
 
 <p>
@@ -25,6 +32,8 @@ It can also send desktop notifications when charging finishes or stops early, wh
 
 The widget runs `mosquitto_sub` every 15 seconds by default, and every 2 minutes while the car sleeps and the popup is closed, to read TeslaMate's retained messages from the broker. It never talks to the car. Opening the popup, or pressing the refresh button in its header, updates right away. If the broker stops answering, the card keeps the last data and fades it, the panel icon dims, and the card's footer and the icon's tooltip say when the data was last updated, with the day once that wasn't today.
 
+**Contents:** [Requirements](#requirements) · [Install](#install) · [Settings](#settings) · [TLS](#tls) · [Notifications](#notifications) · [Security and privacy](#security-and-privacy) · [TeslaMate behavior](#teslamate-behavior) · [Troubleshooting](#troubleshooting) · [Development](#development) · [Contributing](#contributing)
+
 ## Requirements
 
 - Plasma 6
@@ -39,11 +48,42 @@ The widget runs `mosquitto_sub` every 15 seconds by default, and every 2 minutes
 
 ## Install
 
+### From a release
+
+1. Download `tesla-monitor-<version>.plasmoid` from the [latest release](https://github.com/moseph333/tesla-monitor-plasmoid/releases/latest).
+2. Right-click the desktop or a panel, choose **Add or Manage Widgets…**, then **Get New → Install Widget From Local File…**, and pick the file.
+
+Or from a terminal, where `-i` installs and `-u` upgrades an installed copy:
+
 ```bash
+kpackagetool6 -t Plasma/Applet -i tesla-monitor-*.plasmoid
+```
+
+### From source
+
+Building needs `zip`, and installing needs `kpackagetool6`, which comes with Plasma:
+
+```bash
+git clone https://github.com/moseph333/tesla-monitor-plasmoid.git
+cd tesla-monitor-plasmoid
 make install
 ```
 
+`make install` also upgrades an installed copy. Run `make reload`, or log out and back in, so Plasma loads the new version.
+
 Then add **Tesla Monitor** to a panel or the desktop and open its settings.
+
+### Uninstall
+
+Remove the widget from your panels and desktop, then:
+
+```bash
+kpackagetool6 -t Plasma/Applet -r net.moseph.teslamonitor
+```
+
+From a source checkout, `make uninstall` does the same.
+
+## Settings
 
 **Connection**
 
@@ -80,9 +120,7 @@ Then add **Tesla Monitor** to a panel or the desktop and open its settings.
 | Notify when | Charging finishes, charging stops early or the charger loses power, something is left open, the car is unlocked with nobody inside, a tire's pressure is low, or a software update is available. All are on by default. See [Notifications](#notifications) |
 | For at least | 10 minutes by default. How long something has to stay open, or the car unlocked with nobody inside, before the widget notifies |
 
-Each copy of the widget keeps its own settings.
-
-Plasma stores the password in plain text and the widget passes it to `mosquitto_sub` on the command line, so use a read-only broker account. The widget never uses the car's position (`latitude`, `longitude`, `location`, `heading`, `elevation`) or the older `active_route_*` topics, so the account can be denied those. It shows the navigation destination (`active_route`) only when **Show the destination and arrival while driving** is on, but it still receives that topic with everything else under the prefix, so deny it too if you don't use navigation.
+Each copy of the widget keeps its own settings. See [Security and privacy](#security-and-privacy) before you enter a broker password.
 
 ## TLS
 
@@ -105,6 +143,16 @@ Notifications are only for changes. Nothing is sent for what's already the case 
 
 If you leave the car unlocked on purpose somewhere, such as in your garage at home, add that TeslaMate geofence to **Unlocked is OK at** on the Display page. The widget then neither warns nor notifies there.
 
+## Security and privacy
+
+The widget only reads from the MQTT broker. It never contacts the car or Tesla's servers, and sends nothing anywhere else.
+
+- Plasma stores the password in plain text, and the widget passes it to `mosquitto_sub` on the command line, where other users of this computer can see it. Use a broker account that can only read TeslaMate's topics.
+- The widget never uses the car's position (`latitude`, `longitude`, `location`, `heading`, `elevation`) or the older `active_route_*` topics, so the account can be denied those. It shows the navigation destination (`active_route`) only when **Show the destination and arrival while driving** is on, but it still receives that topic with everything else under the prefix, so deny it too if you don't use navigation.
+- Use TLS if the broker is reachable from outside your home network.
+
+To report a security problem, see [SECURITY.md](SECURITY.md).
+
 ## TeslaMate behavior
 
 - TeslaMate creates its MQTT publishers only for cars that exist when it starts. Restart TeslaMate after adding a car, or the broker stays empty.
@@ -117,6 +165,26 @@ If you leave the car unlocked on purpose somewhere, such as in your garage at ho
 - From TeslaMate 4.4, values the car stops reporting disappear from the card.
 - TeslaMate reports the paint as the car names it, such as `DeepBlue`, `PearlWhite` or `RedMulticoat`. The widget knows Tesla's paints by the words in those names and draws a close color, not the exact one. For any other name it uses theme colors.
 
+## Troubleshooting
+
+**The card stays empty or says it's waiting for data.** Press **Test Connection** in the settings, which says what went wrong. If the broker answers but has nothing under the prefix, use **Find Cars** to fill in the right topic prefix. TeslaMate only publishes cars that existed when it started, so restart it after adding a car, and some values only appear once the car wakes up.
+
+**The widget won't load, or shows an error instead of the card.** Install KNotifications' QML module, `org.kde.notification`, if your distribution packages it separately, then run `make reload` or log out and back in.
+
+**It says `mosquitto_sub` isn't installed.** Install it from your distribution's packages, as listed under [Requirements](#requirements). The snap isn't supported.
+
+**TLS fails.** Check that **Host** is a name the broker's certificate lists, that the CA file is the one that signed it, and that mosquitto is 2.0 or newer if the CA file is empty. See [TLS](#tls).
+
+**No notifications.** Check that they're turned on in the widget's Notifications page and in **System Settings → Notifications**. Notifications are only for changes, so nothing is sent for what was already the case when the widget started.
+
+**Seeing what went wrong.** Plasma logs the widget's errors to the journal:
+
+```bash
+journalctl --user -b -u plasma-plasmashell | grep -i -A3 tesla
+```
+
+If that doesn't explain it, [open an issue](https://github.com/moseph333/tesla-monitor-plasmoid/issues/new/choose) with the widget, Plasma and TeslaMate versions.
+
 ## Development
 
 Edit the files in `package/`, then:
@@ -125,9 +193,12 @@ Edit the files in `package/`, then:
 make install   # build dist/tesla-monitor.plasmoid and install or upgrade it
 make reload    # restart Plasma so the new QML loads
 make test      # run the unit tests
+make lint      # check QML syntax, metadata.json, main.xml and the shell script
 ```
 
-`make reload` makes the panel and desktop blink, and it clears Plasma's notifications. Raise `Version` in `package/metadata.json` for each release.
+`make reload` makes the panel and desktop blink, and it clears Plasma's notifications. `make help` lists every target. For each release, raise `Version` in `package/metadata.json`, describe the changes in [CHANGELOG.md](CHANGELOG.md), and push a matching tag such as `v1.7.0`. The release workflow then publishes the `.plasmoid` on GitHub. CI runs the tests and `make lint` on every pull request.
+
+`make lint` uses Qt 6's `qmlformat`, `jq`, `xmllint` and `shellcheck`, and skips any that aren't installed.
 
 The tests in `tests/` cover `logic.js` and `notifyhub.js` and need only Node.js 18 or newer. `logic.js` holds the widget's decisions and never calls `Qt` or `i18n()`, so Node can run it; the QML turns its results into words. Qt 6's `qmllint` catches QML syntax errors:
 
@@ -167,3 +238,15 @@ mosquitto_pub -p 1884 -r -t teslamate/cars/1/exterior_color -m PearlWhite
 ```
 
 The card draws its own lock, Sentry and bolt signs instead of taking them from the icon theme, so they look the same in every theme. If you add a theme icon with `isMask: true`, use a `-symbolic` name. Some icon themes, such as WhiteSur, map plain names to full-color icons, which then render as a solid block.
+
+## Contributing
+
+Bug reports and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md), and [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
+
+## License
+
+[MIT](LICENSE) © 2026 moseph333
+
+## Disclaimer
+
+Tesla Monitor is an independent, unofficial project. It isn't affiliated with, endorsed by or sponsored by Tesla, Inc. or the TeslaMate project. Tesla and Model 3 are trademarks of Tesla, Inc., used here only to describe what the widget works with. The widget only reads data that your own TeslaMate publishes to your own MQTT broker, and is provided as is, without warranty.
