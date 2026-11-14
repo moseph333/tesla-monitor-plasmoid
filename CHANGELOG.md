@@ -4,6 +4,12 @@ All notable changes to Tesla Monitor are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.8.0] - 2026-11-14
+
+### Added
+
+- The panel icon and the car in the card are drawn as a Model S, Model 3, Model X, Model Y or Cybertruck, each with its own proportions. A new **Model** setting chooses one, and by default follows the model TeslaMate reports.
+
 ## [1.7.1] - 2026-11-14
 
 ### Fixed

@@ -9,6 +9,7 @@ import org.kde.kirigami as Kirigami
 import org.kde.notification
 
 import "logic.js" as Logic
+import "models.js" as Models
 import "notifyhub.js" as Hub
 
 PlasmoidItem {
@@ -80,6 +81,9 @@ PlasmoidItem {
     // The body color for the car drawing, or "" for theme colors: when that's the setting,
     // or TeslaMate reports no paint the widget knows.
     readonly property string paint: cfg.carColor === 0 ? Logic.paintColor(car.exterior_color) : ""
+    // Which car the panel icon and the card draw: the settings' choice, or the model
+    // TeslaMate reports.
+    readonly property string carModel: Models.modelKey(cfg.carModel, car.model)
 
     readonly property string distUnit: units.distance
     readonly property string tempUnit: "°" + units.temperature
@@ -645,6 +649,7 @@ PlasmoidItem {
 
                 Layout.preferredHeight: fitHeight
                 Layout.preferredWidth: fitHeight * aspect
+                model: root.carModel
                 value: root.level >= 0 ? root.level / 100 : -1
                 charging: root.charging
                 active: compact.containsMouse
@@ -1191,6 +1196,7 @@ PlasmoidItem {
                 Layout.minimumHeight: Math.max(Kirigami.Units.gridUnit * 5, carStatus.sidewaysHeight)
                 opacity: content.dataOpacity
                 car: root.car
+                model: root.carModel
                 rightHandDrive: root.cfg.rightHandDrive
                 paint: root.paint
                 fl: root.tire("fl")

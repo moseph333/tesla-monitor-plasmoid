@@ -23,7 +23,7 @@ Before opening a pull request:
 1. Run `make test` and `make lint`.
 2. Try the change in a real Plasma session with `make install && make reload`. For changes
    to the card, check Breeze Light and Breeze Dark, and a panel as well as the desktop.
-3. Add tests to `tests/logic.test.mjs` for changes to `logic.js` or `notifyhub.js`.
+3. Add tests to `tests/logic.test.mjs` for changes to `logic.js`, `models.js` or `notifyhub.js`.
    `logic.js` stays free of `Qt` and `i18n()` so Node can run it; put wording in the QML.
 4. Wrap every user-visible string in `i18n()` or `i18nc()`.
 5. Describe user-visible changes under a new version in [CHANGELOG.md](CHANGELOG.md),

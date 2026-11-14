@@ -14,6 +14,7 @@ function load(file) {
 
 const L = load("logic.js");
 const Hub = load("notifyhub.js");
+const Models = load("models.js");
 
 test("parseMqtt strips the prefix and ignores other topics", () => {
     const out = [
@@ -1440,4 +1441,101 @@ test("escapeMarkup escapes &, < and > and keeps line breaks", () => {
     assert.equal(L.escapeMarkup("Doors: open\nTrunk open"), "Doors: open\nTrunk open");
     assert.equal(L.escapeMarkup(80), "80");
     assert.equal(L.escapeMarkup(""), "");
+});
+
+// ---------- models.js ----------
+
+const MODEL_KEYS = ["s", "3", "x", "y", "cybertruck"];
+// Every number in a path, to check that none of them is NaN or missing.
+const pathNumbers = path => path.split(/[\s,]+/).filter(t => !/^[MLCAZ]$/.test(t));
+
+test("modelKey takes the settings' choice over what TeslaMate reports", () => {
+    assert.deepEqual([1, 2, 3, 4, 5].map(i => Models.modelKey(i, "3")), MODEL_KEYS);
+    assert.equal(Models.modelKey(4, undefined), "y");
+});
+
+test("modelKey on automatic goes by TeslaMate's model", () => {
+    assert.equal(Models.modelKey(0, "S"), "s");
+    assert.equal(Models.modelKey(0, "3"), "3");
+    assert.equal(Models.modelKey(0, "X"), "x");
+    assert.equal(Models.modelKey(0, "Y"), "y");
+    assert.equal(Models.modelKey(0, " y "), "y");
+    assert.equal(Models.modelKey(0, "Model X"), "x");
+    assert.equal(Models.modelKey(0, "Cybertruck"), "cybertruck");
+    assert.equal(Models.modelKey(0, "C"), "cybertruck");
+});
+
+test("modelKey falls back to the Model 3", () => {
+    for (const reported of [undefined, null, "", "Roadster", "Semi", "(null)"])
+        assert.equal(Models.modelKey(0, reported), "3");
+    assert.equal(Models.modelKey(9, "S"), "s");
+    assert.equal(Models.modelKey(-1, undefined), "3");
+    assert.equal(Models.modelKey(undefined, "Y"), "y");
+});
+
+test("every model has a side profile of well-formed paths", () => {
+    for (const key of MODEL_KEYS) {
+        const p = Models.sideProfile(key);
+        assert.ok(p.boxWidth > p.boxHeight && p.boxHeight > 0, key);
+        for (const name of ["outlinePath", "fillPath", "chargingFillPath", "boltPath"]) {
+            assert.match(p[name], /^M /, key + " " + name);
+            for (const t of pathNumbers(p[name])) assert.ok(Number.isFinite(Number(t)), key + " " + name + ": " + t);
+        }
+        // The outline stays inside the icon's box.
+        const xs = p.outlinePath.match(/-?\d+(\.\d+)?/g).map(Number);
+        assert.ok(Math.max(...xs) <= p.boxWidth && Math.min(...xs) >= 0, key);
+    }
+});
+
+test("the Model 3's side profile is the one the icon always had", () => {
+    const p = Models.sideProfile("3");
+    assert.equal(p.boxWidth, 477.4);
+    assert.equal(p.boxHeight, 148.3);
+    assert.ok(p.chargingFillPath.includes("L 226.3 53.91 L 202.7 88 L 225.7 88 L 217.28 120"));
+    assert.equal(p.boltPath, "M 254 28 L 218 80 L 236 80 L 226 118 L 262 64 L 244 64 Z");
+    assert.equal(Models.sideProfile("nonsense"), p);
+});
+
+test("every model has a plan whose parts are in order along the car", () => {
+    for (const key of MODEL_KEYS) {
+        const p = Models.plan(key);
+        assert.ok(p.boxHeight >= p.length && p.length > p.boxWidth, key);
+        assert.ok(p.frontAxle < p.frontDoor[0] && p.frontDoor[0] < p.frontDoor[1], key);
+        assert.ok(p.frontDoor[1] < p.rearDoor[0] && p.rearDoor[0] < p.rearDoor[1], key);
+        // The rear door ends before the rear wheel, which is 33 long either way.
+        assert.ok(p.rearDoor[1] <= p.rearAxle - 33 + 2 && p.rearAxle + 33 < p.length, key);
+        for (const [door, win] of [[p.frontDoor, p.frontWindow], [p.rearDoor, p.rearWindow]])
+            assert.ok(door[0] < win[0] && win[1] <= door[1], key);
+        for (const y of [p.sentryY, p.lockY])
+            assert.ok(y > p.glassSpan[0] && y < p.glassSpan[1], key);
+        const paths = [p.bodyPath(12.25), p.frunkPath, p.trunkPath, p.glassPath(46), p.beamPath(46),
+                       p.headlightPath, p.headlightLine, p.taillightPath, p.taillightLine];
+        for (const path of paths) {
+            assert.match(path, /^M /, key);
+            for (const t of pathNumbers(path)) assert.ok(Number.isFinite(Number(t)), key + ": " + t);
+        }
+    }
+});
+
+test("the Model 3's plan is the one the card always drew", () => {
+    const p = Models.plan("3");
+    assert.equal(p.boxWidth, 209);
+    assert.equal(p.boxHeight, 470);
+    assert.equal(p.bodyPath(12.25), "M 104.5 0 C 64 0 29 6 20.5 34 C 15.5 50 13 72 12.25 104 L 12.25 330 "
+        + "C 12.25 385 13.5 422 16.5 441 C 20.5 459 44 466.5 74 468.5 C 86 469.4 96 469.4 104.5 469.4 "
+        + "C 113 469.4 123 469.4 135 468.5 C 165 466.5 188.5 459 192.5 441 C 195.5 422 196.75 385 196.75 330 "
+        + "L 196.75 104 C 196 72 193.5 50 188.5 34 C 180 6 145 0 104.5 0 Z");
+    assert.equal(p.frunkPath, "M 104.5 9 C 70 9 40 14 33 38 L 35 110 C 67 116 142 116 174 110 L 176 38 C 169 14 139 9 104.5 9 Z");
+});
+
+test("edgeAt finds the body's edge beside the wheels", () => {
+    for (const key of MODEL_KEYS) {
+        const p = Models.plan(key);
+        const left = p.bodyLeft(12.25);
+        assert.equal(Models.edgeAt(left, (p.frontAxle + p.rearAxle) / 2), 12.25, key);
+        for (const y of [p.frontAxle - 33, p.frontAxle + 33, p.rearAxle - 33, p.rearAxle + 33]) {
+            const x = Models.edgeAt(left, y);
+            assert.ok(x >= 12.25 && x < 30, key + " at " + y + ": " + x);
+        }
+    }
 });
