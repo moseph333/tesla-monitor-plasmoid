@@ -10,12 +10,18 @@
 A KDE Plasma 6 widget that shows a Tesla's status from [TeslaMate](https://docs.teslamate.org) over MQTT. On the desktop it's a full card. In a panel it's a battery icon in the shape of your car, a Model S, 3, X, Y or Cybertruck, with the battery percentage or the range beside it, that opens the card when clicked. It's drawn like Plasma's battery icon: a thin outline with a solid fill that grows from left to right, and a bolt while charging. The panel icon also works from the keyboard, where Space or Enter opens the card, and screen readers read out the same status as its tooltip.
 
 <p>
-<img src="screenshots/parked.png" width="270" alt="The card of a parked car in Breeze Dark: battery ring at 72%, temperatures, and the car in its blue paint">
+<img src="screenshots/parked.png" width="270" alt="The card of a parked Model 3 in Breeze Dark: battery ring at 72%, temperatures, and the car in its blue paint">
 <img src="screenshots/charging.png" width="270" alt="The card while charging in Breeze Light: 11 kW, 1h 30m to 80%">
 <img src="screenshots/door-open.png" width="270" alt="The card with the driver's door and the trunk open, and the warning that lists them">
 </p>
+<p>
+<img src="screenshots/model-s.png" width="200" alt="The card of a red Model S">
+<img src="screenshots/model-x.png" width="200" alt="The card of a white Model X with both rear doors lifted like wings, and the warning that lists them">
+<img src="screenshots/model-y.png" width="200" alt="The card of a silver Model Y while charging, in Breeze Light">
+<img src="screenshots/cybertruck.png" width="200" alt="The card of a Cybertruck">
+</p>
 
-The popup on Plasma 6.8 with the data of `tools/fake-teslamate.sh`. The screenshots are from 1.7. Since 1.8 the car is drawn after the real car's outline, for each model, so it looks a little different.
+The card on Plasma 6.8 with the data of `tools/fake-teslamate.sh`: a Model 3 above, and a Model S, a Model X with its rear doors up, a Model Y and a Cybertruck below.
 
 The card shows:
 
