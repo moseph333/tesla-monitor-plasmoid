@@ -4,6 +4,16 @@ All notable changes to Tesla Monitor are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.7.1] - 2026-11-14
+
+### Fixed
+
+- Car names, places, navigation destinations and software versions that contain `<` or `&` are shown as written in the card and the panel tooltip, never as formatting.
+
+### Added
+
+- Dependabot keeps the GitHub Actions used by CI and releases up to date.
+
 ## [1.7.0] - 2026-11-13
 
 ### Added
@@ -108,6 +118,7 @@ All notable changes to Tesla Monitor are listed here. The format follows
 
 - First public version of the widget.
 
+[1.7.1]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/4fc8407...v1.7.0
 [1.6.0]: https://github.com/moseph333/tesla-monitor-plasmoid/commit/4fc8407
 [1.5.1]: https://github.com/moseph333/tesla-monitor-plasmoid/commit/cad2fd9

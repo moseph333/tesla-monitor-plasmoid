@@ -311,6 +311,8 @@ PlasmoidItem {
     preferredRepresentation: Plasmoid.formFactor === PlasmaCore.Types.Planar ? fullRepresentation : compactRepresentation
 
     toolTipMainText: car.display_name || i18n("Tesla")
+    // Car names, places and errors come from MQTT; show them as written, never as markup.
+    toolTipTextFormat: Text.PlainText
     toolTipSubText: {
         if (!configured) return i18n("Not configured")
         if (!hasData) return errorText || i18n("Connecting…")
@@ -767,6 +769,7 @@ PlasmoidItem {
                         level: 3
                         font.weight: Font.DemiBold
                         text: root.car.display_name || i18n("Tesla")
+                        textFormat: Text.PlainText
                         elide: Text.ElideRight
                         // Underlined like a link while pointed at or focused, once it is one.
                         font.underline: root.teslamateUrl !== "" && (nameHover.hovered || nameLink.activeFocus)
@@ -846,6 +849,7 @@ PlasmoidItem {
                             font.pointSize: Kirigami.Theme.smallFont.pointSize
                             font.features: { "tnum": 1 }
                             opacity: look.secondary
+                            textFormat: Text.PlainText
                             text: {
                                 root.now // re-evaluate on tick
                                 const parts = [root.stateLabel()]
@@ -1043,6 +1047,7 @@ PlasmoidItem {
                             elide: Text.ElideRight
                             font.weight: Font.DemiBold
                             text: root.route !== null ? i18n("To %1", root.route.destination) : ""
+                            textFormat: Text.PlainText
                         }
 
                         // When the charge is done, or when the car arrives.
@@ -1240,6 +1245,7 @@ PlasmoidItem {
                     font.features: { "tnum": 1 }
                     opacity: look.secondary
                     text: root.car.version ? i18n("Software %1", root.car.version) : ""
+                    textFormat: Text.PlainText
                 }
 
                 // The update's status on a tint of the highlight color, which fills from
