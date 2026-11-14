@@ -15,7 +15,7 @@ A KDE Plasma 6 widget that shows a Tesla's status from [TeslaMate](https://docs.
 <img src="screenshots/door-open.png" width="270" alt="The card with the driver's door and the trunk open, and the warning that lists them">
 </p>
 
-The popup on Plasma 6.8 with the data of `tools/fake-teslamate.sh`.
+The popup on Plasma 6.8 with the data of `tools/fake-teslamate.sh`. The screenshots are from 1.7. Since 1.8 the car is drawn after the real car's outline, for each model, so it looks a little different.
 
 The card shows:
 
@@ -24,7 +24,7 @@ The card shows:
 - While driving, the power the battery gives, or takes back while regenerating. If you turn on navigation, also the destination, the time to arrival with any traffic delay, the distance left and the battery level on arrival
 - How much of the battery is usable while it's cold
 - Inside and outside temperature, climate and odometer
-- A top-down drawing of the car, as the model it is and in its own paint, lying on its side with its nose to the right so it fills the card, with each tire's pressure, each door and window, the trunk, frunk and charge port, the lock and Sentry. Open doors swing out, anything open turns orange, a low tire turns red, the charge cable shows while plugged in, and a red lens on the windshield means Sentry is on. Hover over the car to see the same status as text. The paint is the one TeslaMate reports. When it reports none, or one the widget doesn't know, the car is drawn in tints of your color scheme, which you can also choose in the settings
+- A top-down drawing of the car, as the model it is and in its own paint, lying on its side with its nose to the right so it fills the card, with each tire's pressure, each door and window, the trunk, frunk and charge port, the lock and Sentry. Open doors swing out, a Model X's rear doors lift like the wings they are, a hatchback's rear window opens with its trunk, anything open turns orange, a low tire turns red, the charge cable shows while plugged in, and a red lens on the windshield means Sentry is on. Hover over the car to see the same status as text. The paint is the one TeslaMate reports. When it reports none, or one the widget doesn't know, the car is drawn in tints of your color scheme, which you can also choose in the settings
 - One warning that lists everything that needs attention: open doors, windows, frunk, trunk, sunroof or charge port, the car unlocked with nobody inside, low tire pressure, service mode, and TeslaMate having trouble reaching the car. The popup is a little taller while it shows, so the car keeps its size. The panel icon's tooltip lists the same
 - Software version, available updates and their download and install progress
 
@@ -244,7 +244,7 @@ mosquitto_pub -p 1884 -r -t teslamate/cars/1/exterior_color -m PearlWhite
 mosquitto_pub -p 1884 -r -t teslamate/cars/1/model -m Y
 ```
 
-The shapes are in `models.js`, which is as free of `Qt` as `logic.js` and tested the same way.
+The shapes are in `models.js`, which is as free of `Qt` as `logic.js` and tested the same way. Each model's side profile and plan use Tesla's published dimensions, and their outlines follow the side and top views in Tesla's owner's manuals.
 
 The card draws its own lock, Sentry and bolt signs instead of taking them from the icon theme, so they look the same in every theme. If you add a theme icon with `isMask: true`, use a `-symbolic` name. Some icon themes, such as WhiteSur, map plain names to full-color icons, which then render as a solid block.
 

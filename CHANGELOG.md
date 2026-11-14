@@ -8,7 +8,12 @@ All notable changes to Tesla Monitor are listed here. The format follows
 
 ### Added
 
-- The panel icon and the car in the card are drawn as a Model S, Model 3, Model X, Model Y or Cybertruck, each with its own proportions. A new **Model** setting chooses one, and by default follows the model TeslaMate reports.
+- The panel icon and the car in the card are drawn as a Model S, Model 3, Model X, Model Y or Cybertruck. A new **Model** setting chooses one, and by default follows the model TeslaMate reports.
+- A Model X's rear doors lift like wings when they are open. On a Model S, X and Y the rear window opens with the trunk, as the hatch does, and the Cybertruck's trunk is the cover of its bed.
+
+### Changed
+
+- The cars are redrawn after the side and top views in Tesla's owner's manuals, with Tesla's dimensions. The Model 3 changed with the others: a rounder nose and tail, a windshield that bows forward, glass that narrows towards the tail with the side windows along it, and its own lights and mirrors.
 
 ## [1.7.1] - 2026-11-14
 

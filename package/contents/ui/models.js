@@ -2,7 +2,8 @@
 
 // The shapes of the cars the widget can draw: a side profile for the panel icon and a
 // top-down plan for the card, for each model TeslaMate knows. Everything is in units of
-// 10 mm and uses the cars' real length, width, height and wheelbase.
+// 10 mm. The lengths, widths, heights, overhangs and wheelbases are Tesla's own figures,
+// and the outlines follow the side and top views in Tesla's owner's manuals.
 
 // ---------- which model ----------
 
@@ -185,48 +186,49 @@ var PROFILES = {
         front: "C 344 59.5 354 60 362 61 C 389 65 416 70.5 442 81 C 451 85 456 92 459 99 C 461 105 461 112 456 116 C 453 119 449 120 444 120",
         bolt: [240, 73, 1]
     },
-    // 4970 long, 1445 high, 2960 between the axles: lower and longer, with a long hood
-    // and a roof that runs out into the tail.
+    // 5021 long, 1431 high, 2960 between the axles: lower and longer, with a long hood
+    // and a roof that runs out into a lip over the tail.
     "s": {
-        width: 505, height: 148.5, wheels: [112, 408], wheelY: 114, tire: 30.5, hub: 14.5,
-        body: "M 65 131.5 C 50 130.5 34 127 22 120.5 C 13 110 6 94 4 77 C 3.5 68 6 59 10 54 C 12 51.5 15 50.5 19 50 C 76 42 150 9 244 4 C 288 4 322 25 354 43 C 363 47.5 376 49.5 390 51.5 C 420 55.5 455 62 480 72 C 491 77 498 88 500.5 97 C 502 106 501 117.5 495 125 C 491 130.5 484 132 477 132 L 455 132",
-        sill: [159, 361, 132], fillY: 120, fillArch: 42.5,
-        rear: "L 62 120 C 50 119 41 116 35 112 C 28 104 21 92 18 78 C 17.5 72 19 67 23 64 C 35 60 48 57 60 56",
-        belt: [[60, 56], [350, 61.5]],
-        front: "C 368 62.5 380 63.5 390 64.5 C 420 68.5 447 73.5 472 83.5 C 481 87.5 486 94 488 101 C 490 107 489.5 113 485 117 C 482 119.5 478 120 473 120",
-        bolt: [258, 74, 1]
+        width: 510.1, height: 147.1, wheels: [114.0, 410.0], wheelY: 111.9, tire: 31.2, hub: 15,
+        body: "M 66.3 133 C 52 132.5 36 130.5 24 126.5 C 16 124 8 121 5.5 115 C 3.5 108 3 98 4.5 92 C 6 87 10 83.5 11.5 77 C 13.5 69 14.5 60 14 52 C 13.8 48 13 45.5 13 44 C 22 43 32 42 41 40 C 56 36 70 29.5 86 24 C 126 11 172 4 216 4 C 244 4 262 6.5 280 11 C 308 18.5 336 31 362 43.5 C 368 46.5 376 49 386 50.5 C 410 54 432 56.5 452 61 C 470 65.5 486 73 498 80.5 C 503 84 506 89 506.5 95 C 507 103 506.5 112 505 119 C 503.5 125 499 129.5 492 131 C 482 133 470 133 457.7 133",
+        sill: [161.7, 362.3, 133], fillY: 121, fillArch: 43.2,
+        rear: "C 54.5 120.7 32.4 119.6 17 110.7 C 12 94.5 19.2 94 22.8 81.2 C 25.2 72.7 26.1 63.9 26.1 55.1 C 31.8 53.4 37.8 53.2 43.5 51.7 C 51.1 49.8 58.5 47.1 65.8 44.4",
+        belt: [[65.8, 44.4], [426.1, 68.4]],
+        front: "C 447.4 71.8 466.6 76.5 485.6 87.1 C 488.3 88.6 492 90.1 493.7 93 C 495.7 96.6 494.8 102.3 494.5 106.2 C 494.3 110.2 494.3 114.7 492.1 118.1 C 483.1 122.3 462.2 121 452.2 121",
+        bolt: [256, 76, 0.99]
     },
-    // 5057 long, 1680 high, 2965 between the axles: one arc from the hood to the tail.
+    // 5057 long, 1680 high, 2965 between the axles: one arc from the hood to the
+    // spoiler, over tall windows.
     "x": {
-        width: 513.7, height: 172, wheels: [117, 413.5], wheelY: 136, tire: 32, hub: 15,
-        body: "M 68.5 155 C 54 154 38 150.5 24 143 C 14 130 7 108 5 86 C 4.5 72 6.5 60 10.5 54 C 12.5 51.5 15.5 50.5 19.5 50 C 56 32 138 6 252 4 C 300 4 338 28 372 54 C 381 60 393 63.5 407 66 C 434 71 465 78 487 89 C 498 95 505 105 508 115 C 510 125 509 138 503 147 C 499 153.5 492 155.5 485 155.5 L 462 155.5",
-        sill: [165.5, 365, 155.5], fillY: 143.5, fillArch: 44,
-        rear: "L 66 143.5 C 54 142.5 44 139 37 134 C 30 123 22 106 19 88 C 18.5 81 20 75 24 71.5 C 36 67.5 49 64.5 62 63.5",
-        belt: [[62, 63.5], [368, 74]],
-        front: "C 385 76 397 77.5 407 79 C 433 84 459 90.5 480 100.5 C 489 105 494 112 496 119 C 498 126 497.5 133.5 492.5 138.5 C 489.5 142 485.5 143.5 480.5 143.5",
-        bolt: [265, 84, 1.14]
+        width: 513.7, height: 172.0, wheels: [114.4, 410.9], wheelY: 134.8, tire: 33.2, hub: 16,
+        body: "M 64.7 149 C 54 148 40 144.5 26 141 C 17 138.5 10 134 8 127 C 5.5 120 4 110 4.5 101 C 5 92 7 84 7.3 76 C 7.6 66 7 56 6.5 48 C 6.2 43 5.5 40 6.5 37 C 13 35 20 34 27 33.5 C 40 32 52 28.5 64 24.5 C 104 11.5 150 4 200 4 C 232 4 252 5.5 270 8.5 C 304 15 334 26.5 364 40 C 370 43 376 47 384 49.5 C 404 53.5 424 57 442 60.5 C 462 65 480 71.5 496 78.5 C 503 82 508 88 509 95 C 510 106 510 118 509.5 128 C 509 135 505 140 498 142 C 487 145.5 474 149 460.6 149",
+        sill: [164.1, 361.2, 149], fillY: 137, fillArch: 45.2,
+        rear: "C 59.8 136.6 26.2 131.2 20.4 125.1 C 19.1 123.7 18.6 121 18.2 119.2 C 14.6 104.7 18.4 92.1 19.2 77.8 C 19.7 69.6 19.3 61.3 18.8 53.1",
+        belt: [[18.8, 53.1], [464.2, 79.1]],
+        front: "C 471.4 81.5 494.2 87.9 496.8 95.4 C 498.2 99.6 497.7 105.5 497.8 109.9 C 497.9 116.1 498.6 123.3 496.9 129.2 C 485.4 135.3 468.9 136.9 456 137",
+        bolt: [256, 84, 1.16]
     },
-    // 4751 long, 1624 high, 2890 between the axles: the Model 3's nose under a taller
+    // 4750 long, 1624 high, 2890 between the axles: the Model 3's nose under a taller
     // cabin that ends in a hatch.
     "y": {
-        width: 483.1, height: 166.4, wheels: [102, 391], wheelY: 131.5, tire: 31, hub: 14.5,
-        body: "M 54.5 149.5 C 42 148.5 30 145 19 138 C 11 125 6 102 5 80 C 5 66 7 55 11 49.5 C 13 47 16 46 20 45.5 C 54 28 118 6 228 4 C 272 4 308 26 340 50 C 348 55.5 360 58.5 374 61 C 402 65.5 433 72.5 455 83 C 467 89 475 100 478 110 C 480 120 479 133 473 141.5 C 469 148 462 150 455 150 L 438.5 150",
-        sill: [149.5, 343.5, 150], fillY: 138, fillArch: 43,
-        rear: "L 52 138 C 43 137 36 134 31 130 C 25 120 20 103 18.5 83 C 18 76 19.5 70 23.5 67 C 35 63 47 60 58 59",
-        belt: [[58, 59], [336, 69.5]],
-        front: "C 353 71.5 365 73 374 74.5 C 401 79 427 85 449 95 C 458 99.5 463 107 465.5 114 C 467.5 121 467 128.5 462 133.5 C 459 136.5 455 138 450 138",
-        bolt: [247, 80, 1.1]
+        width: 483.0, height: 166.4, wheels: [102.6, 391.6], wheelY: 130.8, tire: 31.6, hub: 15,
+        body: "M 54.5 149 C 44 146.5 30 141 18 136 C 12 134 8 131 6.5 126 C 4.5 119 3.5 106 5 96 C 6.5 90 10 84 11.5 76 C 12.5 68 12 58 10 50 C 9.5 46.5 9 44 9.5 42.5 C 13 40.5 19 40.5 25 39.5 C 37 36.5 49 31.5 61 27.5 C 100 15 150 4 200 4 C 232 4 250 7 268 11 C 296 19 322 33 346 45 C 352 48.5 358 51.5 366 54 C 384 58 402 62 420 66.5 C 438 71.5 454 79 468 86.5 C 474 90 478 95 479 101 C 479.5 110 479 120 478 128 C 477 135 474 140 468 143 C 460 146.5 450 148.5 439.7 149",
+        sill: [150.7, 343.5, 149], fillY: 137, fillArch: 43.6,
+        rear: "L 54.8 136.7 C 48.9 136 23.5 126 18.2 122.8 C 16.3 115.6 15 104.6 17.1 97.3 C 19 90.9 22.2 85 23.3 78.4 C 24.7 69.8 24.1 60.9 22.7 52.4 L 33.4 49.7",
+        belt: [[33.4, 49.7], [390.0, 71.7]],
+        front: "C 414.3 77.3 432.6 82 455.1 93.3 C 459 95.3 464.4 97.1 466.6 101.3 C 468.4 104.7 466.9 119.2 466.4 123.6 C 466.2 125.8 466.1 128.6 464.8 130.5 C 461.1 135.8 440.7 136.9 434.8 137",
+        bolt: [241, 85, 1.12]
     },
     // 5683 long, 1791 high, 3635 between the axles: straight lines to a peak over the
     // front seats, and a bed behind the cabin whose sides rise to the roof.
     "cybertruck": {
-        width: 576.3, height: 183, wheels: [117, 480.5], wheelY: 142, tire: 37, hub: 17,
-        body: "M 63 163 L 34 163 L 7 133 L 5 56 L 12 51 L 346 4 L 356 4 L 478 60 L 566 82 L 572 90 L 572 135 L 553 163 L 534.5 163",
-        sill: [171, 426.5, 163], fillY: 151, fillArch: 49,
-        rear: "L 40 151 L 19 128 L 17.5 64 L 196 39 L 222 76",
-        belt: [[222, 76], [468, 76]],
-        front: "L 474 73 L 558 94 L 560 97 L 560 131 L 547 151",
-        bolt: [320, 90, 1.12]
+        width: 576.3, height: 183.1, wheels: [121, 484.5], wheelY: 139.2, tire: 39.9, hub: 19,
+        body: "M 64.6 154 L 50 151.5 L 24 148.5 L 12 144 L 4.5 138 L 4.5 115 L 12.5 108.5 L 8.5 49 C 8.5 48 9.5 47.3 11 47 L 290 7 C 310 4.3 322 3.5 337 3.5 L 342 4 L 488 49 L 566 78.5 C 569.5 80 571.5 82 571.5 85 L 572 124 L 564 128 L 563 146 L 547 150.5 L 540.9 154",
+        sill: [177.4, 428.1, 154], fillY: 142, fillArch: 51.9,
+        rear: "L 52 139.7 L 26.5 136.6 L 16.5 132.5 L 16.5 120.7 L 20.1 117.8 C 23 115.5 24.6 111.5 24.5 107.7 L 21.1 57.6 L 204.2 31.4 L 199.1 52.7",
+        belt: [[199.1, 52.7], [510.7, 70.4]],
+        front: "L 559.5 88.9 L 560 117 L 552 121.5 L 551.3 137 L 546 139 L 536.3 142",
+        bolt: [296, 84, 1.23]
     }
 };
 
@@ -242,204 +244,346 @@ function sideProfile(key) {
 
 // ---------- plans ----------
 
-// The plan of a car, nose up, in a box that ends at the mirror tips: the body starts 12
-// units in from the left, so what lies on the left flank (doors, side windows, mirrors,
-// the charge port) is at the same place across every model, and the right side mirrors it.
-//
-// A plan has numbers (boxWidth, boxHeight, length, frontAxle, rearAxle, the doors' and
-// windows' ends along the car, where the glyphs go) and paths. Its long straight edges
-// are moved onto whole pixels by whoever draws it, so the paths that have such an edge are
-// functions: of flank, where the body's left edge is, or of roofEdge, where the glass
-// over the cabin starts.
-//
-// The four models that share the Model 3's lines take its nose and tail, stretched to
-// their own width and length:
-//   w, length       the box across, and the car's length
-//   nose, tail      how much longer the curves of the nose and of the tail are than on
-//                   the Model 3
-//   frunk           where the hood ends
-//   glass           six rows across the cabin, [x, y, bow, control]: the foot and top of
-//                   the windshield, the two ends of the roof glass and of the rear window.
-//                   x is where the row starts on the left, or null for roofEdge, bow how
-//                   far its middle lies behind its ends, control where its curve's
-//                   control point is
-//   spine           half the width of a roof beam along the middle of the roof glass
-//   trunk           [x, y] where the lid starts on the left
-function sedanPlan(s) {
-    var w = s.w;
-    var mid = w / 2;
-    var len = s.length;
-    var kx = (w - 24) / 185;
-    var X = function (x) { return 12 + (x - 12) * kx; };
-    var N = function (y) { return y * s.nose; };
-    var T = function (y) { return len - (469.4 - y) * s.tail; };
+// A closed chain moved dx across the car, for the left side, or its mirror image on the
+// right side of a car that is w wide.
+function placed(points, dx, w) {
+    var moved = points.map(function (p) {
+        var q = p.slice();
+        for (var i = 0; i < q.length; i += 2) q[i] = w === undefined ? q[i] + dx : w - (q[i] + dx);
+        return q;
+    });
+    return chain(moved) + " Z";
+}
 
-    var bodyLeft = function (flank) {
-        return [[mid, 0],
-                [X(64), 0, X(29), N(6), X(20.5), N(34)],
-                [X(15.5), N(50), X(13), N(72), flank, N(104)],
-                [flank, T(330)],
-                [flank, T(385), X(13.5), T(422), X(16.5), T(441)],
-                [X(20.5), T(459), X(44), T(466.5), X(74), T(468.5)],
-                [X(86), len, X(96), len, mid, len]];
-    };
-    var row = function (i, roofEdge) {
-        var g = s.glass[i];
-        return [g[0] === null ? roofEdge : g[0], g[1], g[2], g[3]];
-    };
-    // The glass between two rows, or with a spine the two panes beside it.
-    var pane = function (a, b, spine) {
-        if (spine) {
-            var left = [[a[0], a[1]], [mid - spine, a[1] + a[2] * 0.75], [mid - spine, b[1] + b[2] * 0.75], [b[0], b[1]]];
-            return onBothSides(w, left, true);
+// A chain of which the part outside the flank is drawn only share of the way out: 0
+// leaves it on the flank and 1 where the chain has it. For the left side, or mirrored on
+// the right side of a car that is w wide.
+function reached(points, flank, share, w, closed) {
+    var moved = points.map(function (p) {
+        var q = p.slice();
+        for (var i = 0; i < q.length; i += 2) {
+            var x = q[i] < flank ? flank - (flank - q[i]) * share : q[i];
+            q[i] = w === undefined ? x : w - x;
         }
-        return ["M", a[0], a[1], "C", a[3], a[1] + a[2], w - a[3], a[1] + a[2], w - a[0], a[1],
-                "L", w - b[0], b[1], "C", w - b[3], b[1] + b[2], b[3], b[1] + b[2], b[0], b[1], "Z"].join(" ");
-    };
+        return q;
+    });
+    return chain(moved) + (closed ? " Z" : "");
+}
 
+// A mirror's outline as a path inside its door, which is w wide: the mirror swings with
+// it. points gives [out, along]: how far out from the body's flank, and how far behind the
+// door's front edge. base is how far the flank is outside the door's own outer edge.
+function mirrorPath(points, base, w, onLeft) {
+    var moved = points.map(function (p) {
+        var q = p.slice();
+        for (var i = 0; i < q.length; i += 2) q[i] = onLeft ? -(base + q[i]) : w + base + q[i];
+        return q;
+    });
+    return chain(moved);
+}
+
+// The plan of a car, nose up, in a box that ends at the mirror tips. Across the car x
+// starts at the left mirror's tip, and along it y starts at the nose. A plan is built
+// from:
+//   w, length       the box across, and the car's length
+//   flank           x of the body's side along the doors, which is straight. The fenders
+//                   in front of it and the haunches behind it stand out a little further
+//   belt            x of the side windows' outer edge
+//   frontAxle, rearAxle, tire   where the wheels are, and half a tire's length
+//   body            the body's left outline from the nose to the tail, as a function of
+//                   where the flank really is: whoever draws the car moves that long
+//                   straight edge onto whole pixels
+//   hood, trunk     the lids, as { points, top, bottom } for symmetric()
+//   creases         lines pressed into the hood, on the left side
+//   panes, beams    the windshield and the glass over the cabin, and the beams between
+//                   them. rear is the rear window: with hatch set it is part of the trunk
+//                   lid and opens with it
+//   sidePanes       glass over the cabin that does not reach across its middle, on the
+//                   left side
+//   frontWindow, rearWindow   the two side windows that open, and quarter the fixed
+//                   glass, as closed chains whose outer edge is on the belt
+//   frontDoor, rearDoor       where each door starts and ends along the car
+//   headlight, taillight      a lens on the left side, and headlightLine, taillightLine
+//                   the light in it
+//   mirror          its outline for mirrorPath()
+//   port            where the charge port is
+//   sentryY, lockY  where the two signs go on the glass
+//   falcon          for rear doors that lift like wings: see the Model X
+//   trim            black parts outside the body, on the left side
+//   slats           lines across the trunk lid
+function makePlan(s) {
+    var w = s.w;
+    var sym = function (o) { return symmetric(w, o.points, o.top, o.bottom); };
+    var each = function (list, closed) {
+        return (list || []).map(function (c) { return onBothSides(w, c, closed); }).join(" ");
+    };
+    var base = s.panes[0];
     return {
         boxWidth: w,
-        boxHeight: Math.ceil(len),
-        length: len,
+        boxHeight: Math.ceil(s.length),
+        length: s.length,
+        flank: s.flank,
+        belt: s.belt,
+        wheelInset: s.wheelInset === undefined ? 4 : s.wheelInset,
+        tire: s.tire,
         frontAxle: s.frontAxle,
         rearAxle: s.rearAxle,
         frontDoor: s.frontDoor,
         rearDoor: s.rearDoor,
-        frontWindow: s.frontWindow,
-        rearWindow: s.rearWindow,
         sentryY: s.sentryY,
         lockY: s.lockY,
-        windshieldLength: s.glass[1][1] - s.glass[0][1] - 2,
-        hoodSpan: [N(9), s.frunk + 6],
-        trunkSpan: [s.trunk[1], T(459)],
-        glassSpan: [s.glass[0][1], s.glass[5][1] + s.glass[5][2]],
-        bodyLeft: bodyLeft,
-        bodyPath: function (flank) { return symmetric(w, bodyLeft(flank)); },
-        frunkPath: symmetric(w, [[mid, N(9)], [X(70), N(9), X(40), N(14), X(33), N(38)], [X(35), s.frunk]],
-                             null, [X(67), s.frunk + 6]),
-        trunkPath: symmetric(w, [[s.trunk[0], s.trunk[1]], [X(35), T(436)], [X(45), T(453), X(72), T(459), mid, T(459)]],
-                             [s.trunk[0] + 25, s.trunk[1] + 5]),
-        glassPath: function (roofEdge) {
-            return [pane(row(0, roofEdge), row(1, roofEdge)),
-                    pane(row(2, roofEdge), row(3, roofEdge), s.spine),
-                    pane(row(4, roofEdge), row(5, roofEdge))].join(" ");
-        },
-        beamPath: function (roofEdge) {
-            return [pane(row(1, roofEdge), row(2, roofEdge)), pane(row(3, roofEdge), row(4, roofEdge))].join(" ");
-        },
-        headlightPath: onBothSides(w, [[X(70.3), N(3.8)],
-                                       [X(52), N(6.7), X(30.1), N(11.6), X(22.2), N(34.5)],
-                                       [X(21.2), N(38), X(20.4), N(41.5), X(19.7), N(45.5)],
-                                       [X(23.5), N(43.5), X(28.5), N(41), X(31.6), N(37.6)],
-                                       [X(37.3), N(20.1), X(51.8), N(13.8), X(68.7), N(10.3)]], true),
-        headlightLine: onBothSides(w, [[X(64.5), N(7.7)], [X(51.9), N(10.3), X(33.7), N(15.9), X(27.2), N(33.5)]], false),
-        taillightPath: onBothSides(w, [[X(16.2), T(420)],
-                                       [X(16.7), T(428), X(17.4), T(435), X(18.3), T(440.7)],
-                                       [X(23.7), T(459.9), X(48), T(464.7), X(74.1), T(466.7)],
-                                       [X(74.1), T(466.7), X(73.2), T(459.2), X(73.2), T(459.2)],
-                                       [X(52), T(457.5), X(31.5), T(451.5), X(25), T(436.5)],
-                                       [X(22.5), T(430.5), X(18.5), T(424.5), X(16.2), T(420)]], true),
-        taillightLine: onBothSides(w, [[X(21), T(434)], [X(25.5), T(455), X(49), T(461), X(70), T(462.8)]], false)
+        port: s.port,
+        hatch: !!s.hatch,
+        falcon: s.falcon || null,
+        mirror: s.mirror,
+        frontWindow: s.frontWindow,
+        rearWindow: s.rearWindow,
+        // How long the windshield is, which is all the room a sign on it has.
+        windshieldLength: endOf(base.points[base.points.length - 1])[1] - base.points[0][1],
+        // From where to where, along the car, the light on the hood, on the trunk lid and
+        // on the glass is spread.
+        hoodSpan: [s.hood.points[0][1], endOf(s.hood.points[s.hood.points.length - 1])[1]],
+        trunkSpan: [s.trunk.points[0][1], endOf(s.trunk.points[s.trunk.points.length - 1])[1]],
+        glassSpan: [base.points[0][1], endOf(s.rear.points[s.rear.points.length - 1])[1]],
+        bodyLeft: s.body,
+        bodyPath: function (flank) { return symmetric(w, s.body(flank)); },
+        frunkPath: sym(s.hood),
+        trunkPath: sym(s.trunk),
+        creasePath: each(s.creases, false),
+        slatPath: s.slats || "",
+        trimPath: each(s.trim, true),
+        glassPath: s.panes.map(sym).concat(each(s.sidePanes, true)).join(" "),
+        rearGlassPath: sym(s.rear),
+        beamPath: s.beams.map(sym).join(" "),
+        quarterPath: s.quarter ? onBothSides(w, s.quarter, true) : "",
+        headlightPath: onBothSides(w, s.headlight, true),
+        headlightLine: onBothSides(w, s.headlightLine, false),
+        taillightPath: onBothSides(w, s.taillight, true),
+        taillightLine: onBothSides(w, s.taillightLine, false)
     };
 }
 
-// The Cybertruck has no curve on it: a flat nose with a light bar across it, a cabin
-// that is all glass from the hood to the bed, and the bed's cover as its trunk.
-function truckPlan() {
-    var w = 227;
-    var mid = w / 2;
-    var len = 568.3;
-    var bodyLeft = function (flank) {
-        return [[mid, 0], [37, 1.5], [21, 14], [flank, 42], [flank, 544], [19.5, 561], [33, len], [mid, len]];
-    };
-    var pane = function (a, b) {
-        return ["M", a[0], a[1], "L", w - a[0], a[1], "L", w - b[0], b[1], "L", b[0], b[1], "Z"].join(" ");
-    };
-    return {
-        boxWidth: w,
-        boxHeight: Math.ceil(len),
-        length: len,
-        frontAxle: 92,
-        rearAxle: 455.5,
-        frontDoor: [150, 262],
-        rearDoor: [266, 350],
-        frontWindow: [176, 260],
-        rearWindow: [268, 344],
-        sentryY: 166,
-        lockY: 282,
-        windshieldLength: 116,
-        hoodSpan: [10, 114],
-        trunkSpan: [356, 548],
-        glassSpan: [122, 346],
-        bodyLeft: bodyLeft,
-        bodyPath: function (flank) { return symmetric(w, bodyLeft(flank)); },
-        frunkPath: symmetric(w, [[mid, 10], [42, 11], [32, 22], [34, 114]]),
-        trunkPath: symmetric(w, [[mid, 356], [36, 356], [34, 358], [34, 546], [36, 548], [mid, 548]]),
-        glassPath: function (roofEdge) {
-            return [pane([38, 122], [roofEdge, 240]), pane([roofEdge, 246], [roofEdge, 320]),
-                    pane([roofEdge, 326], [50, 346])].join(" ");
-        },
-        beamPath: function (roofEdge) {
-            return [pane([roofEdge, 240], [roofEdge, 246]), pane([roofEdge, 320], [roofEdge, 326])].join(" ");
-        },
-        headlightPath: onBothSides(w, [[mid, 3.5], [38, 4.5], [24.5, 15], [22, 21.5], [27, 17.5], [39.5, 8], [mid, 7]], true),
-        headlightLine: onBothSides(w, [[mid - 2, 5.3], [39, 6.3], [26, 16.5]], false),
-        taillightPath: onBothSides(w, [[mid, 564.8], [34, 564.8], [23, 551], [26, 549.5], [35.5, 561.3], [mid, 561.3]], true),
-        taillightLine: onBothSides(w, [[mid - 2, 563], [35, 563]], false)
-    };
-}
+var PLANS = {};
 
-var PLANS = {
-    // 4694 long, 1850 wide, 2875 between the axles.
-    "3": function () {
-        return sedanPlan({
-            w: 209, length: 469.4, nose: 1, tail: 1, frontAxle: 84, rearAxle: 371.5,
-            frunk: 110, trunk: [50, 397],
-            glass: [[37, 118, 6, 67], [null, 198, 4, 75], [null, 204, 4, 75],
-                    [null, 292, 3, 75], [null, 298, 3, 75], [50, 390, 5, 75]],
-            frontDoor: [152, 266], rearDoor: [270, 336], frontWindow: [178, 264], rearWindow: [272, 330],
-            sentryY: 162, lockY: 250
-        });
-    },
-    // 4970 long, 1964 wide, 2960 between the axles. A long hood, and a rear window that
-    // runs most of the way to the tail and leaves a short lid.
-    "s": function () {
-        return sedanPlan({
-            w: 220.4, length: 497, nose: 1.16, tail: 1.1, frontAxle: 93, rearAxle: 389,
-            frunk: 128, trunk: [50, 438],
-            glass: [[37, 136, 6, 68], [null, 218, 4, 78], [null, 224, 4, 78],
-                    [null, 312, 3, 78], [null, 318, 3, 78], [50, 431, 5, 78]],
-            frontDoor: [168, 284], rearDoor: [288, 356], frontWindow: [194, 282], rearWindow: [290, 350],
-            sentryY: 180, lockY: 270
-        });
-    },
-    // 5057 long, 1999 wide, 2965 between the axles. The windshield reaches back over the
-    // front seats, and behind it the roof's glass is in the two rear doors, with a spine
-    // between them.
-    "x": function () {
-        return sedanPlan({
-            w: 223.9, length: 505.7, nose: 1.04, tail: 0.92, frontAxle: 96, rearAxle: 392.5,
-            frunk: 120, trunk: [48, 446], spine: 13,
-            glass: [[37, 128, 6, 69], [null, 262, 4, 79], [null, 268, 4, 79],
-                    [null, 350, 3, 79], [null, 356, 3, 79], [48, 439, 5, 79]],
-            frontDoor: [164, 280], rearDoor: [284, 358], frontWindow: [190, 278], rearWindow: [286, 352],
-            sentryY: 172, lockY: 232
-        });
-    },
-    // 4751 long, 1921 wide, 2890 between the axles. One long pane of glass over the
-    // cabin, then the hatch: a short window and little of the tail behind it.
-    "y": function () {
-        return sedanPlan({
-            w: 216.1, length: 475.1, nose: 0.98, tail: 0.88, frontAxle: 88, rearAxle: 377,
-            frunk: 114, trunk: [48, 426],
-            glass: [[37, 122, 6, 68], [null, 204, 4, 77], [null, 210, 4, 77],
-                    [null, 334, 3, 77], [null, 340, 3, 77], [48, 419, 5, 77]],
-            frontDoor: [158, 274], rearDoor: [278, 344], frontWindow: [184, 272], rearWindow: [280, 338],
-            sentryY: 166, lockY: 272
-        });
-    },
-    // 5683 long, 2032 wide, 3635 between the axles.
-    "cybertruck": truckPlan
+// 4694 long, 1850 wide, 2875 between the axles. A round nose, a windshield that bows
+// forward, glass from there to a short trunk lid, with one beam over the front seats'
+// backs.
+PLANS["3"] = function () {
+    return makePlan({
+        w: 209, length: 469.4, flank: 14.25, belt: 27, frontAxle: 84, rearAxle: 371.5, tire: 33,
+        body: function (f) {
+            return [[104.5, 0],
+                    [88, 0, 56, 10.5, 33, 24], [23, 31.5, 15.5, 44, 12.8, 60], [11.9, 72, 12.3, 84, 12.3, 98],
+                    [12.3, 120], [12.3, 132, f, 138, f, 150],
+                    [f, 333], [f, 343, 12.9, 346, 12.9, 356], [12.9, 392],
+                    [12.9, 402, 14.6, 412, 17.5, 420], [20.3, 428, 25.5, 440, 32.5, 450],
+                    [39, 459, 52, 463.5, 68, 466], [80, 468, 92, 469.4, 104.5, 469.4]];
+        },
+        hood: { points: [[104.5, 9], [88, 9, 66, 12, 54, 21], [48, 32, 40.5, 62, 35.5, 92], [31.5, 123]], bottom: [62, 99] },
+        creases: [[[57, 104], [59, 80, 66, 48, 76, 22]]],
+        panes: [
+            { points: [[32.5, 127], [35, 140, 40.5, 178, 43.5, 200], [44.5, 208, 45.2, 215, 45.5, 222]], top: [64, 102.3], bottom: [72, 210] },
+            { points: [[46.2, 227], [47, 290]], top: [72, 215], bottom: [75, 290] }
+        ],
+        beams: [
+            { points: [[45.5, 222], [46.2, 227]], top: [72, 210], bottom: [72, 215] },
+            { points: [[47, 290], [47.2, 296]], top: [75, 290], bottom: [75, 296] }
+        ],
+        rear: { points: [[47.2, 296], [47.6, 320, 49, 355, 51, 388], [52.5, 401, 57, 413, 66, 420.5]], top: [75, 296], bottom: [86, 433] },
+        trunk: { points: [[63, 422.5], [42.5, 442], [43, 449, 62, 453.5, 104.5, 453.5]], top: [85, 436] },
+        frontWindow: [[27, 141], [29.5, 151, 33.5, 186, 36, 206], [37.3, 220, 38.4, 245, 38.6, 266], [27, 266]],
+        rearWindow: [[27, 272], [38.7, 272], [39.1, 295, 39.9, 320, 40.7, 338], [27, 338]],
+        quarter: [[27, 343], [40.9, 343], [41.6, 362, 41.9, 385, 40.6, 398], [36, 386, 28, 366, 27, 343]],
+        frontDoor: [152, 268], rearDoor: [270, 340],
+        headlight: [[58, 15.2], [48, 18.8, 36, 25, 28, 32.5], [22.5, 38, 18.5, 45.5, 18.3, 52], [18.2, 58, 22, 64.5, 27.5, 66],
+                    [30, 58, 36, 48, 42, 40], [47, 33.5, 52.5, 26, 58, 21]],
+        headlightLine: [[54, 18.3], [45, 21.5, 36, 27, 29.5, 33.5], [26, 37, 23.5, 41, 21.5, 45.5]],
+        taillight: [[18, 408], [19.5, 420, 25, 436, 34.5, 448.7], [43, 457, 58, 462.5, 76, 465.2], [76, 459.5],
+                    [60, 457.5, 46, 451, 37.5, 441.5], [31, 433, 26.5, 420, 25, 410], [22.5, 408.5, 20, 408, 18, 408]],
+        taillightLine: [[22.5, 417], [26, 430, 33, 442.5, 42, 451], [50, 456.5, 60, 459.5, 70, 461.3]],
+        mirror: [[0, 11], [4, 13.5, 9, 18, 12.8, 22.5], [13.8, 25.5, 13.5, 28.5, 12, 29.5], [8, 26.5, 4, 23, 0, 21]],
+        port: [20.8, 414], sentryY: 166, lockY: 258
+    });
+};
+
+// 4750 long, 1921 wide, 2890 between the axles. A blunter nose than the Model 3's, wide
+// haunches, and one pane of glass from the windshield to the hatch.
+PLANS["y"] = function () {
+    return makePlan({
+        w: 216.1, length: 475, flank: 13.9, belt: 25.5, frontAxle: 87.4, rearAxle: 376.4, tire: 35,
+        body: function (f) {
+            return [[108.05, 0],
+                    [86, 0, 60, 5.5, 40, 16.8], [30, 22, 20.5, 27.5, 16.8, 36.2], [15.2, 42.5, f, 51, f, 62],
+                    [f, 322], [f, 334, 12.2, 338, 12.2, 350], [12.2, 398],
+                    [12.2, 408, 14.2, 418, 17.6, 426], [20.5, 433.5, 23.5, 441.5, 28.2, 448],
+                    [33, 454, 40, 456.5, 48.2, 459.5], [56, 462.5, 64, 468, 73.4, 471.2], [84, 474.3, 96, 475, 108.05, 475]];
+        },
+        hood: { points: [[108.05, 10], [90, 10, 70, 13, 58, 21], [48, 31, 40, 56, 36.5, 84], [33, 124]], bottom: [62, 94.7] },
+        creases: [[[58, 102], [60, 78, 67, 48, 77, 23]]],
+        panes: [
+            { points: [[33.5, 129], [35.5, 142, 39, 172, 41.3, 198], [41.6, 203, 41.8, 207, 41.9, 211]], top: [64, 96.2], bottom: [72, 199.3] },
+            { points: [[42.2, 216], [43.5, 238, 46, 280, 48.7, 335], [49.3, 345, 49.8, 353, 50.1, 360]], top: [72, 204.3], bottom: [76, 360] }
+        ],
+        beams: [
+            { points: [[41.9, 211], [42.2, 216]], top: [72, 199.3], bottom: [72, 204.3] },
+            { points: [[50.1, 360], [50.4, 366]], top: [76, 360], bottom: [76, 366] }
+        ],
+        rear: { points: [[50.4, 366], [51.3, 382, 52.6, 400, 54.3, 420], [55.5, 434, 60, 444, 70, 451]], top: [76, 366], bottom: [88, 459] },
+        hatch: true,
+        trunk: { points: [[66, 453.5], [48.5, 462], [50.5, 466.5, 72, 468.5, 108.05, 468.5]], top: [88, 461.5] },
+        frontWindow: [[25.5, 143], [28, 153, 32.5, 186, 35, 206], [36.5, 222, 37.8, 246, 38.3, 266], [25.5, 266]],
+        rearWindow: [[25.5, 272], [38.6, 272], [39.4, 292, 41, 318, 42.3, 340], [32.5, 340], [30, 318, 25.5, 296, 25.5, 272]],
+        quarter: [[33.2, 345], [42.6, 345], [43.5, 362, 44.6, 382, 44.5, 398], [41, 385, 36, 362, 33.2, 345]],
+        frontDoor: [152, 270], rearDoor: [272, 343],
+        headlight: [[57.5, 15.5], [48, 18, 37, 22.5, 30, 28], [25, 32, 21.5, 38, 21, 45], [20.8, 50.5, 22.5, 56, 26, 58],
+                    [28.5, 50, 34, 42, 40, 35.5], [45.5, 29.5, 51.5, 24.5, 57.5, 20.5]],
+        headlightLine: [[54, 18.5], [46, 21, 37, 25, 31.5, 29.5], [27.5, 33, 24.5, 38, 23.5, 44]],
+        taillight: [[16.5, 412], [18.5, 424, 23.5, 437.5, 30.5, 446.5], [38, 453.5, 50, 458, 63, 463.5], [63, 458],
+                    [52, 454.5, 42, 448.5, 35.5, 440], [29.5, 431.5, 25.5, 421, 24, 412], [21.5, 410.5, 18.5, 410.5, 16.5, 412]],
+        taillightLine: [[21, 420], [24.5, 432, 30, 442, 37.5, 448.5], [44, 453, 52, 456.5, 60, 459.5]],
+        mirror: [[0, -2], [4, 0, 9, 6, 12, 13], [13, 17, 12.6, 21.5, 11, 23], [7, 19.5, 3.5, 15.5, 0, 12]],
+        port: [19.5, 414], sentryY: 160, lockY: 285
+    });
+};
+
+// 5021 long, 1987 wide, 2960 between the axles. A long hood, slim lights, and glass that
+// narrows all the way to a lip over the tail.
+PLANS["s"] = function () {
+    return makePlan({
+        w: 222.7, length: 502.1, flank: 15.6, belt: 22.5, frontAxle: 96.1, rearAxle: 392.1, tire: 35,
+        body: function (f) {
+            return [[111.35, 0],
+                    [98, 0, 86, 0.8, 76, 3], [50, 9, 29.7, 22.4, 20.9, 40], [18, 46, 14.8, 52, 13.8, 60],
+                    [13.4, 66, 13.6, 70, 13.6, 76], [13.6, 118], [13.6, 130, f, 134, f, 146],
+                    [f, 332], [f, 344, 12.2, 350, 12.2, 362], [12.2, 418],
+                    [12.4, 425, 15.5, 430, 17.9, 436], [19.2, 443.5, 23.8, 464.9, 29.4, 469.5],
+                    [34.4, 473.6, 40.7, 475.7, 46.4, 478.5], [53, 481.8, 61, 489.3, 68.1, 492.8], [80, 498.6, 95, 502.1, 111.35, 502.1]];
+        },
+        hood: { points: [[111.35, 9.5], [92, 9.5, 72, 12, 60, 17], [47, 24, 36, 38, 33.5, 58], [31.5, 80, 31, 110, 31.5, 138]], bottom: [62, 105.3] },
+        creases: [[[66, 112], [70, 80, 82, 40, 96, 18]]],
+        panes: [
+            { points: [[32, 142], [33, 160, 35, 188, 37, 208], [37.3, 212, 37.6, 216, 37.8, 219]], top: [66, 107.3], bottom: [74, 206.3] },
+            { points: [[38.2, 224], [40.3, 243, 43.5, 300, 46.3, 345], [46.9, 355, 47.3, 364, 47.6, 372]], top: [74, 211.3], bottom: [80, 372] }
+        ],
+        beams: [
+            { points: [[37.8, 219], [38.2, 224]], top: [74, 206.3], bottom: [74, 211.3] },
+            { points: [[47.6, 372], [47.9, 378]], top: [80, 372], bottom: [80, 378] }
+        ],
+        rear: { points: [[47.9, 378], [48.6, 392, 49.6, 407, 50.7, 420], [52, 436, 56, 447, 66, 457]], top: [80, 378], bottom: [90, 469] },
+        hatch: true,
+        trunk: { points: [[62, 459.5], [45, 474], [47, 482, 70, 487, 111.35, 487]], top: [90, 472] },
+        frontWindow: [[22.5, 150], [24.5, 160, 28.5, 190, 31.5, 212], [34, 232, 35.8, 258, 36.6, 281], [22.5, 281]],
+        rearWindow: [[22.5, 287], [36.9, 287], [37.6, 310, 38.4, 335, 38.8, 356], [27.5, 356], [25.5, 334, 22.8, 310, 22.5, 287]],
+        quarter: [[28, 361], [38.9, 361], [39.3, 378, 39.6, 393, 39, 405], [36, 395, 31, 378, 28, 361]],
+        frontDoor: [160, 284], rearDoor: [286, 358],
+        headlight: [[63, 9.8], [52, 13, 40, 20.5, 31, 30], [25.5, 36, 21, 43, 18.8, 50], [20, 52.5, 21.5, 53, 23, 52],
+                    [26, 43.5, 31, 36.5, 36, 31.5], [44, 24, 53, 19, 63, 15.5]],
+        headlightLine: [[59, 13], [49, 16.5, 39, 23.5, 32, 31], [28, 35.5, 24.5, 41, 22, 46.5]],
+        taillight: [[20, 452], [22.5, 462, 28, 470.5, 36, 475.5], [44, 480, 52, 485, 62, 489.5], [62, 484],
+                    [53, 480, 45, 475.5, 39, 471], [32, 465.5, 28, 458, 26.5, 451], [24, 449.5, 21.5, 450, 20, 452]],
+        taillightLine: [[24.5, 458], [28, 466, 33, 472, 40, 476.5], [47, 480.5, 53, 483.5, 59, 486]],
+        mirror: [[0, 10], [4, 13, 9, 20, 12, 28], [13, 32, 12.6, 36.5, 11, 37.5], [7, 33, 3.5, 27, 0, 23]],
+        port: [23, 444], sentryY: 172, lockY: 270
+    });
+};
+
+// 5057 long, 1999 wide, 2965 between the axles. The windshield reaches back over the
+// front seats, the rear doors carry the roof's glass on either side of a spine, and the
+// side windows lean far in.
+PLANS["x"] = function () {
+    return makePlan({
+        w: 223.9, length: 505.7, flank: 16, belt: 22.5, frontAxle: 98.8, rearAxle: 395.3, tire: 37,
+        body: function (f) {
+            return [[111.95, 0],
+                    [98, 0, 92, 0.6, 87.5, 1.5], [75.5, 3.5, 64.5, 7, 53.5, 12.5], [44, 17.5, 33, 23, 28, 29],
+                    [23.8, 34.2, 21.9, 40.2, 19, 46], [16.3, 51.3, 14.3, 57.1, 13.3, 63], [12.4, 68, 12, 74, 12, 82],
+                    [12, 112], [12, 124, f, 128, f, 140],
+                    [f, 338], [f, 348, 11.6, 352, 11.6, 362], [11.6, 424],
+                    [11.8, 432, 15.5, 438, 18.6, 446.3], [20.3, 456.1, 23.5, 475.3, 31.3, 481.7],
+                    [36.8, 486.2, 44.2, 489, 50.5, 492.2], [56.3, 495.1, 62.9, 499.1, 69.5, 500.2], [79, 501.8, 92, 505.7, 111.95, 505.7]];
+        },
+        hood: { points: [[111.95, 10], [92, 10, 72, 12.5, 60, 18], [46, 25, 33, 38, 29.5, 58], [27.5, 78, 27.5, 100, 29, 119]], bottom: [62, 99] },
+        creases: [[[64, 100], [68, 74, 80, 40, 94, 19]]],
+        panes: [
+            { points: [[30.5, 123], [31, 150, 35, 180, 38.7, 200], [42, 222, 44.5, 255, 45.3, 286]], top: [64, 100.3], bottom: [74, 283] }
+        ],
+        sidePanes: [[[45.6, 291], [46.3, 320, 47.6, 360, 49, 395], [102, 395], [102, 291]]],
+        beams: [
+            { points: [[45.3, 286], [45.6, 291]], top: [74, 283] },
+            { points: [[102, 291], [102, 395]] },
+            { points: [[49, 395], [49.3, 401]] }
+        ],
+        rear: { points: [[49.3, 401], [50.5, 425, 52.5, 450, 55.3, 470], [57, 476, 62, 479.5, 69, 480.5]], bottom: [92, 484.3] },
+        hatch: true,
+        trunk: { points: [[66, 484], [49, 487.5], [51, 493, 72, 496, 111.95, 496]], top: [92, 487.6] },
+        frontWindow: [[22.5, 142], [25.5, 150, 30.5, 178, 34, 200], [37, 220, 39.5, 250, 40.8, 280], [22.5, 280]],
+        rearWindow: [[22.5, 288], [41.2, 288], [42.5, 310, 43.2, 360, 43.5, 396], [31.5, 396], [29, 370, 24, 318, 22.5, 288]],
+        quarter: [[32.5, 402], [43.6, 402], [44, 418, 44.3, 434, 43.8, 445], [41, 436, 35.5, 418, 32.5, 402]],
+        frontDoor: [156, 284], rearDoor: [286, 398],
+        // The rear doors are hinged along the spine and lift like wings, in two leaves:
+        // the upper one, with the roof's glass, stands up steeply, and the lower one,
+        // the door's side, lies out flat above the roof and over the body's side, about
+        // 30 further than the body. wing is an open door from above, on the left. Its
+        // tip is the sill it left, which is shorter than the door because the door is
+        // cut around the rear wheel. fold is where the two leaves meet, glass the pane in
+        // each of them, seam how far across the roof a closed door's edges run, and back
+        // where an open door ends beside the body.
+        falcon: {
+            wing: [[102, 290], [-8, 293], [-12, 293, -12, 297, -12, 301], [-12, 334], [-12, 342, -6, 350, 2, 358],
+                   [10, 367, 16, 384, 24, 396], [102, 395]],
+            fold: [[88, 290.5], [88, 395]],
+            glass: [[[99, 296], [91.5, 296], [91.5, 390], [99, 390]],
+                    [[84.5, 296], [47, 296.5], [47, 381], [84.5, 390]]],
+            seam: 45.6, back: 358
+        },
+        headlight: [[62, 11], [54, 14, 44, 19.5, 36, 25], [29.5, 29.5, 24.5, 36, 21, 44.5], [22, 47, 23.5, 47.5, 25, 46.5],
+                    [28, 40, 33, 34.5, 39, 30.5], [47, 25, 55, 20.5, 62, 17.5]],
+        headlightLine: [[58.5, 14.5], [50, 18, 42, 22.5, 36, 27.5], [31, 31.5, 27, 36.5, 24.5, 42]],
+        taillight: [[20.5, 458], [22, 468, 26.5, 478, 33.5, 483], [41, 487.5, 50, 491.5, 60, 495.5], [60, 490],
+                    [51, 486.5, 43, 482.5, 37.5, 478.5], [31.5, 473.5, 28.5, 466, 27, 457.5], [24.5, 456, 22, 456.3, 20.5, 458]],
+        taillightLine: [[25, 463.5], [27.5, 471.5, 31.5, 477.5, 38, 481.5], [44.5, 485.5, 51, 488.5, 57, 491]],
+        mirror: [[0, -3], [4, 0, 9, 8, 12.5, 17], [13.5, 21, 13, 25.5, 11.5, 27], [7.5, 22, 3.5, 16, 0, 12]],
+        port: [22.5, 452], sentryY: 170, lockY: 240
+    });
+};
+
+// 5683 long, 2032 wide over its fender flares, 3635 between the axles. Flat steel
+// with no curve in it: a light bar across the nose, a windshield from the hood to the
+// roof's peak, and behind the cabin the bed under its cover, which is the trunk here.
+PLANS["cybertruck"] = function () {
+    var slats = [];
+    for (var y = 403; y < 550; y += 13) slats.push("M 51 " + y + " H 190.3");
+    return makePlan({
+        w: 241.3, length: 568.3, flank: 22.5, belt: 33.5, frontAxle: 87.8, rearAxle: 451.3, tire: 44, wheelInset: 16,
+        body: function (f) {
+            return [[120.65, 0.5], [84, 2.5], [54, 10], [35, 22], [24.5, 35], [f, 46], [f, 557], [26, 568.3], [120.65, 568.3]];
+        },
+        hood: { points: [[120.65, 7.5], [85, 9], [57, 16], [40, 27], [31, 38.5], [31, 71]], bottom: [70, 58.3] },
+        panes: [
+            { points: [[31.5, 75], [50, 236]], top: [70, 61] },
+            { points: [[50, 242], [49.5, 358]] }
+        ],
+        beams: [
+            { points: [[50, 236], [50, 242]] },
+            { points: [[49.5, 358], [49.5, 364]] }
+        ],
+        rear: { points: [[49.5, 364], [50.5, 386]] },
+        trunk: { points: [[47, 390], [47, 553]] },
+        slats: slats.join(" "),
+        trim: [[[24.5, 33], [20.3, 45], [19.5, 57], [19.5, 120], [20.3, 132], [24.5, 144]],
+               [[24.5, 396], [20.3, 408], [19.5, 420], [19.5, 484], [20.3, 496], [24.5, 508]]],
+        quarter: [[33.5, 95], [36.5, 115, 38.5, 135, 40.8, 150], [33.5, 150]],
+        frontWindow: [[33.5, 154], [41.2, 154], [42.3, 165, 43.5, 172, 43.5, 180], [43.5, 258], [33.5, 258]],
+        rearWindow: [[33.5, 264], [43.5, 264], [43.3, 356], [33.5, 356]],
+        frontDoor: [152, 260], rearDoor: [262, 362],
+        headlight: [[120.65, 2.5], [98, 3, 77, 5.3, 58, 10.5], [45, 14.5, 33, 24.5, 26, 35.5], [28.5, 37],
+                    [35, 27, 46.5, 17.5, 59.5, 13.3], [78, 8.3, 99, 6, 120.65, 5.6]],
+        headlightLine: [[119, 4], [98, 4.6, 77, 6.8, 58.8, 11.9], [46, 16, 34.5, 25.5, 27.7, 35.6]],
+        taillight: [[120.65, 566.3], [28.5, 566.3], [25, 560.5], [27, 559.5], [30, 563.3], [120.65, 563.3]],
+        taillightLine: [[119, 564.8], [30, 564.8]],
+        mirror: [[0, 0], [7, 7, 15, 17, 20.5, 24.5], [21.8, 26.5, 21.5, 29, 20, 29.5], [13, 25, 6, 20, 0, 16.5]],
+        port: [26, 516], sentryY: 150, lockY: 300
+    });
 };
 
 var planCache = {};
