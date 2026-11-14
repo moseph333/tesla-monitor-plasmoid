@@ -15,6 +15,7 @@ KCM.SimpleKCM {
     property alias cfg_panelText: panelText.currentIndex
     property alias cfg_panelChargingTime: panelChargingTime.checked
     property alias cfg_rightHandDrive: rightHandDrive.checked
+    property alias cfg_carModel: carModel.currentIndex
     property alias cfg_carColor: carColor.currentIndex
     property alias cfg_showNavigation: showNavigation.checked
     property alias cfg_unlockedOkGeofences: unlockedOkGeofences.text
@@ -73,6 +74,33 @@ KCM.SimpleKCM {
             id: rangeType
             Kirigami.FormData.label: i18n("Range:")
             model: [i18n("Rated (matches the car)"), i18n("Estimated"), i18n("Ideal")]
+        }
+
+        Kirigami.Separator {
+            Kirigami.FormData.isSection: true
+            Kirigami.FormData.label: i18n("Car")
+        }
+
+        // The order of Models.KEYS, after Automatic.
+        QQC2.ComboBox {
+            id: carModel
+            Kirigami.FormData.label: i18n("Model:")
+            model: [
+                i18nc("the car's model", "Automatic (from TeslaMate)"),
+                i18nc("a car model", "Model S"),
+                i18nc("a car model", "Model 3"),
+                i18nc("a car model", "Model X"),
+                i18nc("a car model", "Model Y"),
+                i18nc("a car model", "Cybertruck")
+            ]
+        }
+
+        QQC2.Label {
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            wrapMode: Text.Wrap
+            font: Kirigami.Theme.smallFont
+            opacity: 0.7
+            text: i18n("The shape of the panel icon and of the car in the card. Automatic draws the model TeslaMate reports, and a Model 3 when it reports none.")
         }
 
         Kirigami.Separator {

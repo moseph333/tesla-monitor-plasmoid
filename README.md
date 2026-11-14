@@ -7,15 +7,21 @@
 
 > An unofficial community project. It isn't affiliated with or endorsed by Tesla, Inc. or the TeslaMate project. See [Disclaimer](#disclaimer).
 
-A KDE Plasma 6 widget that shows a Tesla's status from [TeslaMate](https://docs.teslamate.org) over MQTT. On the desktop it's a full card. In a panel it's a Model 3-shaped battery icon, with the battery percentage or the range beside it, that opens the card when clicked. It's drawn like Plasma's battery icon: a thin outline with a solid fill that grows from left to right, and a bolt while charging. The panel icon also works from the keyboard, where Space or Enter opens the card, and screen readers read out the same status as its tooltip.
+A KDE Plasma 6 widget that shows a Tesla's status from [TeslaMate](https://docs.teslamate.org) over MQTT. On the desktop it's a full card. In a panel it's a battery icon in the shape of your car, a Model S, 3, X, Y or Cybertruck, with the battery percentage or the range beside it, that opens the card when clicked. It's drawn like Plasma's battery icon: a thin outline with a solid fill that grows from left to right, and a bolt while charging. The panel icon also works from the keyboard, where Space or Enter opens the card, and screen readers read out the same status as its tooltip.
 
 <p>
-<img src="screenshots/parked.png" width="270" alt="The card of a parked car in Breeze Dark: battery ring at 72%, temperatures, and the car in its blue paint">
+<img src="screenshots/parked.png" width="270" alt="The card of a parked Model 3 in Breeze Dark: battery ring at 72%, temperatures, and the car in its blue paint">
 <img src="screenshots/charging.png" width="270" alt="The card while charging in Breeze Light: 11 kW, 1h 30m to 80%">
 <img src="screenshots/door-open.png" width="270" alt="The card with the driver's door and the trunk open, and the warning that lists them">
 </p>
+<p>
+<img src="screenshots/model-s.png" width="200" alt="The card of a red Model S">
+<img src="screenshots/model-x.png" width="200" alt="The card of a white Model X with both rear doors lifted like wings, and the warning that lists them">
+<img src="screenshots/model-y.png" width="200" alt="The card of a silver Model Y while charging, in Breeze Light">
+<img src="screenshots/cybertruck.png" width="200" alt="The card of a Cybertruck">
+</p>
 
-The popup on Plasma 6.8 with the data of `tools/fake-teslamate.sh`.
+The card on Plasma 6.8 with the data of `tools/fake-teslamate.sh`: a Model 3 above, and a Model S, a Model X with its rear doors up, a Model Y and a Cybertruck below.
 
 The card shows:
 
@@ -24,7 +30,7 @@ The card shows:
 - While driving, the power the battery gives, or takes back while regenerating. If you turn on navigation, also the destination, the time to arrival with any traffic delay, the distance left and the battery level on arrival
 - How much of the battery is usable while it's cold
 - Inside and outside temperature, climate and odometer
-- A top-down drawing of the car in its own paint, lying on its side with its nose to the right so it fills the card, with each tire's pressure, each door and window, the trunk, frunk and charge port, the lock and Sentry. Open doors swing out, anything open turns orange, a low tire turns red, the charge cable shows while plugged in, and a red lens on the windshield means Sentry is on. Hover over the car to see the same status as text. The paint is the one TeslaMate reports. When it reports none, or one the widget doesn't know, the car is drawn in tints of your color scheme, which you can also choose in the settings
+- A top-down drawing of the car, as the model it is and in its own paint, lying on its side with its nose to the right so it fills the card, with each tire's pressure, each door and window, the trunk, frunk and charge port, the lock and Sentry. Open doors swing out, a Model X's rear doors lift like the wings they are, a hatchback's rear window opens with its trunk, anything open turns orange, a low tire turns red, the charge cable shows while plugged in, and a red lens on the windshield means Sentry is on. Hover over the car to see the same status as text. The paint is the one TeslaMate reports. When it reports none, or one the widget doesn't know, the car is drawn in tints of your color scheme, which you can also choose in the settings
 - One warning that lists everything that needs attention: open doors, windows, frunk, trunk, sunroof or charge port, the car unlocked with nobody inside, low tire pressure, service mode, and TeslaMate having trouble reaching the car. The popup is a little taller while it shows, so the car keeps its size. The panel icon's tooltip lists the same
 - Software version, available updates and their download and install progress
 
@@ -107,6 +113,7 @@ From a source checkout, `make uninstall` does the same.
 | Show text next to the icon | On by default. Turn it off to show only the car in the panel. Hovering over the car still shows the percentage and range |
 | Text | What the panel shows next to the car: the battery percentage (the default), the range, or both |
 | While charging, show the time to full | Off by default. While the car charges, the panel shows the time left to reach the charge limit, instead of the range when Text includes it |
+| Model | **Automatic** by default: the panel icon and the car in the card take the shape of the model TeslaMate reports in its `model` topic, and of a Model 3 when it reports none. Or choose Model S, Model 3, Model X, Model Y or Cybertruck yourself |
 | Right-hand drive | Off by default. TeslaMate names doors and windows by driver and passenger side, so turn this on if the steering wheel is on the right |
 | Car color | **The car's paint** by default: the drawing's body takes the color TeslaMate reports as `exterior_color`. **Theme colors** draws it in tints of your color scheme instead, which is also what you get when TeslaMate reports no paint or one the widget doesn't know |
 | Show the destination and arrival while driving | Off by default. While the car follows a route, the card shows the destination, the time to arrival with any traffic delay, the distance left and the battery level on arrival. Needs TeslaMate 1.29 or newer |
@@ -200,7 +207,7 @@ make lint      # check QML syntax, metadata.json, main.xml and the shell script
 
 `make lint` uses Qt 6's `qmlformat`, `jq`, `xmllint` and `shellcheck`, and skips any that aren't installed.
 
-The tests in `tests/` cover `logic.js` and `notifyhub.js` and need only Node.js 18 or newer. `logic.js` holds the widget's decisions and never calls `Qt` or `i18n()`, so Node can run it; the QML turns its results into words. Qt 6's `qmllint` catches QML syntax errors:
+The tests in `tests/` cover `logic.js`, `models.js` and `notifyhub.js` and need only Node.js 18 or newer. `logic.js` holds the widget's decisions and never calls `Qt` or `i18n()`, so Node can run it; the QML turns its results into words. Qt 6's `qmllint` catches QML syntax errors:
 
 ```bash
 qmllint package/contents/ui/*.qml package/contents/config/*.qml
@@ -237,6 +244,14 @@ Notifications are for changes, so run a scenario, let the widget poll, then run 
 mosquitto_pub -p 1884 -r -t teslamate/cars/1/exterior_color -m PearlWhite
 ```
 
+`parked` also makes the fake car a Model 3. For another shape, publish `S`, `X`, `Y` or `Cybertruck` as its model, or choose one in the settings:
+
+```bash
+mosquitto_pub -p 1884 -r -t teslamate/cars/1/model -m Y
+```
+
+The shapes are in `models.js`, which is as free of `Qt` as `logic.js` and tested the same way. Each model's side profile and plan use Tesla's published dimensions, and their outlines follow the side and top views in Tesla's owner's manuals.
+
 The card draws its own lock, Sentry and bolt signs instead of taking them from the icon theme, so they look the same in every theme. If you add a theme icon with `isMask: true`, use a `-symbolic` name. Some icon themes, such as WhiteSur, map plain names to full-color icons, which then render as a solid block.
 
 ## Contributing
@@ -249,4 +264,4 @@ Bug reports and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md
 
 ## Disclaimer
 
-Tesla Monitor is an independent, unofficial project. It isn't affiliated with, endorsed by or sponsored by Tesla, Inc. or the TeslaMate project. Tesla and Model 3 are trademarks of Tesla, Inc., used here only to describe what the widget works with. The widget only reads data that your own TeslaMate publishes to your own MQTT broker, and is provided as is, without warranty.
+Tesla Monitor is an independent, unofficial project. It isn't affiliated with, endorsed by or sponsored by Tesla, Inc. or the TeslaMate project. Tesla, Model S, Model 3, Model X, Model Y and Cybertruck are trademarks of Tesla, Inc., used here only to describe what the widget works with. The widget only reads data that your own TeslaMate publishes to your own MQTT broker, and is provided as is, without warranty.

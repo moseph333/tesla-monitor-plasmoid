@@ -12,7 +12,7 @@
         "Id": "net.moseph.teslamonitor",
         "License": "MIT",
         "Name": "Tesla Monitor",
-        "Version": "1.7.1",
+        "Version": "1.8.0",
         "Website": "https://github.com/moseph333/tesla-monitor-plasmoid"
     },
     "KPackageStructure": "Plasma/Applet",

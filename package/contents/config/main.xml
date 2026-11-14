@@ -71,6 +71,11 @@
         <entry name="rightHandDrive" type="Bool">
             <default>false</default>
         </entry>
+        <!-- Which car the panel icon and the card draw: 0 the model TeslaMate reports,
+             1 Model S, 2 Model 3, 3 Model X, 4 Model Y, 5 Cybertruck. -->
+        <entry name="carModel" type="Int">
+            <default>0</default>
+        </entry>
         <!-- 0 the car's own paint, as TeslaMate reports it, 1 theme colors. -->
         <entry name="carColor" type="Int">
             <default>0</default>

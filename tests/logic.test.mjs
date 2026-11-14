@@ -14,6 +14,7 @@ function load(file) {
 
 const L = load("logic.js");
 const Hub = load("notifyhub.js");
+const Models = load("models.js");
 
 test("parseMqtt strips the prefix and ignores other topics", () => {
     const out = [
@@ -1440,4 +1441,206 @@ test("escapeMarkup escapes &, < and > and keeps line breaks", () => {
     assert.equal(L.escapeMarkup("Doors: open\nTrunk open"), "Doors: open\nTrunk open");
     assert.equal(L.escapeMarkup(80), "80");
     assert.equal(L.escapeMarkup(""), "");
+});
+
+// ---------- models.js ----------
+
+const MODEL_KEYS = ["s", "3", "x", "y", "cybertruck"];
+// Every number in a path, to check that none of them is NaN or missing.
+const pathNumbers = path => path.split(/[\s,]+/).filter(t => !/^[MLHVCAZ]$/.test(t));
+
+test("modelKey takes the settings' choice over what TeslaMate reports", () => {
+    assert.deepEqual([1, 2, 3, 4, 5].map(i => Models.modelKey(i, "3")), MODEL_KEYS);
+    assert.equal(Models.modelKey(4, undefined), "y");
+});
+
+test("modelKey on automatic goes by TeslaMate's model", () => {
+    assert.equal(Models.modelKey(0, "S"), "s");
+    assert.equal(Models.modelKey(0, "3"), "3");
+    assert.equal(Models.modelKey(0, "X"), "x");
+    assert.equal(Models.modelKey(0, "Y"), "y");
+    assert.equal(Models.modelKey(0, " y "), "y");
+    assert.equal(Models.modelKey(0, "Model X"), "x");
+    assert.equal(Models.modelKey(0, "Cybertruck"), "cybertruck");
+    assert.equal(Models.modelKey(0, "C"), "cybertruck");
+});
+
+test("modelKey falls back to the Model 3", () => {
+    for (const reported of [undefined, null, "", "Roadster", "Semi", "(null)"])
+        assert.equal(Models.modelKey(0, reported), "3");
+    assert.equal(Models.modelKey(9, "S"), "s");
+    assert.equal(Models.modelKey(-1, undefined), "3");
+    assert.equal(Models.modelKey(undefined, "Y"), "y");
+});
+
+test("every model has a side profile of well-formed paths", () => {
+    for (const key of MODEL_KEYS) {
+        const p = Models.sideProfile(key);
+        assert.ok(p.boxWidth > p.boxHeight && p.boxHeight > 0, key);
+        for (const name of ["outlinePath", "fillPath", "chargingFillPath", "boltPath"]) {
+            assert.match(p[name], /^M /, key + " " + name);
+            for (const t of pathNumbers(p[name])) assert.ok(Number.isFinite(Number(t)), key + " " + name + ": " + t);
+        }
+        // The outline stays inside the icon's box.
+        const xs = p.outlinePath.match(/-?\d+(\.\d+)?/g).map(Number);
+        assert.ok(Math.max(...xs) <= p.boxWidth && Math.min(...xs) >= 0, key);
+    }
+});
+
+test("the Model 3's side profile is the one the icon always had", () => {
+    const p = Models.sideProfile("3");
+    assert.equal(p.boxWidth, 477.4);
+    assert.equal(p.boxHeight, 148.3);
+    assert.ok(p.chargingFillPath.includes("L 226.3 53.91 L 202.7 88 L 225.7 88 L 217.28 120"));
+    assert.equal(p.boltPath, "M 254 28 L 218 80 L 236 80 L 226 118 L 262 64 L 244 64 Z");
+    assert.equal(Models.sideProfile("nonsense"), p);
+});
+
+test("the side profile and the plan of a model agree on its length", () => {
+    for (const key of MODEL_KEYS) {
+        // The profile's box is the car with 4 units of room at either end.
+        assert.ok(Math.abs(Models.sideProfile(key).boxWidth - 8 - Models.plan(key).length) < 0.05, key);
+        assert.equal(Models.plan(key).boxHeight, Math.ceil(Models.plan(key).length), key);
+    }
+    assert.equal(Models.plan("nonsense"), Models.plan("3"));
+});
+
+test("every plan has its parts in order along and across the car", () => {
+    for (const key of MODEL_KEYS) {
+        const p = Models.plan(key);
+        assert.ok(p.length > p.boxWidth && p.boxWidth > 180, key);
+        // Along the car: front wheel, front door, rear door, rear wheel, tail.
+        assert.ok(p.frontAxle < p.frontDoor[0] && p.frontDoor[0] < p.frontDoor[1], key);
+        assert.ok(p.frontDoor[1] < p.rearDoor[0] && p.rearDoor[0] < p.rearDoor[1], key);
+        assert.ok(p.rearDoor[0] < p.rearAxle && p.rearAxle + p.tire < p.length, key);
+        assert.ok(p.frontAxle - p.tire > 0, key);
+        // Across the car: the wheel's face, the body's side, the door, the windows.
+        assert.ok(p.wheelInset < p.flank && p.flank + 3.75 < p.belt && p.belt < p.boxWidth / 2, key);
+        // The signs are on the glass, the first on the windshield.
+        assert.ok(p.sentryY > p.glassSpan[0] && p.sentryY < p.glassSpan[0] + p.windshieldLength, key);
+        assert.ok(p.lockY > p.sentryY && p.lockY < p.glassSpan[1], key);
+        // The charge port is on the left, behind the rear wheel.
+        assert.ok(p.port[0] < p.boxWidth / 2 && p.port[1] > p.rearAxle, key);
+    }
+});
+
+test("every plan's side windows start on the belt and end with their doors", () => {
+    for (const key of MODEL_KEYS) {
+        const p = Models.plan(key);
+        for (const [win, door] of [[p.frontWindow, p.frontDoor], [p.rearWindow, p.rearDoor]]) {
+            const xs = win.flatMap(q => q.filter((v, i) => i % 2 === 0));
+            const ys = win.flatMap(q => q.filter((v, i) => i % 2 === 1));
+            assert.equal(Math.min(...xs), p.belt, key);
+            assert.ok(Math.max(...xs) < p.boxWidth / 2, key);
+            // A front window may start ahead of its door, with the glass beside the mirror.
+            assert.ok(Math.max(...ys) <= door[1] && Math.min(...ys) >= door[0] - 20, key);
+        }
+    }
+});
+
+test("every plan's paths are well formed", () => {
+    for (const key of MODEL_KEYS) {
+        const p = Models.plan(key);
+        const paths = [p.bodyPath(p.flank), p.frunkPath, p.trunkPath, p.glassPath, p.rearGlassPath, p.beamPath, p.canopyPath,
+                       p.headlightPath, p.headlightLine, p.taillightPath, p.taillightLine,
+                       Models.placed(p.frontWindow, 0.25), Models.placed(p.rearWindow, 0.25, p.boxWidth),
+                       Models.mirrorPath(p.mirror, 1.5, 9, true), Models.mirrorPath(p.mirror, 1.5, 9, false)];
+        for (const path of paths) {
+            assert.match(path, /^M /, key);
+            for (const t of pathNumbers(path)) assert.ok(Number.isFinite(Number(t)), key + ": " + t);
+        }
+        // What a plan may leave out is an empty path, never a missing one.
+        for (const name of ["creasePath", "slatPath", "trimPath", "quarterPath"]) {
+            assert.equal(typeof p[name], "string", key + " " + name);
+            for (const t of pathNumbers(p[name]).filter(Boolean)) assert.ok(Number.isFinite(Number(t)), key + " " + name);
+        }
+    }
+});
+
+test("every plan's body is closed, symmetric and as long and wide as the car", () => {
+    for (const key of MODEL_KEYS) {
+        const p = Models.plan(key);
+        const path = p.bodyPath(p.flank);
+        assert.match(path, / Z$/, key);
+        const n = path.match(/-?\d+(\.\d+)?/g).map(Number);
+        const xs = n.filter((v, i) => i % 2 === 0);
+        const ys = n.filter((v, i) => i % 2 === 1);
+        assert.ok(Math.abs(Math.min(...xs) + Math.max(...xs) - p.boxWidth) < 0.02, key);
+        assert.ok(Math.min(...ys) >= 0 && Math.min(...ys) <= 1, key);
+        assert.equal(Math.max(...ys), p.length, key);
+        // The mirrors, not the body, reach the box's edge.
+        assert.ok(Math.min(...xs) > 9, key);
+    }
+});
+
+test("the glass over the cabin has one outline, from the windshield's foot to the rear window's end", () => {
+    for (const key of MODEL_KEYS) {
+        const p = Models.plan(key);
+        assert.equal(p.canopyPath.match(/Z/g).length, 1, key);
+        assert.equal(p.canopyPath.match(/M/g).length, 1, key);
+        const n = p.canopyPath.match(/-?\d+(\.\d+)?/g).map(Number);
+        const xs = n.filter((v, i) => i % 2 === 0);
+        const ys = n.filter((v, i) => i % 2 === 1);
+        // Symmetric, inside the body, and as long as the glass.
+        assert.ok(Math.abs(Math.min(...xs) + Math.max(...xs) - p.boxWidth) < 0.02, key);
+        assert.ok(Math.min(...xs) > p.flank + 5, key);
+        assert.ok(Math.min(...ys) <= p.glassSpan[0] && Math.max(...ys) >= p.glassSpan[1], key);
+    }
+    // Along the Model X's side it passes the door's own pane, not the spine in the middle.
+    assert.ok(!Models.plan("x").canopyPath.includes(" 102 "));
+});
+
+test("only the hatchbacks' rear windows open with the trunk, and only the Model X has wings", () => {
+    assert.deepEqual(MODEL_KEYS.filter(key => Models.plan(key).hatch), ["s", "x", "y"]);
+    assert.deepEqual(MODEL_KEYS.filter(key => Models.plan(key).falcon), ["x"]);
+    const p = Models.plan("x");
+    // An open wing is hinged beside the roof's middle and reaches out past the body.
+    const xs = p.falcon.wing.flatMap(q => q.filter((v, i) => i % 2 === 0));
+    assert.ok(Math.max(...xs) > p.boxWidth / 2 - 15 && Math.max(...xs) < p.boxWidth / 2);
+    assert.ok(Math.min(...xs) < p.flank - 20);
+    assert.ok(p.falcon.back < p.rearAxle && p.falcon.back > p.rearDoor[0]);
+    assert.ok(p.falcon.seam > p.belt);
+});
+
+test("edgeAt finds the body's edge beside the wheels and along the doors", () => {
+    for (const key of MODEL_KEYS) {
+        const p = Models.plan(key);
+        const left = p.bodyLeft(p.flank);
+        // The body's side is straight where the front door is.
+        assert.equal(Models.edgeAt(left, p.frontDoor[0]), p.flank, key);
+        assert.equal(Models.edgeAt(left, p.frontDoor[1]), p.flank, key);
+        for (const y of [p.frontAxle - p.tire, p.frontAxle + p.tire, p.rearAxle - p.tire, p.rearAxle + p.tire]) {
+            const x = Models.edgeAt(left, y);
+            assert.ok(x > p.wheelInset && x < p.flank + 14, key + " at " + y + ": " + x);
+        }
+    }
+});
+
+test("symmetric closes a left half into a shape that is the same on both sides", () => {
+    assert.equal(Models.symmetric(20, [[10, 0], [2, 5], [10, 9]]), "M 10 0 L 2 5 L 10 9 L 18 5 L 10 0 Z");
+    assert.equal(Models.symmetric(20, [[4, 0], [4, 6]]), "M 4 0 L 4 6 L 16 6 L 16 0 Z");
+    assert.equal(Models.symmetric(20, [[4, 0], [3, 2, 3, 4, 4, 6]], [7, -2], [7, 8]),
+                 "M 4 0 C 3 2 3 4 4 6 C 7 8 13 8 16 6 C 17 4 17 2 16 0 C 13 -2 7 -2 4 0 Z");
+});
+
+test("placed moves a chain across the car, or mirrors it onto the other side", () => {
+    const win = [[5, 1], [5, 9], [8, 7, 8, 3, 5, 1]];
+    assert.equal(Models.placed(win, 0.5), "M 5.5 1 L 5.5 9 C 8.5 7 8.5 3 5.5 1 Z");
+    assert.equal(Models.placed(win, 0.5, 100), "M 94.5 1 L 94.5 9 C 91.5 7 91.5 3 94.5 1 Z");
+    // The plan's own chain is left as it was.
+    assert.deepEqual(win[0], [5, 1]);
+});
+
+test("reached holds what is outside the flank back by a share of the way", () => {
+    const wing = [[50, 0], [-10, 0], [-10, 20], [50, 20]];
+    assert.equal(Models.reached(wing, 10, 1, undefined, true), "M 50 0 L -10 0 L -10 20 L 50 20 Z");
+    assert.equal(Models.reached(wing, 10, 0, undefined, true), "M 50 0 L 10 0 L 10 20 L 50 20 Z");
+    assert.equal(Models.reached(wing, 10, 0.5, undefined, false), "M 50 0 L 0 0 L 0 20 L 50 20");
+    assert.equal(Models.reached(wing, 10, 1, 100, true), "M 50 0 L 110 0 L 110 20 L 50 20 Z");
+});
+
+test("mirrorPath puts a mirror outside its door on either side", () => {
+    const mirror = [[0, 2], [6, 4, 10, 8, 10, 12], [0, 10]];
+    assert.equal(Models.mirrorPath(mirror, 1.5, 9, true), "M -1.5 2 C -7.5 4 -11.5 8 -11.5 12 L -1.5 10");
+    assert.equal(Models.mirrorPath(mirror, 1.5, 9, false), "M 10.5 2 C 16.5 4 20.5 8 20.5 12 L 10.5 10");
 });
