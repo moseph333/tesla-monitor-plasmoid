@@ -318,6 +318,24 @@ function makePlan(s) {
         return (list || []).map(function (c) { return onBothSides(w, c, closed); }).join(" ");
     };
     var base = s.panes[0];
+    // All the glass over the cabin and the beams in it, as one outline: the left edges of
+    // the pieces that reach the cabin's side, one after the other from the windshield's
+    // foot. A body that is not opaque has this cut out of it in one piece, since the edges
+    // of holes that touch would show as hairlines.
+    var sides = (s.sidePanes || []).map(function (c) {
+        return c.filter(function (q, i) { return i === 0 || endOf(q)[0] < w / 4; });
+    });
+    var edge = [];
+    s.panes.concat(s.beams, [s.rear]).map(function (o) { return o.points; }).concat(sides)
+        .filter(function (c) { return c[0][0] < w / 4; })
+        .sort(function (a, b) { return a[0][1] - b[0][1]; })
+        .forEach(function (c) {
+            c.forEach(function (q, i) {
+                var last = edge.length ? endOf(edge[edge.length - 1]) : null;
+                if (i === 0 && last && last[0] === q[0] && last[1] === q[1]) return;
+                edge.push(q);
+            });
+        });
     return {
         boxWidth: w,
         boxHeight: Math.ceil(s.length),
@@ -354,6 +372,7 @@ function makePlan(s) {
         trimPath: each(s.trim, true),
         glassPath: s.panes.map(sym).concat(each(s.sidePanes, true)).join(" "),
         rearGlassPath: sym(s.rear),
+        canopyPath: symmetric(w, edge, base.top, s.rear.bottom),
         beamPath: s.beams.map(sym).join(" "),
         quarterPath: s.quarter ? onBothSides(w, s.quarter, true) : "",
         headlightPath: onBothSides(w, s.headlight, true),

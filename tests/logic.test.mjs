@@ -1541,7 +1541,7 @@ test("every plan's side windows start on the belt and end with their doors", () 
 test("every plan's paths are well formed", () => {
     for (const key of MODEL_KEYS) {
         const p = Models.plan(key);
-        const paths = [p.bodyPath(p.flank), p.frunkPath, p.trunkPath, p.glassPath, p.rearGlassPath, p.beamPath,
+        const paths = [p.bodyPath(p.flank), p.frunkPath, p.trunkPath, p.glassPath, p.rearGlassPath, p.beamPath, p.canopyPath,
                        p.headlightPath, p.headlightLine, p.taillightPath, p.taillightLine,
                        Models.placed(p.frontWindow, 0.25), Models.placed(p.rearWindow, 0.25, p.boxWidth),
                        Models.mirrorPath(p.mirror, 1.5, 9, true), Models.mirrorPath(p.mirror, 1.5, 9, false)];
@@ -1571,6 +1571,23 @@ test("every plan's body is closed, symmetric and as long and wide as the car", (
         // The mirrors, not the body, reach the box's edge.
         assert.ok(Math.min(...xs) > 9, key);
     }
+});
+
+test("the glass over the cabin has one outline, from the windshield's foot to the rear window's end", () => {
+    for (const key of MODEL_KEYS) {
+        const p = Models.plan(key);
+        assert.equal(p.canopyPath.match(/Z/g).length, 1, key);
+        assert.equal(p.canopyPath.match(/M/g).length, 1, key);
+        const n = p.canopyPath.match(/-?\d+(\.\d+)?/g).map(Number);
+        const xs = n.filter((v, i) => i % 2 === 0);
+        const ys = n.filter((v, i) => i % 2 === 1);
+        // Symmetric, inside the body, and as long as the glass.
+        assert.ok(Math.abs(Math.min(...xs) + Math.max(...xs) - p.boxWidth) < 0.02, key);
+        assert.ok(Math.min(...xs) > p.flank + 5, key);
+        assert.ok(Math.min(...ys) <= p.glassSpan[0] && Math.max(...ys) >= p.glassSpan[1], key);
+    }
+    // Along the Model X's side it passes the door's own pane, not the spine in the middle.
+    assert.ok(!Models.plan("x").canopyPath.includes(" 102 "));
 });
 
 test("only the hatchbacks' rear windows open with the trunk, and only the Model X has wings", () => {

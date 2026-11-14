@@ -250,10 +250,10 @@ Item {
     // The beams across the roof, between the panes of glass.
     readonly property string beamPath: plan.beamPath
     // The body with the glass left out of it, for a body that is not opaque: all of
-    // bodyPath, and inside it, as holes, the panes, the beams, the side windows and the
-    // doorways of open doors.
+    // bodyPath, and inside it, as holes, the glass over the cabin with its beams, the
+    // side windows and the doorways of open doors.
     readonly property string openBodyPath: [
-        bodyPath, glassPath, rearGlassPath, beamPath, plan.quarterPath,
+        bodyPath, plan.canopyPath, plan.quarterPath,
         windowPath(true, plan.frontWindow, 0), windowPath(true, plan.rearWindow, 0),
         windowPath(false, plan.frontWindow, 0), windowPath(false, plan.rearWindow, 0),
         doorwaysPath
