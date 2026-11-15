@@ -40,6 +40,14 @@ KCM.SimpleKCM {
         formEdited()
     }
 
+    // TLS brokers usually listen on port 8883 and the others on 1883. The port follows a
+    // change of mode only while it still holds the other mode's usual value, so a custom
+    // port is left alone.
+    function followTls(tls) {
+        if (tls && brokerPort.value === 1883) brokerPort.value = 8883
+        else if (!tls && brokerPort.value === 8883) brokerPort.value = 1883
+    }
+
     function showResult(type, text) {
         result.type = type
         result.text = text
@@ -118,18 +126,17 @@ KCM.SimpleKCM {
             // People paste whatever their broker's docs show, such as
             // mqtts://user:pw@host:8883/. mosquitto_sub only takes a bare host, so the rest
             // moves to the fields it belongs in. A scheme turns TLS on (mqtts://) or off
-            // (mqtt://), and the usual port follows it as it does for the checkbox; setting
+            // (mqtt://), and the port follows it as it does for the checkbox; setting
             // checked here doesn't emit toggled, so that's done here too. Credentials never
             // overwrite what's typed.
             onEditingFinished: {
-                const r = Logic.parseBrokerHost(text)
-                if (text !== r.host) text = r.host
-                if (r.port) brokerPort.value = r.port
-                else if (r.tls === true && brokerPort.value === 1883) brokerPort.value = 8883
-                else if (r.tls === false && brokerPort.value === 8883) brokerPort.value = 1883
-                if (r.tls !== null) useTls.checked = r.tls
-                if (r.user && brokerUser.text === "") brokerUser.text = r.user
-                if (r.password && brokerPassword.text === "") brokerPassword.text = r.password
+                const pasted = Logic.parseBrokerHost(text)
+                if (text !== pasted.host) text = pasted.host
+                if (pasted.port) brokerPort.value = pasted.port
+                else if (pasted.tls !== null) page.followTls(pasted.tls)
+                if (pasted.tls !== null) useTls.checked = pasted.tls
+                if (pasted.user && brokerUser.text === "") brokerUser.text = pasted.user
+                if (pasted.password && brokerPassword.text === "") brokerPassword.text = pasted.password
             }
         }
 
@@ -164,11 +171,8 @@ KCM.SimpleKCM {
             id: useTls
             Kirigami.FormData.label: i18n("Security:")
             text: i18n("Use TLS")
-            // Follow the switch only while the port still holds the other mode's usual
-            // value, so a custom port is left alone.
             onToggled: {
-                if (checked && brokerPort.value === 1883) brokerPort.value = 8883
-                else if (!checked && brokerPort.value === 8883) brokerPort.value = 1883
+                page.followTls(checked)
                 page.brokerEdited()
             }
         }
