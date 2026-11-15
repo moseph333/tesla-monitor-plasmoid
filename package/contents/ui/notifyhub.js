@@ -4,15 +4,15 @@
 // its widgets in one QML engine, and a library script exists once per engine, so a panel
 // icon and a desktop card that show the same car would otherwise both notify. This is kept
 // out of logic.js so that file holds no state.
-var sent = {};
+const sent = {};
 
 // True for the first caller with this key within windowMs, false for the rest. Each key keeps
 // the window it was claimed with, so a short window for one event can't drop another event's
 // key early. Old keys are dropped as it goes, and so are keys from the future, which a clock
 // set back would leave.
 function claim(key, nowMs, windowMs) {
-    for (var k in sent) {
-        if (nowMs >= sent[k].until || nowMs < sent[k].at) delete sent[k];
+    for (const old of Object.keys(sent)) {
+        if (nowMs >= sent[old].until || nowMs < sent[old].at) delete sent[old];
     }
     if (sent.hasOwnProperty(key)) return false;
     sent[key] = { at: nowMs, until: nowMs + windowMs };
