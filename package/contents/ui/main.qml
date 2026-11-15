@@ -681,8 +681,8 @@ PlasmoidItem {
         // or with a second line in the footer, make the popup taller by as much, so the
         // car keeps its width: 10.5 grid units is nearly what the rows of a parked card
         // leave it in the 27, and still leaves a card with a two-line message at its 30.
-        readonly property real popupHeight: Math.max(Kirigami.Units.gridUnit * (root.attentionLines.length > 0 ? 30 : 27),
-                                                     rowsHeight + Kirigami.Units.gridUnit * 10.5)
+        readonly property real usualHeight: Kirigami.Units.gridUnit * (root.attentionLines.length > 0 ? 30 : 27)
+        readonly property real popupHeight: Math.max(usualHeight, rowsHeight + Kirigami.Units.gridUnit * 10.5)
 
         Layout.preferredWidth: Kirigami.Units.gridUnit * 21
         // A card on the desktop keeps one height to ask for: Plasma lets a widget there
@@ -698,8 +698,7 @@ PlasmoidItem {
         Layout.minimumHeight: Math.max(Kirigami.Units.gridUnit * 20,
                                        root.onDesktop
                                        ? rowsHeight + carStatus.Layout.minimumHeight
-                                       : Math.min(rowsHeight + carStatus.Layout.minimumHeight,
-                                                  Kirigami.Units.gridUnit * (root.attentionLines.length > 0 ? 30 : 27)))
+                                       : Math.min(rowsHeight + carStatus.Layout.minimumHeight, usualHeight))
 
         // Created here rather than on the root item, which lives in the panel: the card's
         // colors have to be the popup's.
