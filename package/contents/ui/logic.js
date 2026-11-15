@@ -54,8 +54,10 @@ function partOpen(car, key, totalKey) {
 // TeslaMate names doors and windows by driver and passenger side, and tires by position.
 const PARTS = ["driver_front", "driver_rear", "passenger_front", "passenger_rear"];
 const TIRES = ["fl", "fr", "rl", "rr"];
-// The attention() types that count as left open, which notify only after a delay.
-const LEFT = { door: 1, window: 1, frunk: 1, trunk: 1, sunroof: 1, port: 1 };
+// The attention() types that count as left open. Those, and the unlocked car, notify only
+// after a delay.
+const LEFT_OPEN = ["door", "window", "frunk", "trunk", "sunroof", "port"];
+const DELAYED = LEFT_OPEN.concat("unlocked");
 // Every id attention() can give for something left open, the unlocked car or a tire, so a
 // snapshot can say which of them are fine whether or not this copy was tracking them.
 const TRACKABLE = (() => {
@@ -436,30 +438,21 @@ function trackCharge(prev, car, nowMs, holdMs) {
 function trackItems(old, car, nowMs, first, leftOpenMs, okGeofences) {
     const unattended = !isDriving(car) && triState(car, "is_user_present") !== true;
     const candidates = attention(car, okGeofences)
-        .filter(item => LEFT[item.type] || item.type === "unlocked" || item.type === "tire");
+        .filter(item => DELAYED.includes(item.type) || item.type === "tire");
     if (bool(car, "update_available"))
         candidates.push({ id: "update:" + (car.update_version || ""), type: "update", part: "" });
 
     const tracked = {};
-    const leftDue = [];
-    let unlockedDue = false;
-    const tiresDue = [];
-    let updateDue = null;
+    const due = [];
     for (const item of candidates) {
         const was = old[item.id];
         const entry = was ? { since: was.since, done: was.done } : { since: nowMs, done: first };
-        if (LEFT[item.type] || item.type === "unlocked") {
-            if (!unattended) {
-                entry.since = nowMs;
-            } else if (!entry.done && nowMs - entry.since >= leftOpenMs) {
-                entry.done = true;
-                if (item.type === "unlocked") unlockedDue = true;
-                else leftDue.push(item);
-            }
-        } else if (!entry.done) {
+        const delayed = DELAYED.includes(item.type);
+        if (delayed && !unattended) entry.since = nowMs;
+        const waited = !delayed || (unattended && nowMs - entry.since >= leftOpenMs);
+        if (!entry.done && waited) {
             entry.done = true;
-            if (item.type === "tire") tiresDue.push(item.part);
-            else updateDue = car.update_version || "";
+            due.push(item);
         }
         tracked[item.id] = entry;
     }
@@ -480,11 +473,13 @@ function trackItems(old, car, nowMs, first, leftOpenMs, okGeofences) {
         if (isResolved(car, id, okGeofences)) release(itemKey(id));
     }
 
+    const leftOpen = due.filter(item => LEFT_OPEN.includes(item.type));
+    const tires = due.filter(item => item.type === "tire").map(item => item.part);
     const events = [];
-    if (leftDue.length > 0) events.push({ type: "leftOpen", items: leftDue });
-    if (unlockedDue) events.push({ type: "unlocked" });
-    if (tiresDue.length > 0) events.push({ type: "tires", items: tiresDue });
-    if (updateDue !== null) events.push({ type: "update", version: updateDue });
+    if (leftOpen.length > 0) events.push({ type: "leftOpen", items: leftOpen });
+    if (due.some(item => item.type === "unlocked")) events.push({ type: "unlocked" });
+    if (tires.length > 0) events.push({ type: "tires", items: tires });
+    if (due.some(item => item.type === "update")) events.push({ type: "update", version: car.update_version || "" });
     return { tracked: tracked, events: events, released: released };
 }
 
