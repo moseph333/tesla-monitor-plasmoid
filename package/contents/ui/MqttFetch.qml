@@ -16,14 +16,14 @@ QtObject {
 
     signal finished(string stdout, string errorText)
 
-    // o = {host, port, user, password, tls, caFile, topics, wait}. Returns false, and runs
-    // nothing, when the host can't be used.
-    function run(o) {
-        const cmd = Logic.mosquittoCommand(o)
-        if (!cmd) return false
-        options = o
-        pending = cmd
-        exec.connectSource(cmd)
+    // connection = {host, port, user, password, tls, caFile, topics, wait}. Returns false,
+    // and runs nothing, when the host can't be used.
+    function run(connection) {
+        const command = Logic.mosquittoCommand(connection)
+        if (!command) return false
+        options = connection
+        pending = command
+        exec.connectSource(command)
         return true
     }
 
@@ -33,25 +33,26 @@ QtObject {
         pending = ""
     }
 
-    function message(e) {
-        const b = Logic.parseBrokerHost(options.host)
+    // The sentence for an error from Logic.mqttError(), or "" when there was none.
+    function message(error) {
+        const broker = Logic.parseBrokerHost(options.host)
         // Passed as a string so i18n() can't format it as a localized number such as "8,883".
-        const port = String(b.port || options.port || 1883)
-        switch (e.kind) {
+        const port = String(broker.port || options.port || 1883)
+        switch (error.kind) {
         case "": return ""
         case "notInstalled": return i18n("mosquitto_sub isn't installed. Install the mosquitto package on Fedora or Arch, or mosquitto-clients on Debian and Ubuntu.")
-        case "noAnswer": return i18n("%1 didn't answer on port %2. Check the host, the port and any firewall.", b.host, port)
-        case "lookup": return i18n("Can't find a host called %1.", b.host)
-        case "refused": return i18n("%1 refused the connection on port %2. Check the port.", b.host, port)
-        case "unreachable": return i18n("Can't reach %1: %2", b.host, e.detail)
+        case "noAnswer": return i18n("%1 didn't answer on port %2. Check the host, the port and any firewall.", broker.host, port)
+        case "lookup": return i18n("Can't find a host called %1.", broker.host)
+        case "refused": return i18n("%1 refused the connection on port %2. Check the port.", broker.host, port)
+        case "unreachable": return i18n("Can't reach %1: %2", broker.host, error.detail)
         case "auth": return i18n("The broker rejected the username or password.")
         case "tls": return i18n("The TLS connection failed. Check Use TLS, the port and the CA file, and that Host is the name on the broker's certificate rather than its IP address.")
         case "handshake": return i18n("The broker accepted the connection but didn't answer. If it uses TLS, turn on Use TLS; otherwise check the port.")
         case "oldClient": return i18n("This mosquitto_sub is too old to use the system's certificates (that needs mosquitto 2.0). Choose a CA file instead.")
         case "caFile": return i18n("Can't read the CA file %1.", String(options.caFile || ""))
         case "denied": return i18n("The broker didn't let this account read %1.", (options.topics || []).join(", "))
-        case "other": return e.detail
-        default: return i18n("mosquitto_sub stopped with exit code %1.", e.detail)
+        case "other": return error.detail
+        default: return i18n("mosquitto_sub stopped with exit code %1.", error.detail)
         }
     }
 
