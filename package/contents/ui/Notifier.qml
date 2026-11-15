@@ -5,41 +5,41 @@ import org.kde.notification
 import "logic.js" as Logic
 import "notifyhub.js" as Hub
 
-// The widget's desktop notifications. Logic.notifyStep() says which events a poll calls
-// for and notifyhub.js lets copies of the widget share them; this words them and sends them.
+// The widget's desktop notifications. Logic.notifyStep() decides which events a poll calls
+// for, notifyhub.js lets copies of the widget share them, and this words and sends them.
 QtObject {
     id: notifier
 
-    // main.qml's root item, which knows the car.
+    // main.qml's root item, which has the car's state.
     required property PlasmoidItem widget
     readonly property var cfg: widget.cfg
     readonly property Texts texts: Texts {}
 
-    // What Logic.notifyStep() knew after the last poll, or null to start over.
+    // Logic.notifyStep()'s state after the last poll, or null to start over.
     property var state: null
-    // The car, as notifyhub.js knows it, so copies of the widget that show it share claims.
+    // Identifies the car to notifyhub.js, so copies showing the same car share claims.
     readonly property string source: {
         const broker = Logic.parseBrokerHost(cfg.brokerHost)
         return broker.host.toLowerCase() + ":" + (broker.port || cfg.brokerPort) + "|" + widget.prefix
     }
 
-    // Another broker or car starts over, so what it already shows isn't news.
+    // For a new broker or car: what it already shows isn't news.
     function startOver() {
         state = null
     }
 
-    // After every poll that got data. The state moves on even while a notification is
-    // turned off, so turning it on later doesn't bring up something old.
+    // Call after every poll that got data. The state advances even for notifications that
+    // are turned off, so turning one on later doesn't bring up something old.
     function process() {
         const step = Logic.notifyStep(state, widget.car, Date.now(), {
             leftOpenMs: cfg.leftOpenMinutes * 60 * 1000,
-            // Three polls at the slower rate and at least 15 minutes, so only something like
-            // a suspend or a broker outage counts as a gap that starts over.
+            // Three polls at the slower rate, at least 15 minutes: only a suspend or a
+            // broker outage should count as a gap.
             staleMs: Math.max(15 * 60 * 1000, 3 * 1000 * Math.max(cfg.refreshSeconds, cfg.idleRefreshSeconds)),
             okGeofences: widget.okGeofences
         })
         state = step.state
-        // What's fine again ends its claim for every copy, so the next time is news.
+        // What is fine again releases its claim for every copy.
         for (const key of step.released) Hub.release(source + "|" + key)
         for (const event of step.events) send(event)
     }
@@ -55,8 +55,8 @@ QtObject {
             update: cfg.notifyUpdates
         }
         if (!wanted[event.type]) return
-        // Every copy of the widget that shows this car sees the event on its own poll, and
-        // only the first to claim each part of it sends that part.
+        // Every copy showing this car sees the event on its own poll. Only the first to
+        // claim each part sends it.
         const at = Date.now()
         const mine = Logic.claimEvent(event, (key, windowMs) => Hub.claim(source + "|" + key, at, windowMs))
         if (!mine) return
@@ -70,8 +70,8 @@ QtObject {
         if (note) note.sendEvent()
     }
 
-    // The title, body and icon for an event from Logic.notifyStep(). A body says less when
-    // a value is missing, rather than leave a gap.
+    // The title, body and icon for an event. A body with a missing value says less rather
+    // than leave a gap.
     function content(event, name) {
         const minutes = cfg.leftOpenMinutes
         switch (event.type) {
@@ -131,8 +131,8 @@ QtObject {
         return null
     }
 
-    // One object per notification, which deletes itself once Plasma is done with it.
-    // Plasma drops a notification without a componentName, so it goes out as Plasma's own.
+    // One object per notification, deleted once Plasma is done with it. Plasma drops a
+    // notification without a componentName, so it is sent as Plasma's own.
     readonly property Component notification: Component {
         Notification {
             componentName: "plasma_workspace"
