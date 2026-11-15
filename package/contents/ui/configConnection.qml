@@ -20,28 +20,31 @@ KCM.SimpleKCM {
     property alias cfg_refreshSeconds: refreshSeconds.value
     property alias cfg_idleRefreshSeconds: idleRefreshSeconds.value
 
-    // The cars the last Find Cars run turned up, for the picker.
+    // The cars the last Find Cars found, for the picker.
     property var cars: []
-    // "test" or "find", whichever button started the running check.
+    // Which button started the running check: "test" or "find".
     property string pendingCheck: ""
     readonly property bool canCheck: Logic.parseBrokerHost(brokerHost.text).host !== "" && !fetch.busy
 
-    function formPrefix() {
-        return topicPrefix.text.trim().replace(/\/+$/, "") || "teslamate/cars/1"
-    }
-
-    // A result describes the values it ran with, so it goes away as soon as one of them
-    // changes, and a check still running is dropped. result.visible is always assigned,
-    // never bound, because the message's close button assigns it as well.
+    // A result describes the values it ran with, so editing any of them hides it and drops
+    // a running check. result.visible is assigned, never bound, because the message's close
+    // button assigns it too.
     function formEdited() {
         result.visible = false
         fetch.cancel()
     }
 
-    // Cars found on one broker mean nothing for another.
+    // Cars found on one broker don't apply to another.
     function brokerEdited() {
         cars = []
         formEdited()
+    }
+
+    // TLS brokers usually listen on 8883, others on 1883. The port follows a change of mode
+    // only if it still has the other mode's default, so a custom port is kept.
+    function followTls(tls) {
+        if (tls && brokerPort.value === 1883) brokerPort.value = 8883
+        else if (!tls && brokerPort.value === 8883) brokerPort.value = 1883
     }
 
     function showResult(type, text) {
@@ -50,7 +53,7 @@ KCM.SimpleKCM {
         result.visible = true
     }
 
-    // Both buttons try the values on the page, before they're applied.
+    // Both buttons test the values on the page, before they are applied.
     function runCheck(kind) {
         result.visible = false
         pendingCheck = kind
@@ -63,7 +66,7 @@ KCM.SimpleKCM {
             caFile: caFile.text,
             topics: kind === "find"
                 ? ["teslamate/cars/+/display_name", "teslamate/+/cars/+/display_name"]
-                : [formPrefix() + "/#"],
+                : [Logic.topicPrefix(topicPrefix.text) + "/#"],
             wait: 3
         })
         if (!started) showResult(Kirigami.MessageType.Error, i18n("Enter the broker's host name or address."))
@@ -92,7 +95,7 @@ KCM.SimpleKCM {
         const found = Logic.parseCars(out)
         cars = found
         if (found.length === 1) {
-            // Set before the message, since editing the prefix hides it.
+            // Set before showing the message, since editing the prefix hides it.
             topicPrefix.text = found[0].prefix
             showResult(Kirigami.MessageType.Positive, found[0].name
                 ? i18n("Found %1. Topic prefix set to %2.", found[0].name, found[0].prefix)
@@ -119,21 +122,19 @@ KCM.SimpleKCM {
             placeholderText: i18nc("example broker addresses", "192.168.1.x or mqtt.example.com")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
             onTextChanged: page.brokerEdited()
-            // People paste whatever their broker's docs show, such as
-            // mqtts://user:pw@host:8883/. mosquitto_sub only takes a bare host, so the rest
-            // moves to the fields it belongs in. A scheme turns TLS on (mqtts://) or off
-            // (mqtt://), and the usual port follows it as it does for the checkbox; setting
-            // checked here doesn't emit toggled, so that's done here too. Credentials never
-            // overwrite what's typed.
+            // People paste what their broker's docs show, e.g. mqtts://user:pw@host:8883/,
+            // but mosquitto_sub only takes a bare host, so the other parts move to their
+            // own fields. The scheme sets Use TLS, and the port follows as it does for the
+            // checkbox (setting checked here doesn't emit toggled). Credentials never
+            // overwrite what was typed.
             onEditingFinished: {
-                const r = Logic.parseBrokerHost(text)
-                if (text !== r.host) text = r.host
-                if (r.port) brokerPort.value = r.port
-                else if (r.tls === true && brokerPort.value === 1883) brokerPort.value = 8883
-                else if (r.tls === false && brokerPort.value === 8883) brokerPort.value = 1883
-                if (r.tls !== null) useTls.checked = r.tls
-                if (r.user && brokerUser.text === "") brokerUser.text = r.user
-                if (r.password && brokerPassword.text === "") brokerPassword.text = r.password
+                const pasted = Logic.parseBrokerHost(text)
+                if (text !== pasted.host) text = pasted.host
+                if (pasted.port) brokerPort.value = pasted.port
+                else if (pasted.tls !== null) page.followTls(pasted.tls)
+                if (pasted.tls !== null) useTls.checked = pasted.tls
+                if (pasted.user && brokerUser.text === "") brokerUser.text = pasted.user
+                if (pasted.password && brokerPassword.text === "") brokerPassword.text = pasted.password
             }
         }
 
@@ -168,11 +169,8 @@ KCM.SimpleKCM {
             id: useTls
             Kirigami.FormData.label: i18n("Security:")
             text: i18n("Use TLS")
-            // Follow the switch only while the port still holds the other mode's usual
-            // value, so a custom port is left alone.
             onToggled: {
-                if (checked && brokerPort.value === 1883) brokerPort.value = 8883
-                else if (!checked && brokerPort.value === 8883) brokerPort.value = 1883
+                page.followTls(checked)
                 page.brokerEdited()
             }
         }
@@ -199,18 +197,14 @@ KCM.SimpleKCM {
                     id: caDialog
                     title: i18n("Choose a CA Certificate")
                     nameFilters: [i18n("Certificates (*.pem *.crt *.cer)"), i18n("All files (*)")]
-                    // mosquitto_sub wants a path, and a file URL escapes spaces and other
-                    // characters.
+                    // mosquitto_sub needs a path, and a file URL percent-encodes spaces and
+                    // the like.
                     onAccepted: caFile.text = decodeURIComponent(selectedFile.toString().replace(/^file:\/\//, ""))
                 }
             }
         }
 
-        QQC2.Label {
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            wrapMode: Text.Wrap
-            font: Kirigami.Theme.smallFont
-            opacity: 0.7
+        Hint {
             text: i18n("Leave the CA file empty to use the system's certificates (needs mosquitto 2.0 or newer). TLS brokers usually listen on port 8883; with mosquitto 2.0, port 8883 always uses TLS. Host must match the name on the broker's certificate.")
         }
 
@@ -227,11 +221,7 @@ KCM.SimpleKCM {
             onTextChanged: page.formEdited()
         }
 
-        QQC2.Label {
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            wrapMode: Text.Wrap
-            font: Kirigami.Theme.smallFont
-            opacity: 0.7
+        Hint {
             text: i18n("If TeslaMate sets MQTT_NAMESPACE, use teslamate/<namespace>/cars/1.")
         }
 
@@ -287,12 +277,10 @@ KCM.SimpleKCM {
             Kirigami.FormData.label: i18n("Refresh")
         }
 
-        // The unit sits beside each spin box, not in its text. Plasma's style makes a spin box
-        // editable and takes the value as soon as the typed text reads as a number, so with
-        // the unit in the text the first digit typed would be saved and the rest would land
-        // after the unit. i18np() also formats the number with digit grouping or the
-        // locale's own digits, which parseInt() can't read back. The spin box's own text
-        // and parsing follow its locale both ways.
+        // The unit is a label beside each spin box, not part of its text. Plasma's style
+        // takes the value as soon as the typed text parses as a number, so with a unit in
+        // the text the first digit would be saved and the rest land after the unit. i18np()
+        // would also add digit grouping or locale digits that parseInt() can't read back.
         RowLayout {
             Kirigami.FormData.label: i18n("Every:")
             spacing: Kirigami.Units.smallSpacing
@@ -324,11 +312,7 @@ KCM.SimpleKCM {
             }
         }
 
-        QQC2.Label {
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            wrapMode: Text.Wrap
-            font: Kirigami.Theme.smallFont
-            opacity: 0.7
+        Hint {
             text: i18n("Used while the car is asleep or offline and the popup is closed, and always for a widget on the desktop. Opening the popup or pressing Refresh updates right away.")
         }
     }

@@ -4,17 +4,16 @@ import org.kde.kirigami as Kirigami
 
 import "models.js" as Models
 
-// Side profile of the car, nose right, drawn like a Plasma battery icon: a thin half-opacity
-// outline, a gap, then a solid fill that grows left to right. The cabin stays empty.
-// value is 0..1, or below 0 when the level is unknown.
-// The paths, from models.js, use each car's real proportions: 1 unit = 10 mm.
+// The car's side profile, nose right, drawn like a Plasma battery icon: a thin outline at
+// half opacity, a gap, and a solid fill that grows left to right. value is 0..1, or below 0
+// when the level is unknown. Paths come from models.js.
 Item {
     id: car
 
     property real value: -1
     property bool charging: false
     property bool active: false
-    // Which car: a key from Models.KEYS.
+    // A key from Models.KEYS.
     property string model: "3"
 
     readonly property var shape: Models.sideProfile(model)
@@ -26,19 +25,18 @@ Item {
 
     readonly property string outlinePath: shape.outlinePath
     readonly property string fillPath: shape.fillPath
-    // The fill again, with a bolt-shaped gap through it.
+    // The fill with a bolt-shaped gap.
     readonly property string chargingFillPath: shape.chargingFillPath
     readonly property string boltPath: shape.boltPath
 
     implicitHeight: Kirigami.Units.gridUnit
     implicitWidth: implicitHeight * aspect
 
-    // Not Shape.CurveRenderer: on Qt 6.7 and 6.8 it can miss the last resize while the panel
-    // lays out (QTBUG-133267) and leave the car undrawn or at an old size. The icon is drawn
-    // into a multisampled layer instead. The layer sits on a slightly larger item so the
-    // outline isn't clipped at the edges, and the shapes keep their exact size and position.
-    // The software renderer draws nothing for a Shape inside a layer at scale factors above
-    // 1, and doesn't need one (it anti-aliases and has no curve renderer), so it skips it.
+    // Drawn in a multisampled layer, not with Shape.CurveRenderer: on Qt 6.7 and 6.8 the
+    // curve renderer can miss the last resize while the panel lays out (QTBUG-133267),
+    // leaving the car undrawn or at an old size. The layer's item is slightly larger so the
+    // outline isn't clipped. The software renderer draws nothing for a Shape in a layer at
+    // scale factors above 1, and antialiases without one, so it goes without.
     Item {
         id: canvas
         readonly property real pad: Kirigami.Units.smallSpacing

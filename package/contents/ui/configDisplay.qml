@@ -21,7 +21,7 @@ KCM.SimpleKCM {
     property alias cfg_unlockedOkGeofences: unlockedOkGeofences.text
     property alias cfg_teslamateUrl: teslamateUrl.text
 
-    // What Automatic means on this computer, so each combo can say which unit it gives.
+    // What Automatic resolves to on this computer, to show in each combo box.
     readonly property var autoUnits: Logic.resolveUnits(0, 0, 0, Qt.locale().measurementSystem)
 
     Kirigami.FormLayout {
@@ -41,11 +41,7 @@ KCM.SimpleKCM {
             ]
         }
 
-        QQC2.Label {
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            wrapMode: Text.Wrap
-            font: Kirigami.Theme.smallFont
-            opacity: 0.7
+        Hint {
             text: i18n("Speed uses the same unit.")
         }
 
@@ -81,7 +77,7 @@ KCM.SimpleKCM {
             Kirigami.FormData.label: i18n("Car")
         }
 
-        // The order of Models.KEYS, after Automatic.
+        // In the order of Models.KEYS, after Automatic.
         QQC2.ComboBox {
             id: carModel
             Kirigami.FormData.label: i18n("Model:")
@@ -95,11 +91,7 @@ KCM.SimpleKCM {
             ]
         }
 
-        QQC2.Label {
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            wrapMode: Text.Wrap
-            font: Kirigami.Theme.smallFont
-            opacity: 0.7
+        Hint {
             text: i18n("The shape of the panel icon and of the car in the card. Automatic draws the model TeslaMate reports, and a Model 3 when it reports none.")
         }
 
@@ -137,11 +129,7 @@ KCM.SimpleKCM {
             text: i18n("Right-hand drive")
         }
 
-        QQC2.Label {
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            wrapMode: Text.Wrap
-            font: Kirigami.Theme.smallFont
-            opacity: 0.7
+        Hint {
             text: i18n("TeslaMate reports doors and windows by driver and passenger side. This puts the driver on the car's right-hand side.")
         }
 
@@ -151,11 +139,7 @@ KCM.SimpleKCM {
             model: [i18n("The car's paint"), i18n("Theme colors")]
         }
 
-        QQC2.Label {
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            wrapMode: Text.Wrap
-            font: Kirigami.Theme.smallFont
-            opacity: 0.7
+        Hint {
             text: i18n("The paint comes from TeslaMate. When it's missing or unknown, the car is drawn in theme colors.")
         }
 
@@ -165,16 +149,11 @@ KCM.SimpleKCM {
             text: i18n("Show the destination and arrival while driving")
         }
 
-        QQC2.Label {
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            wrapMode: Text.Wrap
-            font: Kirigami.Theme.smallFont
-            opacity: 0.7
+        Hint {
             text: i18n("Uses TeslaMate's active_route topic (TeslaMate 1.29 or newer), which includes the destination's name and location.")
         }
 
-        // For owners who leave the car unlocked on purpose, such as in a locked garage with
-        // Tesla's Exclude Home setting.
+        // For owners who leave the car unlocked on purpose, such as in a locked garage.
         QQC2.TextField {
             id: unlockedOkGeofences
             Kirigami.FormData.label: i18n("Unlocked is OK at:")
@@ -182,16 +161,12 @@ KCM.SimpleKCM {
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
         }
 
-        QQC2.Label {
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            wrapMode: Text.Wrap
-            font: Kirigami.Theme.smallFont
-            opacity: 0.7
+        Hint {
             text: i18n("TeslaMate geofence names, separated by commas. There, an unlocked car isn't shown as a warning or notified.")
         }
 
-        // Saved the way the widget opens it, so an address typed without http:// shows
-        // here as the URL it will be.
+        // Normalized as the widget will open it, so an address typed without http:// shows
+        // as the URL it becomes.
         QQC2.TextField {
             id: teslamateUrl
             Kirigami.FormData.label: i18n("TeslaMate:")
@@ -201,11 +176,7 @@ KCM.SimpleKCM {
             onEditingFinished: text = Logic.normalizeUrl(text)
         }
 
-        QQC2.Label {
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            wrapMode: Text.Wrap
-            font: Kirigami.Theme.smallFont
-            opacity: 0.7
+        Hint {
             text: i18n("Click the car's name in the popup, or use the widget's context menu, to open it.")
         }
     }
