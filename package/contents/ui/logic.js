@@ -679,26 +679,25 @@ function mosquittoCommand(options) {
     const wait = Math.max(1, Math.round(options.wait || 2));
     const given = parseInt(options.port, 10);
     const port = broker.port || (given >= 1 && given <= 65535 ? given : 1883);
-    let cmd = "timeout " + (wait + 10) + " mosquitto_sub -h " + shellQuote(broker.host) + " -p " + port;
-    const topics = options.topics || [];
-    for (const topic of topics) cmd += " -t " + shellQuote(topic);
-    cmd += " -v -W " + wait;
+    const args = ["timeout", wait + 10, "mosquitto_sub", "-h", shellQuote(broker.host), "-p", port];
+    for (const topic of options.topics || []) args.push("-t", shellQuote(topic));
+    args.push("-v", "-W", wait);
     if (options.tls || broker.tls === true) {
         const caFile = String(options.caFile || "").trim();
         // Only an unquoted leading ~ expands, so a home-relative path keeps it outside
         // the quotes.
-        if (caFile.indexOf("~/") === 0) cmd += " --cafile ~/" + shellQuote(caFile.slice(2));
-        else if (caFile) cmd += " --cafile " + shellQuote(caFile);
-        else cmd += " --tls-use-os-certs";
+        if (caFile.startsWith("~/")) args.push("--cafile", "~/" + shellQuote(caFile.slice(2)));
+        else if (caFile) args.push("--cafile", shellQuote(caFile));
+        else args.push("--tls-use-os-certs");
     }
     const user = options.user || broker.user;
     const password = options.password || broker.password;
-    if (user) cmd += " -u " + shellQuote(user);
+    if (user) args.push("-u", shellQuote(user));
     // MQTT 3.1.1 has no password without a username, and mosquitto_sub refuses to start
     // with one ("Problem setting username and/or password."). A password left behind after
     // the username was cleared is dropped, so an anonymous broker still answers.
-    if (user && password) cmd += " -P " + shellQuote(password);
-    return cmd;
+    if (user && password) args.push("-P", shellQuote(password));
+    return args.join(" ");
 }
 
 // Sorts a failed mosquitto_sub run into a kind that QML words for people, with the detail
