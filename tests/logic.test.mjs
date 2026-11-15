@@ -49,6 +49,13 @@ test("parseMqtt tolerates a trailing slash on the prefix", () => {
     assert.deepEqual(L.parseMqtt("p/x/a 1", "p/x//"), { a: "1" });
 });
 
+test("topicPrefix drops spaces and trailing slashes, and defaults to the first car", () => {
+    assert.equal(L.topicPrefix(" teslamate/ns/cars/2// "), "teslamate/ns/cars/2");
+    assert.equal(L.topicPrefix("teslamate/cars/1"), "teslamate/cars/1");
+    for (const empty of ["", "  ", "/", null, undefined])
+        assert.equal(L.topicPrefix(empty), "teslamate/cars/1");
+});
+
 test("parseMqtt keeps full topics with an empty or missing prefix", () => {
     const out = "teslamate/cars/1/display_name A\nteslamate/x/cars/2/display_name B";
     const full = {

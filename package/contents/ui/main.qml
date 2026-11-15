@@ -20,7 +20,7 @@ PlasmoidItem {
     // card waiting for data that no command will fetch.
     readonly property bool configured: Logic.parseBrokerHost(cfg.brokerHost).host !== ""
     // One value for both the subscription and stripping topics, so the two can't disagree.
-    readonly property string prefix: cfg.topicPrefix.trim().replace(/\/+$/, "") || "teslamate/cars/1"
+    readonly property string prefix: Logic.topicPrefix(cfg.topicPrefix)
     // Automatic follows Measurement units in Region & Language, which Qt reads from the locale.
     readonly property var units: Logic.resolveUnits(cfg.distanceUnit, cfg.temperatureUnit, cfg.pressureUnit,
                                                     Qt.locale().measurementSystem)

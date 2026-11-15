@@ -26,10 +26,6 @@ KCM.SimpleKCM {
     property string pendingCheck: ""
     readonly property bool canCheck: Logic.parseBrokerHost(brokerHost.text).host !== "" && !fetch.busy
 
-    function formPrefix() {
-        return topicPrefix.text.trim().replace(/\/+$/, "") || "teslamate/cars/1"
-    }
-
     // A result describes the values it ran with, so it goes away as soon as one of them
     // changes, and a check still running is dropped. result.visible is always assigned,
     // never bound, because the message's close button assigns it as well.
@@ -63,7 +59,7 @@ KCM.SimpleKCM {
             caFile: caFile.text,
             topics: kind === "find"
                 ? ["teslamate/cars/+/display_name", "teslamate/+/cars/+/display_name"]
-                : [formPrefix() + "/#"],
+                : [Logic.topicPrefix(topicPrefix.text) + "/#"],
             wait: 3
         })
         if (!started) showResult(Kirigami.MessageType.Error, i18n("Enter the broker's host name or address."))

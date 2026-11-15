@@ -25,6 +25,12 @@ function parseMqtt(out, prefix) {
     return values;
 }
 
+// The topic prefix as it is typed in the settings, without the spaces and slashes around
+// it, or TeslaMate's first car while the field is empty.
+function topicPrefix(text) {
+    return String(text || "").trim().replace(/\/+$/, "") || "teslamate/cars/1";
+}
+
 function num(car, key) {
     if (!car || car[key] === undefined || car[key] === "") return null;
     const value = parseFloat(car[key]);
