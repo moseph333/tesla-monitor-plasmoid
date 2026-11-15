@@ -27,8 +27,8 @@ function parseMqtt(out, prefix) {
 
 function num(car, key) {
     if (!car || car[key] === undefined || car[key] === "") return null;
-    const v = parseFloat(car[key]);
-    return isNaN(v) ? null : v;
+    const value = parseFloat(car[key]);
+    return isNaN(value) ? null : value;
 }
 
 function bool(car, key) {
@@ -141,12 +141,12 @@ function formatHours(h) {
 
 // ISO timestamp -> compact elapsed time "3m" / "2h" / "4d"
 function formatSince(iso, nowMs) {
-    const t = Date.parse(iso);
-    if (isNaN(t)) return "";
-    const s = Math.max(0, (nowMs - t) / 1000);
-    if (s < 3600) return Math.max(1, Math.floor(s / 60)) + "m";
-    if (s < 86400) return Math.floor(s / 3600) + "h";
-    return Math.floor(s / 86400) + "d";
+    const then = Date.parse(iso);
+    if (isNaN(then)) return "";
+    const seconds = Math.max(0, (nowMs - then) / 1000);
+    if (seconds < 3600) return Math.max(1, Math.floor(seconds / 60)) + "m";
+    if (seconds < 86400) return Math.floor(seconds / 3600) + "h";
+    return Math.floor(seconds / 86400) + "d";
 }
 
 // TeslaMate can still say "online" for a moment after the car is put in gear, before it
@@ -162,13 +162,13 @@ function isDriving(car) {
 // stopped, scheduled, nopower, plugged, unplugged, or "" while nothing says. TeslaMate
 // before 1.28 has no charging_state, so then the car's state and the charger's power decide.
 function chargeStatus(car) {
-    const s = car && car.charging_state ? car.charging_state : "";
-    if (s === "") {
+    const reported = car && car.charging_state ? car.charging_state : "";
+    if (reported === "") {
         if ((car && car.state === "charging") || num(car, "charger_power") > 0) return "charging";
         const plugged = triState(car, "plugged_in");
         return plugged === null ? "" : plugged ? "plugged" : "unplugged";
     }
-    switch (s) {
+    switch (reported) {
     case "Charging": return "charging";
     case "Starting": return "starting";
     case "Complete": return "complete";
@@ -230,25 +230,25 @@ function showPhases(car) {
 function activeRoute(car) {
     const text = car ? car.active_route : "";
     if (!text) return null;
-    let r;
+    let route;
     try {
-        r = JSON.parse(text);
+        route = JSON.parse(text);
     } catch (e) {
         return null;
     }
-    if (!r || typeof r !== "object" || Array.isArray(r) || r.error) return null;
-    const destination = typeof r.destination === "string" ? r.destination.trim() : "";
+    if (!route || typeof route !== "object" || Array.isArray(route) || route.error) return null;
+    const destination = typeof route.destination === "string" ? route.destination.trim() : "";
     if (!destination) return null;
     function number(v) {
         return typeof v === "number" && isFinite(v) ? v : null;
     }
     // TeslaMate gives the distance in miles whatever its own unit setting.
-    const miles = number(r.miles_to_arrival);
+    const miles = number(route.miles_to_arrival);
     return {
         destination: destination,
-        minutes: number(r.minutes_to_arrival),
-        trafficMinutes: number(r.traffic_minutes_delay),
-        energyAtArrival: number(r.energy_at_arrival),
+        minutes: number(route.minutes_to_arrival),
+        trafficMinutes: number(route.traffic_minutes_delay),
+        energyAtArrival: number(route.energy_at_arrival),
         km: miles === null ? null : miles * KM_PER_MILE
     };
 }
@@ -513,16 +513,16 @@ function notifyStep(prev, car, nowMs, opts) {
 // Copies see a charge end at their own times, and the car's since can change in between:
 // TeslaMate stops logging about 3 minutes after a charge stops, just when each copy's hold
 // on that stop ends. notifyStep() releases the claim once the car charges again.
-function eventKey(e) {
-    switch (e.type) {
-    case "update": return "update|" + (e.version || "");
+function eventKey(event) {
+    switch (event.type) {
+    case "update": return "update|" + (event.version || "");
     case "unlocked": return "unlocked";
     case "tires":
     case "leftOpen": {
-        const keys = e.items.map(item => e.type === "tires" ? item : item.id).sort();
-        return e.type + "|" + keys.join(",");
+        const keys = event.items.map(item => event.type === "tires" ? item : item.id).sort();
+        return event.type + "|" + keys.join(",");
     }
-    default: return e.type;
+    default: return event.type;
     }
 }
 
@@ -546,12 +546,12 @@ function itemKey(id) {
 // is news however soon it happens. Copies see an event within a poll of each other, and the
 // longest "While the car sleeps" setting puts polls an hour apart, so a claim nobody
 // releases lasts two hours.
-function claimEvent(e, claim) {
+function claimEvent(event, claim) {
     const windowMs = 2 * HOUR;
-    if (!e.items) return claim(eventKey(e), windowMs) ? e : null;
-    const items = e.items.filter(item => claim(eventKey({ type: e.type, items: [item] }), windowMs));
+    if (!event.items) return claim(eventKey(event), windowMs) ? event : null;
+    const items = event.items.filter(item => claim(eventKey({ type: event.type, items: [item] }), windowMs));
     if (items.length === 0) return null;
-    return Object.assign({}, e, { items: items });
+    return Object.assign({}, event, { items: items });
 }
 
 // Breeze battery icon name for a level (0..100).
@@ -593,9 +593,9 @@ const PAINTS = [
 // the drawing in theme colors. Case, spaces and punctuation don't matter, since the car
 // reports the same paint as "RedMulticoat" or "Red" depending on its age.
 function paintColor(name) {
-    const s = String(name || "").toLowerCase().replace(/[^a-z]/g, "");
+    const paint = String(name || "").toLowerCase().replace(/[^a-z]/g, "");
     for (const [word, color] of PAINTS) {
-        if (s.includes(word)) return color;
+        if (paint.includes(word)) return color;
     }
     return "";
 }
@@ -621,78 +621,78 @@ function shellQuote(s) {
 // [fd00::1]:1883 or host:1884, into its parts. tls is true or false when the scheme says
 // so and null otherwise. port is null when there is none or it is out of range.
 function parseBrokerHost(text) {
-    const r = { host: "", port: null, tls: null, user: "", password: "" };
-    let s = String(text || "").trim();
-    const scheme = /^([a-z][a-z0-9+.-]*):\/\//i.exec(s);
+    const broker = { host: "", port: null, tls: null, user: "", password: "" };
+    let rest = String(text || "").trim();
+    const scheme = /^([a-z][a-z0-9+.-]*):\/\//i.exec(rest);
     if (scheme) {
         const name = scheme[1].toLowerCase();
-        if (["mqtts", "ssl", "tls", "wss"].indexOf(name) >= 0) r.tls = true;
-        else if (["mqtt", "tcp", "ws"].indexOf(name) >= 0) r.tls = false;
-        s = s.slice(scheme[0].length);
+        if (["mqtts", "ssl", "tls", "wss"].indexOf(name) >= 0) broker.tls = true;
+        else if (["mqtt", "tcp", "ws"].indexOf(name) >= 0) broker.tls = false;
+        rest = rest.slice(scheme[0].length);
     }
-    s = s.split(/[\/?#]/)[0];
+    rest = rest.split(/[\/?#]/)[0];
     // The last @ ends the credentials, so a password may contain one.
-    const at = s.lastIndexOf("@");
+    const at = rest.lastIndexOf("@");
     if (at >= 0) {
-        const cred = s.slice(0, at);
-        const colon = cred.indexOf(":");
-        r.user = colon < 0 ? cred : cred.slice(0, colon);
-        r.password = colon < 0 ? "" : cred.slice(colon + 1);
-        s = s.slice(at + 1);
+        const credentials = rest.slice(0, at);
+        const colon = credentials.indexOf(":");
+        broker.user = colon < 0 ? credentials : credentials.slice(0, colon);
+        broker.password = colon < 0 ? "" : credentials.slice(colon + 1);
+        rest = rest.slice(at + 1);
     }
     let port = "";
-    const bracketed = /^\[([^\]]*)\](?::(.*))?$/.exec(s);
+    const bracketed = /^\[([^\]]*)\](?::(.*))?$/.exec(rest);
     if (bracketed) {
-        s = bracketed[1];
+        rest = bracketed[1];
         port = bracketed[2] || "";
-    } else if (s.indexOf(":") >= 0 && s.indexOf(":") === s.lastIndexOf(":")) {
+    } else if (rest.indexOf(":") >= 0 && rest.indexOf(":") === rest.lastIndexOf(":")) {
         // A single colon separates a port; more than one is a bare IPv6 address.
-        port = s.slice(s.indexOf(":") + 1);
-        s = s.slice(0, s.indexOf(":"));
+        port = rest.slice(rest.indexOf(":") + 1);
+        rest = rest.slice(0, rest.indexOf(":"));
     }
     if (/^\d+$/.test(port)) {
-        const p = parseInt(port, 10);
-        if (p >= 1 && p <= 65535) r.port = p;
+        const number = parseInt(port, 10);
+        if (number >= 1 && number <= 65535) broker.port = number;
     }
-    r.host = s;
-    return r;
+    broker.host = rest;
+    return broker;
 }
 
 // TeslaMate's address as people type it, such as teslamate.local:4000, made into a URL a
 // browser opens. Without a scheme, "teslamate.local:4000" would read as a URL whose scheme
 // is "teslamate.local", so http:// goes in front. "" stays "", meaning no link.
 function normalizeUrl(text) {
-    const s = String(text || "").trim();
-    if (!s) return "";
-    return /^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? s : "http://" + s;
+    const url = String(text || "").trim();
+    if (!url) return "";
+    return /^[a-z][a-z0-9+.-]*:\/\//i.test(url) ? url : "http://" + url;
 }
 
 // The mosquitto_sub call shared by the widget's poll and the settings page.
-// o = {host, port, user, password, tls, caFile, topics, wait}; "" when there is no host.
+// options = {host, port, user, password, tls, caFile, topics, wait}; "" when there is no host.
 // -W only starts counting once the connection is up, so coreutils timeout bounds a host
 // that drops packets (exit 124). timeout exits 127 itself when mosquitto_sub is missing,
 // which keeps the install hint working.
-function mosquittoCommand(o) {
-    o = o || {};
-    const b = parseBrokerHost(o.host);
-    if (!b.host) return "";
-    const wait = Math.max(1, Math.round(o.wait || 2));
-    const given = parseInt(o.port, 10);
-    const port = b.port || (given >= 1 && given <= 65535 ? given : 1883);
-    let cmd = "timeout " + (wait + 10) + " mosquitto_sub -h " + shellQuote(b.host) + " -p " + port;
-    const topics = o.topics || [];
+function mosquittoCommand(options) {
+    options = options || {};
+    const broker = parseBrokerHost(options.host);
+    if (!broker.host) return "";
+    const wait = Math.max(1, Math.round(options.wait || 2));
+    const given = parseInt(options.port, 10);
+    const port = broker.port || (given >= 1 && given <= 65535 ? given : 1883);
+    let cmd = "timeout " + (wait + 10) + " mosquitto_sub -h " + shellQuote(broker.host) + " -p " + port;
+    const topics = options.topics || [];
     for (const topic of topics) cmd += " -t " + shellQuote(topic);
     cmd += " -v -W " + wait;
-    if (o.tls || b.tls === true) {
-        const ca = String(o.caFile || "").trim();
+    if (options.tls || broker.tls === true) {
+        const caFile = String(options.caFile || "").trim();
         // Only an unquoted leading ~ expands, so a home-relative path keeps it outside
         // the quotes.
-        if (ca.indexOf("~/") === 0) cmd += " --cafile ~/" + shellQuote(ca.slice(2));
-        else if (ca) cmd += " --cafile " + shellQuote(ca);
+        if (caFile.indexOf("~/") === 0) cmd += " --cafile ~/" + shellQuote(caFile.slice(2));
+        else if (caFile) cmd += " --cafile " + shellQuote(caFile);
         else cmd += " --tls-use-os-certs";
     }
-    const user = o.user || b.user;
-    const password = o.password || b.password;
+    const user = options.user || broker.user;
+    const password = options.password || broker.password;
     if (user) cmd += " -u " + shellQuote(user);
     // MQTT 3.1.1 has no password without a username, and mosquitto_sub refuses to start
     // with one ("Problem setting username and/or password."). A password left behind after
@@ -704,32 +704,32 @@ function mosquittoCommand(o) {
 // Sorts a failed mosquitto_sub run into a kind that QML words for people, with the detail
 // a message needs. kind "" means the run was fine, even if no messages arrived.
 function mqttError(code, stderr, hasOutput) {
-    const e = String(stderr || "").trim();
-    const plain = e.replace(/^Error:\s*/, "");
+    const message = String(stderr || "").trim();
+    const plain = message.replace(/^Error:\s*/, "");
     function result(kind, detail) {
         return { kind: kind, detail: detail || "" };
     }
     if (code === 127) return result("notInstalled");
     if (code === 124) return result("noAnswer");
-    if (/Unknown option '--tls-use-os-certs'/.test(e)) return result("oldClient");
-    if (/Problem setting TLS options/.test(e)) return result("caFile");
-    if (code === 4 || code === 5 || /not authori[sz]ed|bad user name or password/i.test(e))
+    if (/Unknown option '--tls-use-os-certs'/.test(message)) return result("oldClient");
+    if (/Problem setting TLS options/.test(message)) return result("caFile");
+    if (code === 4 || code === 5 || /not authori[sz]ed|bad user name or password/i.test(message))
         return result("auth");
-    if (/Lookup error/.test(e)) return result("lookup");
-    if (/Error: Connection refused/.test(e)) return result("refused");
-    if (/No route to host|Network is unreachable|Connection timed out/.test(e))
+    if (/Lookup error/.test(message)) return result("lookup");
+    if (/Error: Connection refused/.test(message)) return result("refused");
+    if (/No route to host|Network is unreachable|Connection timed out/.test(message))
         return result("unreachable", plain);
-    if (code === 14 || /Protocol error/.test(e)) return result("tls");
+    if (code === 14 || /Protocol error/.test(message)) return result("tls");
     // A TLS broker hangs up on a plain client without a word, and so does a plain broker
     // when the client talks TLS.
-    if (code === 255 && !e) return result("handshake");
+    if (code === 255 && !message) return result("handshake");
     // When -W runs out, mosquitto 2.0 prints "Timed out" and exits 27; 1.6 exits 0.
     if (code === 0 || code === 27) {
-        if (!hasOutput && /denied/.test(e)) return result("denied");
-        if (!hasOutput && e && e !== "Timed out") return result("other", plain);
+        if (!hasOutput && /denied/.test(message)) return result("denied");
+        if (!hasOutput && message && message !== "Timed out") return result("other", plain);
         return result("");
     }
-    if (e) return result("other", plain);
+    if (message) return result("other", plain);
     return result("exit", String(code));
 }
 
@@ -742,8 +742,8 @@ function parseCars(out) {
     const re = /^(teslamate\/(?:([^\/]+)\/)?cars\/([^\/]+))\/display_name$/;
     const found = [];
     for (const topic in all) {
-        const m = re.exec(topic);
-        if (m) found.push({ prefix: m[1], name: all[topic], ns: m[2] || "", id: m[3] });
+        const match = re.exec(topic);
+        if (match) found.push({ prefix: match[1], name: all[topic], ns: match[2] || "", id: match[3] });
     }
     found.sort(function (a, b) {
         if (a.ns !== b.ns) return a.ns < b.ns ? -1 : 1;
