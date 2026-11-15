@@ -141,41 +141,40 @@ function xy(p) { return round2(p[0]) + " " + round2(p[1]); }
 //                   the front arch
 //   bolt            [x, y, scale]: its middle and its size, 1 being 90 high
 function profile(spec) {
-    const xr = spec.wheels[0];
-    const xf = spec.wheels[1];
+    const [rearAxle, frontAxle] = spec.wheels;
+    const [beltStart, beltEnd] = spec.belt;
+    const [sillStart, sillEnd, sillY] = spec.sill;
+    const [boltX, boltY, boltScale] = spec.bolt;
+    const wheels = radius => `${circlePath(rearAxle, spec.wheelY, radius)} ${circlePath(frontAxle, spec.wheelY, radius)}`;
+    // The fill's bottom edge where it goes around a wheel.
     const dy = spec.fillY - spec.wheelY;
     const dx = Math.sqrt(spec.fillArch * spec.fillArch - dy * dy);
-    const arch = x => "L " + round2(x + dx) + " " + spec.fillY + " A " + spec.fillArch + " " + spec.fillArch + " 0 1 0 " + round2(x - dx) + " " + spec.fillY;
-    const hubs = " " + circlePath(xr, spec.wheelY, spec.hub) + " " + circlePath(xf, spec.wheelY, spec.hub);
-    const from = spec.belt[0];
-    const to = spec.belt[1];
+    const arch = x => `L ${round2(x + dx)} ${spec.fillY} A ${spec.fillArch} ${spec.fillArch} 0 1 0 ${round2(x - dx)} ${spec.fillY}`;
 
     // The bolt, drawn around (240, 73), moved and scaled.
-    const place = (x, y) => [spec.bolt[0] + (x - 240) * spec.bolt[2], spec.bolt[1] + (y - 73) * spec.bolt[2]];
+    const place = (x, y) => [boltX + (x - 240) * boltScale, boltY + (y - 73) * boltScale];
     const bolt = [[254, 28], [218, 80], [236, 80], [226, 118], [262, 64], [244, 64]]
-        .map(p => xy(place(p[0], p[1])));
+        .map(([x, y]) => xy(place(x, y)));
     // The gap around it: on its left the bolt's own edges moved out, on its right one line.
     const floor = [[0, spec.fillY], [1, spec.fillY]];
     const a = place(202.7, 88);
     const b = place(225.7, 88);
     const c = place(234.3, 120);
-    const topLeft = meet(a, [36, -52], from, to);
+    const topLeft = meet(a, [36, -52], beltStart, beltEnd);
     const bottomLeft = meet(b, [-10, 38], floor[0], floor[1]);
-    const topRight = meet(c, [36, -54], from, to);
+    const topRight = meet(c, [36, -54], beltStart, beltEnd);
     const bottomRight = meet(c, [36, -54], floor[0], floor[1]);
 
     return {
         boxWidth: spec.width,
         boxHeight: spec.height,
-        outlinePath: spec.body + " M " + spec.sill[0] + " " + spec.sill[2] + " L " + spec.sill[1] + " " + spec.sill[2]
-            + " " + circlePath(xr, spec.wheelY, spec.tire) + " " + circlePath(xf, spec.wheelY, spec.tire),
-        fillPath: "M " + xy(from) + " L " + xy(to) + " " + spec.front + " " + arch(xf) + " " + arch(xr)
-            + " " + spec.rear + " Z" + hubs,
-        chargingFillPath: "M " + xy(from) + " L " + xy(topLeft) + " L " + xy(a) + " L " + xy(b)
-            + " L " + xy(bottomLeft) + " " + arch(xr) + " " + spec.rear + " Z"
-            + " M " + xy(topRight) + " L " + xy(to) + " " + spec.front + " " + arch(xf)
-            + " L " + xy(bottomRight) + " Z" + hubs,
-        boltPath: "M " + bolt.join(" L ") + " Z"
+        outlinePath: `${spec.body} M ${sillStart} ${sillY} L ${sillEnd} ${sillY} ${wheels(spec.tire)}`,
+        fillPath: `M ${xy(beltStart)} L ${xy(beltEnd)} ${spec.front} ${arch(frontAxle)} ${arch(rearAxle)} ${spec.rear} Z`
+            + ` ${wheels(spec.hub)}`,
+        chargingFillPath: `M ${xy(beltStart)} L ${xy(topLeft)} L ${xy(a)} L ${xy(b)} L ${xy(bottomLeft)} ${arch(rearAxle)} ${spec.rear} Z`
+            + ` M ${xy(topRight)} L ${xy(beltEnd)} ${spec.front} ${arch(frontAxle)} L ${xy(bottomRight)} Z`
+            + ` ${wheels(spec.hub)}`,
+        boltPath: `M ${bolt.join(" L ")} Z`
     };
 }
 
