@@ -25,15 +25,15 @@ function modelKey(setting, reported) {
 
 // ---------- paths ----------
 
-function r2(v) { return Math.round(v * 100) / 100; }
+function round2(v) { return Math.round(v * 100) / 100; }
 
 // A chain of lines and curves as an SVG path. points starts with [x, y]; after it [x, y]
 // is a line to there and [c1x, c1y, c2x, c2y, x, y] a curve.
 function chain(points) {
-    const out = ["M", r2(points[0][0]), r2(points[0][1])];
+    const out = ["M", round2(points[0][0]), round2(points[0][1])];
     for (let i = 1; i < points.length; i++) {
         out.push(points[i].length === 2 ? "L" : "C");
-        for (let j = 0; j < points[i].length; j++) out.push(r2(points[i][j]));
+        for (let j = 0; j < points[i].length; j++) out.push(round2(points[i][j]));
     }
     return out.join(" ");
 }
@@ -48,8 +48,8 @@ function mirrored(w, points) {
     for (let i = points.length - 1; i >= 1; i--) {
         const to = endOf(points[i - 1]);
         const p = points[i];
-        if (p.length === 2) out.push("L", r2(w - to[0]), r2(to[1]));
-        else out.push("C", r2(w - p[2]), r2(p[3]), r2(w - p[0]), r2(p[1]), r2(w - to[0]), r2(to[1]));
+        if (p.length === 2) out.push("L", round2(w - to[0]), round2(to[1]));
+        else out.push("C", round2(w - p[2]), round2(p[3]), round2(w - p[0]), round2(p[1]), round2(w - to[0]), round2(to[1]));
     }
     return out.join(" ");
 }
@@ -62,12 +62,12 @@ function symmetric(w, points, top, bottom) {
     const last = chainEnd(points);
     const out = [chain(points)];
     if (Math.abs(last[0] - w / 2) > 0.001) {
-        if (bottom) out.push("C", r2(bottom[0]), r2(bottom[1]), r2(w - bottom[0]), r2(bottom[1]), r2(w - last[0]), r2(last[1]));
-        else out.push("L", r2(w - last[0]), r2(last[1]));
+        if (bottom) out.push("C", round2(bottom[0]), round2(bottom[1]), round2(w - bottom[0]), round2(bottom[1]), round2(w - last[0]), round2(last[1]));
+        else out.push("L", round2(w - last[0]), round2(last[1]));
     }
     out.push(mirrored(w, points));
     if (Math.abs(first[0] - w / 2) > 0.001 && top)
-        out.push("C", r2(w - top[0]), r2(top[1]), r2(top[0]), r2(top[1]), r2(first[0]), r2(first[1]));
+        out.push("C", round2(w - top[0]), round2(top[1]), round2(top[0]), round2(top[1]), round2(first[0]), round2(first[1]));
     out.push("Z");
     return out.join(" ");
 }
@@ -111,8 +111,8 @@ function edgeAt(points, y) {
 }
 
 function circlePath(cx, cy, r) {
-    return ["M", r2(cx - r), r2(cy), "A", r, r, 0, 1, 0, r2(cx + r), r2(cy),
-            "A", r, r, 0, 1, 0, r2(cx - r), r2(cy), "Z"].join(" ");
+    return ["M", round2(cx - r), round2(cy), "A", r, r, 0, 1, 0, round2(cx + r), round2(cy),
+            "A", r, r, 0, 1, 0, round2(cx - r), round2(cy), "Z"].join(" ");
 }
 
 // ---------- side profiles ----------
@@ -125,11 +125,11 @@ function meet(p, d, a, b) {
     return [p[0] + d[0] * t, p[1] + d[1] * t];
 }
 
-function pt(p) { return r2(p[0]) + " " + r2(p[1]); }
+function xy(p) { return round2(p[0]) + " " + round2(p[1]); }
 
 // A side profile, nose right, for a battery icon: an outline, the part of the body below
 // the windows as the fill, the same fill with a bolt-shaped gap through it, and the bolt.
-// s gives:
+// spec gives:
 //   width, height   the icon's box
 //   wheels          [rear, front] axle, with wheelY the height of both
 //   tire, hub       the radius of the wheel's outline and of the dot in the fill
@@ -140,22 +140,22 @@ function pt(p) { return r2(p[0]) + " " + r2(p[1]); }
 //                   windows starts, belt its two ends, front the fill from there down to
 //                   the front arch
 //   bolt            [x, y, scale]: its middle and its size, 1 being 90 high
-function profile(s) {
-    const xr = s.wheels[0];
-    const xf = s.wheels[1];
-    const dy = s.fillY - s.wheelY;
-    const dx = Math.sqrt(s.fillArch * s.fillArch - dy * dy);
-    const arch = x => "L " + r2(x + dx) + " " + s.fillY + " A " + s.fillArch + " " + s.fillArch + " 0 1 0 " + r2(x - dx) + " " + s.fillY;
-    const hubs = " " + circlePath(xr, s.wheelY, s.hub) + " " + circlePath(xf, s.wheelY, s.hub);
-    const from = s.belt[0];
-    const to = s.belt[1];
+function profile(spec) {
+    const xr = spec.wheels[0];
+    const xf = spec.wheels[1];
+    const dy = spec.fillY - spec.wheelY;
+    const dx = Math.sqrt(spec.fillArch * spec.fillArch - dy * dy);
+    const arch = x => "L " + round2(x + dx) + " " + spec.fillY + " A " + spec.fillArch + " " + spec.fillArch + " 0 1 0 " + round2(x - dx) + " " + spec.fillY;
+    const hubs = " " + circlePath(xr, spec.wheelY, spec.hub) + " " + circlePath(xf, spec.wheelY, spec.hub);
+    const from = spec.belt[0];
+    const to = spec.belt[1];
 
     // The bolt, drawn around (240, 73), moved and scaled.
-    const place = (x, y) => [s.bolt[0] + (x - 240) * s.bolt[2], s.bolt[1] + (y - 73) * s.bolt[2]];
+    const place = (x, y) => [spec.bolt[0] + (x - 240) * spec.bolt[2], spec.bolt[1] + (y - 73) * spec.bolt[2]];
     const bolt = [[254, 28], [218, 80], [236, 80], [226, 118], [262, 64], [244, 64]]
-        .map(p => pt(place(p[0], p[1])));
+        .map(p => xy(place(p[0], p[1])));
     // The gap around it: on its left the bolt's own edges moved out, on its right one line.
-    const floor = [[0, s.fillY], [1, s.fillY]];
+    const floor = [[0, spec.fillY], [1, spec.fillY]];
     const a = place(202.7, 88);
     const b = place(225.7, 88);
     const c = place(234.3, 120);
@@ -165,16 +165,16 @@ function profile(s) {
     const bottomRight = meet(c, [36, -54], floor[0], floor[1]);
 
     return {
-        boxWidth: s.width,
-        boxHeight: s.height,
-        outlinePath: s.body + " M " + s.sill[0] + " " + s.sill[2] + " L " + s.sill[1] + " " + s.sill[2]
-            + " " + circlePath(xr, s.wheelY, s.tire) + " " + circlePath(xf, s.wheelY, s.tire),
-        fillPath: "M " + pt(from) + " L " + pt(to) + " " + s.front + " " + arch(xf) + " " + arch(xr)
-            + " " + s.rear + " Z" + hubs,
-        chargingFillPath: "M " + pt(from) + " L " + pt(topLeft) + " L " + pt(a) + " L " + pt(b)
-            + " L " + pt(bottomLeft) + " " + arch(xr) + " " + s.rear + " Z"
-            + " M " + pt(topRight) + " L " + pt(to) + " " + s.front + " " + arch(xf)
-            + " L " + pt(bottomRight) + " Z" + hubs,
+        boxWidth: spec.width,
+        boxHeight: spec.height,
+        outlinePath: spec.body + " M " + spec.sill[0] + " " + spec.sill[2] + " L " + spec.sill[1] + " " + spec.sill[2]
+            + " " + circlePath(xr, spec.wheelY, spec.tire) + " " + circlePath(xf, spec.wheelY, spec.tire),
+        fillPath: "M " + xy(from) + " L " + xy(to) + " " + spec.front + " " + arch(xf) + " " + arch(xr)
+            + " " + spec.rear + " Z" + hubs,
+        chargingFillPath: "M " + xy(from) + " L " + xy(topLeft) + " L " + xy(a) + " L " + xy(b)
+            + " L " + xy(bottomLeft) + " " + arch(xr) + " " + spec.rear + " Z"
+            + " M " + xy(topRight) + " L " + xy(to) + " " + spec.front + " " + arch(xf)
+            + " L " + xy(bottomRight) + " Z" + hubs,
         boltPath: "M " + bolt.join(" L ") + " Z"
     };
 }
@@ -301,18 +301,18 @@ function mirrorPath(points, base, w, onLeft) {
 //   falcon          for rear doors that lift like wings: see the Model X
 //   trim            black parts outside the body, on the left side
 //   slats           lines across the trunk lid
-function makePlan(s) {
-    const w = s.w;
+function makePlan(spec) {
+    const w = spec.w;
     const sym = o => symmetric(w, o.points, o.top, o.bottom);
     const each = (list, closed) => (list || []).map(c => onBothSides(w, c, closed)).join(" ");
-    const base = s.panes[0];
+    const base = spec.panes[0];
     // All the glass over the cabin and the beams in it, as one outline: the left edges of
     // the pieces that reach the cabin's side, one after the other from the windshield's
     // foot. A body that is not opaque has this cut out of it in one piece, since the edges
     // of holes that touch would show as hairlines.
-    const sides = (s.sidePanes || []).map(c => c.filter((q, i) => i === 0 || endOf(q)[0] < w / 4));
+    const sides = (spec.sidePanes || []).map(c => c.filter((q, i) => i === 0 || endOf(q)[0] < w / 4));
     const edge = [];
-    s.panes.concat(s.beams, [s.rear]).map(o => o.points).concat(sides)
+    spec.panes.concat(spec.beams, [spec.rear]).map(o => o.points).concat(sides)
         .filter(c => c[0][0] < w / 4)
         .sort((a, b) => a[0][1] - b[0][1])
         .forEach(c => {
@@ -324,47 +324,47 @@ function makePlan(s) {
         });
     return {
         boxWidth: w,
-        boxHeight: Math.ceil(s.length),
-        length: s.length,
-        flank: s.flank,
-        belt: s.belt,
-        wheelInset: s.wheelInset === undefined ? 4 : s.wheelInset,
-        tire: s.tire,
-        frontAxle: s.frontAxle,
-        rearAxle: s.rearAxle,
-        frontDoor: s.frontDoor,
-        rearDoor: s.rearDoor,
-        sentryY: s.sentryY,
-        lockY: s.lockY,
-        port: s.port,
-        hatch: !!s.hatch,
-        falcon: s.falcon || null,
-        mirror: s.mirror,
-        frontWindow: s.frontWindow,
-        rearWindow: s.rearWindow,
+        boxHeight: Math.ceil(spec.length),
+        length: spec.length,
+        flank: spec.flank,
+        belt: spec.belt,
+        wheelInset: spec.wheelInset === undefined ? 4 : spec.wheelInset,
+        tire: spec.tire,
+        frontAxle: spec.frontAxle,
+        rearAxle: spec.rearAxle,
+        frontDoor: spec.frontDoor,
+        rearDoor: spec.rearDoor,
+        sentryY: spec.sentryY,
+        lockY: spec.lockY,
+        port: spec.port,
+        hatch: !!spec.hatch,
+        falcon: spec.falcon || null,
+        mirror: spec.mirror,
+        frontWindow: spec.frontWindow,
+        rearWindow: spec.rearWindow,
         // How long the windshield is, which is all the room a sign on it has.
         windshieldLength: chainEnd(base.points)[1] - base.points[0][1],
         // From where to where, along the car, the light on the hood, on the trunk lid and
         // on the glass is spread.
-        hoodSpan: [s.hood.points[0][1], chainEnd(s.hood.points)[1]],
-        trunkSpan: [s.trunk.points[0][1], chainEnd(s.trunk.points)[1]],
-        glassSpan: [base.points[0][1], chainEnd(s.rear.points)[1]],
-        bodyLeft: s.body,
-        bodyPath: flank => symmetric(w, s.body(flank)),
-        frunkPath: sym(s.hood),
-        trunkPath: sym(s.trunk),
-        creasePath: each(s.creases, false),
-        slatPath: s.slats || "",
-        trimPath: each(s.trim, true),
-        glassPath: s.panes.map(sym).concat(each(s.sidePanes, true)).join(" "),
-        rearGlassPath: sym(s.rear),
-        canopyPath: symmetric(w, edge, base.top, s.rear.bottom),
-        beamPath: s.beams.map(sym).join(" "),
-        quarterPath: s.quarter ? onBothSides(w, s.quarter, true) : "",
-        headlightPath: onBothSides(w, s.headlight, true),
-        headlightLine: onBothSides(w, s.headlightLine, false),
-        taillightPath: onBothSides(w, s.taillight, true),
-        taillightLine: onBothSides(w, s.taillightLine, false)
+        hoodSpan: [spec.hood.points[0][1], chainEnd(spec.hood.points)[1]],
+        trunkSpan: [spec.trunk.points[0][1], chainEnd(spec.trunk.points)[1]],
+        glassSpan: [base.points[0][1], chainEnd(spec.rear.points)[1]],
+        bodyLeft: spec.body,
+        bodyPath: flank => symmetric(w, spec.body(flank)),
+        frunkPath: sym(spec.hood),
+        trunkPath: sym(spec.trunk),
+        creasePath: each(spec.creases, false),
+        slatPath: spec.slats || "",
+        trimPath: each(spec.trim, true),
+        glassPath: spec.panes.map(sym).concat(each(spec.sidePanes, true)).join(" "),
+        rearGlassPath: sym(spec.rear),
+        canopyPath: symmetric(w, edge, base.top, spec.rear.bottom),
+        beamPath: spec.beams.map(sym).join(" "),
+        quarterPath: spec.quarter ? onBothSides(w, spec.quarter, true) : "",
+        headlightPath: onBothSides(w, spec.headlight, true),
+        headlightLine: onBothSides(w, spec.headlightLine, false),
+        taillightPath: onBothSides(w, spec.taillight, true),
+        taillightLine: onBothSides(w, spec.taillightLine, false)
     };
 }
 
