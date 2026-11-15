@@ -43,9 +43,11 @@ PlasmoidItem {
         return b.host.toLowerCase() + ":" + (b.port || cfg.brokerPort) + "|" + prefix
     }
 
+    // The widget is a card on the desktop, where it has no panel icon or popup.
+    readonly property bool onDesktop: Plasmoid.formFactor === PlasmaCore.Types.Planar
     // A card on the desktop counts as closed, so it polls at the idle rate while the car
     // sleeps.
-    readonly property bool popupOpen: expanded && Plasmoid.formFactor !== PlasmaCore.Types.Planar
+    readonly property bool popupOpen: expanded && !onDesktop
     readonly property int pollMs: Logic.pollIntervalMs(cfg.refreshSeconds, cfg.idleRefreshSeconds, carState,
                                                        hasData, popupOpen)
     // The last poll failed and the data is older than a minute, or two intervals while
@@ -313,7 +315,7 @@ PlasmoidItem {
 
     Plasmoid.icon: Logic.batteryIcon(level >= 0 ? level : null, charging)
     Plasmoid.backgroundHints: PlasmaCore.Types.DefaultBackground | PlasmaCore.Types.ConfigurableBackground
-    preferredRepresentation: Plasmoid.formFactor === PlasmaCore.Types.Planar ? fullRepresentation : compactRepresentation
+    preferredRepresentation: onDesktop ? fullRepresentation : compactRepresentation
 
     toolTipMainText: carName
     // Car names, places and errors come from MQTT; show them as written, never as markup.
@@ -413,7 +415,7 @@ PlasmoidItem {
     // this handler, bindings on expanded such as popupOpen may not have updated yet, so it
     // reads the signal's argument instead.
     onExpandedChanged: (expanded) => {
-        if (expanded && Plasmoid.formFactor !== PlasmaCore.Types.Planar && configured
+        if (expanded && !onDesktop && configured
             && (!lastUpdated || Date.now() - lastUpdated.getTime() > 5000))
             refresh(false)
     }
@@ -685,8 +687,7 @@ PlasmoidItem {
         Layout.preferredWidth: Kirigami.Units.gridUnit * 21
         // A card on the desktop keeps one height to ask for: Plasma lets a widget there
         // grow to a larger one, and never shrinks it again.
-        Layout.preferredHeight: Plasmoid.formFactor === PlasmaCore.Types.Planar ? Kirigami.Units.gridUnit * 27
-                                                                                : popupHeight
+        Layout.preferredHeight: root.onDesktop ? Kirigami.Units.gridUnit * 27 : popupHeight
         Layout.minimumWidth: Kirigami.Units.gridUnit * 17
         // Room for every row at its own height and the car drawing at its smallest, so an
         // attention message or extra charging lines can't push the drawing and the footer
@@ -695,7 +696,7 @@ PlasmoidItem {
         // moment after a message appears its text is wrapped a word to a line, and Plasma
         // makes a popup as tall as its minimum but never shorter again when that falls.
         Layout.minimumHeight: Math.max(Kirigami.Units.gridUnit * 20,
-                                       Plasmoid.formFactor === PlasmaCore.Types.Planar
+                                       root.onDesktop
                                        ? rowsHeight + carStatus.Layout.minimumHeight
                                        : Math.min(rowsHeight + carStatus.Layout.minimumHeight,
                                                   Kirigami.Units.gridUnit * (root.attentionLines.length > 0 ? 30 : 27)))
