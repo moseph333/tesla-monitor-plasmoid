@@ -1,29 +1,28 @@
 import QtQuick
 
-// What the car is drawn in: a multisampled layer over the whole of an item, placed so that
-// its texture reaches the screen pixel for pixel. Whatever is put in it is placed from
-// that item's corner.
-// Not Shape.CurveRenderer: on Qt 6.7 and 6.8 it can keep showing the paths at an old
-// scale when the row is resized several times in a row while the card lays out
-// (QTBUG-133267). A multisampled layer gives the same smooth edges, and the same ones
-// on every part. It is never turned; the car turns inside it.
-// It does not lie on the item's own area, because at a scale factor such as 125 % or
-// 150 % that rarely starts on a device pixel. A layer there reaches the screen blurred
-// if it is smoothed (layer.smooth), and with rows left out or repeated if it is not.
-// It starts on a multiple of 20 pixels of the window instead and is a multiple of 20
-// pixels wide and high, which is a whole number of device pixels at every scale factor
-// in steps of 5 %.
-// The software renderer draws nothing for a Shape inside a layer at scale factors
-// above 1, and doesn't need one (it anti-aliases on its own), so it skips it.
+// A multisampled layer over an item, placed so its texture maps to screen pixels one to
+// one. Its children are positioned from that item's corner. The car is drawn in one.
+//
+// Why a layer and not Shape.CurveRenderer: on Qt 6.7 and 6.8 the curve renderer can keep
+// showing paths at an old scale after several quick resizes (QTBUG-133267).
+//
+// Why it isn't the item's own area: at scale factors like 125 % or 150 % an item rarely
+// starts on a device pixel, and a layer there is either blurred (layer.smooth) or has rows
+// dropped or repeated. So the layer starts on a multiple of 20 window pixels and is a
+// multiple of 20 wide and high, which is a whole number of device pixels at every scale
+// factor in steps of 5 %.
+//
+// The software renderer draws nothing for a Shape in a layer at scale factors above 1, and
+// antialiases without one, so it goes without.
 Item {
     id: pixelLayer
 
-    // The item to cover, which this is a child of.
+    // The item to cover. This must be its child.
     required property Item target
     default property alias content: corner.data
     readonly property int grid: 20
-    // Where the item is in the window, unless something above it is scaled or turned,
-    // and how far that is past the grid.
+    // The item's position in the window (assuming no scaled or rotated ancestor), and how
+    // far that is past the grid.
     readonly property point origin: {
         let x = 0
         let y = 0
@@ -38,16 +37,15 @@ Item {
     x: -past.x
     y: -past.y
 
-    // The layer is on an item of its own at 0, 0, because Qt 6.12 makes a layer a
-    // device pixel larger when its item is not on a device pixel of its parent.
+    // The layer is on its own item at 0, 0: Qt 6.12 makes a layer a device pixel larger
+    // when its item isn't on a device pixel of its parent.
     Item {
         width: Math.ceil((pixelLayer.past.x + Math.floor(pixelLayer.target.width)) / pixelLayer.grid) * pixelLayer.grid
         height: Math.ceil((pixelLayer.past.y + Math.floor(pixelLayer.target.height)) / pixelLayer.grid) * pixelLayer.grid
         layer.enabled: GraphicsInfo.api !== GraphicsInfo.Software
         layer.samples: 4
 
-        // The item's corner in the layer. It is on a whole pixel even when the item
-        // itself is not, so that the drawing is as sharp there.
+        // The target's corner within the layer, rounded to a whole pixel.
         Item {
             id: corner
             x: Math.round(pixelLayer.past.x)
