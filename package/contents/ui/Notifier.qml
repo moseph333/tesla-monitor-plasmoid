@@ -31,20 +31,20 @@ QtObject {
     // After every poll that got data. The state moves on even while a notification is
     // turned off, so turning it on later doesn't bring up something old.
     function process() {
-        const r = Logic.notifyStep(state, widget.car, Date.now(), {
+        const step = Logic.notifyStep(state, widget.car, Date.now(), {
             leftOpenMs: cfg.leftOpenMinutes * 60 * 1000,
             // Three polls at the slower rate and at least 15 minutes, so only something like
             // a suspend or a broker outage counts as a gap that starts over.
             staleMs: Math.max(15 * 60 * 1000, 3 * 1000 * Math.max(cfg.refreshSeconds, cfg.idleRefreshSeconds)),
             okGeofences: widget.okGeofences
         })
-        state = r.state
+        state = step.state
         // What's fine again ends its claim for every copy, so the next time is news.
-        for (const key of r.released) Hub.release(source + "|" + key)
-        for (const e of r.events) send(e)
+        for (const key of step.released) Hub.release(source + "|" + key)
+        for (const event of step.events) send(event)
     }
 
-    function send(e) {
+    function send(event) {
         const wanted = {
             chargeComplete: cfg.notifyChargeComplete,
             chargeStopped: cfg.notifyChargeStopped,
@@ -54,11 +54,11 @@ QtObject {
             tires: cfg.notifyTires,
             update: cfg.notifyUpdates
         }
-        if (!wanted[e.type]) return
+        if (!wanted[event.type]) return
         // Every copy of the widget that shows this car sees the event on its own poll, and
         // only the first to claim each part of it sends that part.
         const at = Date.now()
-        const mine = Logic.claimEvent(e, (key, windowMs) => Hub.claim(source + "|" + key, at, windowMs))
+        const mine = Logic.claimEvent(event, (key, windowMs) => Hub.claim(source + "|" + key, at, windowMs))
         if (!mine) return
         const words = content(mine, widget.carName)
         if (!words) return
@@ -72,36 +72,36 @@ QtObject {
 
     // The title, body and icon for an event from Logic.notifyStep(). A body says less when
     // a value is missing, rather than leave a gap.
-    function content(e, name) {
+    function content(event, name) {
         const minutes = cfg.leftOpenMinutes
-        switch (e.type) {
+        switch (event.type) {
         case "chargeComplete":
             return {
                 title: i18n("%1 finished charging", name),
-                body: e.level === null ? i18n("Charging is complete.")
-                    : widget.rangeKm !== null ? i18n("Charged to %1% (%2).", e.level, widget.fmtDistance(widget.rangeKm))
-                    : i18n("Charged to %1%.", e.level),
-                icon: Logic.batteryIcon(e.level, false)
+                body: event.level === null ? i18n("Charging is complete.")
+                    : widget.rangeKm !== null ? i18n("Charged to %1% (%2).", event.level, widget.fmtDistance(widget.rangeKm))
+                    : i18n("Charged to %1%.", event.level),
+                icon: Logic.batteryIcon(event.level, false)
             }
         case "chargeStopped":
             return {
                 title: i18n("%1 stopped charging", name),
-                body: e.level === null ? i18n("Charging stopped before the limit.")
-                    : e.limit !== null ? i18n("Stopped at %1%, below the %2% limit.", e.level, e.limit)
-                    : i18n("Stopped at %1%.", e.level),
-                icon: Logic.batteryIcon(e.level, false)
+                body: event.level === null ? i18n("Charging stopped before the limit.")
+                    : event.limit !== null ? i18n("Stopped at %1%, below the %2% limit.", event.level, event.limit)
+                    : i18n("Stopped at %1%.", event.level),
+                icon: Logic.batteryIcon(event.level, false)
             }
         case "chargerNoPower":
             return {
                 title: i18n("%1 can't charge", name),
-                body: e.level === null ? i18n("The charger stopped supplying power.")
-                    : i18n("The charger stopped supplying power at %1%.", e.level),
+                body: event.level === null ? i18n("The charger stopped supplying power.")
+                    : i18n("The charger stopped supplying power at %1%.", event.level),
                 icon: "dialog-warning"
             }
         case "leftOpen":
             return {
                 title: i18n("%1 needs attention", name),
-                body: texts.attentionLines(e.items)
+                body: texts.attentionLines(event.items)
                     .concat(i18np("Like this for %1 minute.", "Like this for %1 minutes.", minutes)).join("\n"),
                 icon: "dialog-warning"
             }
@@ -114,7 +114,7 @@ QtObject {
         case "tires":
             return {
                 title: i18n("%1 has low tire pressure", name),
-                body: i18n("Check %1.", e.items.map(pos => {
+                body: i18n("Check %1.", event.items.map(pos => {
                     const pressure = widget.tire(pos).text
                     return pressure === "—" ? texts.tireName(pos)
                         : i18nc("tire position (pressure)", "%1 (%2)", texts.tireName(pos), pressure)
@@ -124,7 +124,7 @@ QtObject {
         case "update":
             return {
                 title: i18n("Software update for %1", name),
-                body: e.version ? i18n("Version %1 is available.", e.version) : i18n("An update is available."),
+                body: event.version ? i18n("Version %1 is available.", event.version) : i18n("An update is available."),
                 icon: "system-software-update"
             }
         }
