@@ -4,16 +4,16 @@
 // where key is the topic with the prefix stripped, e.g. "battery_level". An empty
 // prefix keeps the full topics.
 function parseMqtt(out, prefix) {
-    var map = {};
-    var base = String(prefix || "").replace(/\/+$/, "");
-    var pre = base ? base + "/" : "";
-    var lines = String(out || "").split("\n");
-    for (var i = 0; i < lines.length; i++) {
-        var line = lines[i].replace(/\r$/, "");
+    const map = {};
+    const base = String(prefix || "").replace(/\/+$/, "");
+    const pre = base ? base + "/" : "";
+    const lines = String(out || "").split("\n");
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].replace(/\r$/, "");
         if (!line) continue;
-        var sp = line.indexOf(" ");
-        var topic = sp < 0 ? line : line.slice(0, sp);
-        var payload = sp < 0 ? "" : line.slice(sp + 1);
+        const sp = line.indexOf(" ");
+        const topic = sp < 0 ? line : line.slice(0, sp);
+        const payload = sp < 0 ? "" : line.slice(sp + 1);
         if (topic.indexOf(pre) !== 0 || topic.length === pre.length) continue;
         // mosquitto_sub prints an empty publish, which is how TeslaMate clears a value,
         // as "(null)". It must read as missing rather than show up as text.
@@ -24,7 +24,7 @@ function parseMqtt(out, prefix) {
 
 function num(car, key) {
     if (!car || car[key] === undefined || car[key] === "") return null;
-    var v = parseFloat(car[key]);
+    const v = parseFloat(car[key]);
     return isNaN(v) ? null : v;
 }
 
@@ -42,31 +42,31 @@ function triState(car, key) {
 // versions without per-part topics only report the total (doors_open), so then this is
 // "some" while that says something is open, false when all are closed, and null if unknown.
 function partOpen(car, key, totalKey) {
-    var own = triState(car, key);
+    const own = triState(car, key);
     if (own !== null) return own;
-    var total = triState(car, totalKey);
+    const total = triState(car, totalKey);
     return total === true ? "some" : total;
 }
 
 // TeslaMate names doors and windows by driver and passenger side, and tires by position.
-var PARTS = ["driver_front", "driver_rear", "passenger_front", "passenger_rear"];
-var TIRES = ["fl", "fr", "rl", "rr"];
+const PARTS = ["driver_front", "driver_rear", "passenger_front", "passenger_rear"];
+const TIRES = ["fl", "fr", "rl", "rr"];
 // The attention() types that count as left open, which notify only after a delay.
-var LEFT = { door: 1, window: 1, frunk: 1, trunk: 1, sunroof: 1, port: 1 };
+const LEFT = { door: 1, window: 1, frunk: 1, trunk: 1, sunroof: 1, port: 1 };
 // Every id attention() can give for something left open, the unlocked car or a tire, so a
 // snapshot can say which of them are fine whether or not this copy was tracking them.
-var TRACKABLE = (function () {
-    var out = ["frunk", "trunk", "sunroof", "port", "unlocked", "door:some", "window:some"];
-    for (var i = 0; i < PARTS.length; i++) out.push("door:" + PARTS[i], "window:" + PARTS[i]);
-    for (var t = 0; t < TIRES.length; t++) out.push("tire:" + TIRES[t]);
+const TRACKABLE = (function () {
+    const out = ["frunk", "trunk", "sunroof", "port", "unlocked", "door:some", "window:some"];
+    for (let i = 0; i < PARTS.length; i++) out.push("door:" + PARTS[i], "window:" + PARTS[i]);
+    for (let t = 0; t < TIRES.length; t++) out.push("tire:" + TIRES[t]);
     return out;
 })();
 
 // Every door or window (kind "door" or "window") by its TeslaMate name, as partOpen() reads
 // it, e.g. {driver_front: true, driver_rear: false, ...}.
 function parts(car, kind) {
-    var out = {};
-    for (var i = 0; i < PARTS.length; i++)
+    const out = {};
+    for (let i = 0; i < PARTS.length; i++)
         out[PARTS[i]] = partOpen(car, PARTS[i] + "_" + kind + "_open", kind + "s_open");
     return out;
 }
@@ -93,8 +93,8 @@ function pressure(bar, unit) {
 // system for the locale (0 metric, 1 US, 2 UK). The UK drives in miles and fills tires in
 // psi but gives temperatures in °C.
 function resolveUnits(d, t, p, measurementSystem) {
-    var us = measurementSystem === 1;
-    var miles = us || measurementSystem === 2;
+    const us = measurementSystem === 1;
+    const miles = us || measurementSystem === 2;
     return {
         distance: d === 1 ? "km" : d === 2 ? "mi" : miles ? "mi" : "km",
         temperature: t === 1 ? "C" : t === 2 ? "F" : us ? "F" : "C",
@@ -108,9 +108,9 @@ function resolveUnits(d, t, p, measurementSystem) {
 // if Plasma quits before it saves.
 function unitMigration(migrated, brokerHost, imperial) {
     if (migrated) return null;
-    var keys = { unitsMigrated: true };
+    const keys = { unitsMigrated: true };
     if (String(brokerHost || "").trim() !== "") {
-        var unit = imperial ? 2 : 1;
+        const unit = imperial ? 2 : 1;
         keys.distanceUnit = unit;
         keys.temperatureUnit = unit;
         keys.pressureUnit = unit;
@@ -121,18 +121,18 @@ function unitMigration(migrated, brokerHost, imperial) {
 // Hours (float) -> "1h 20m" / "45m"
 function formatHours(h) {
     if (h === null || h <= 0) return "";
-    var mins = Math.round(h * 60);
-    var hh = Math.floor(mins / 60);
-    var mm = mins % 60;
+    const mins = Math.round(h * 60);
+    const hh = Math.floor(mins / 60);
+    const mm = mins % 60;
     if (hh > 0) return hh + "h " + (mm < 10 ? "0" : "") + mm + "m";
     return mm + "m";
 }
 
 // ISO timestamp -> compact elapsed time "3m" / "2h" / "4d"
 function formatSince(iso, nowMs) {
-    var t = Date.parse(iso);
+    const t = Date.parse(iso);
     if (isNaN(t)) return "";
-    var s = Math.max(0, (nowMs - t) / 1000);
+    const s = Math.max(0, (nowMs - t) / 1000);
     if (s < 3600) return Math.max(1, Math.floor(s / 60)) + "m";
     if (s < 86400) return Math.floor(s / 3600) + "h";
     return Math.floor(s / 86400) + "d";
@@ -141,9 +141,9 @@ function formatSince(iso, nowMs) {
 // TeslaMate can still say "online" for a moment after the car is put in gear, before it
 // starts recording a drive, so D and R count as driving too.
 function isDriving(car) {
-    var state = car ? car.state : "";
+    const state = car ? car.state : "";
     if (state === "driving") return true;
-    var shift = car ? car.shift_state : "";
+    const shift = car ? car.shift_state : "";
     return state === "online" && (shift === "D" || shift === "R");
 }
 
@@ -151,10 +151,10 @@ function isDriving(car) {
 // stopped, scheduled, nopower, plugged, unplugged, or "" while nothing says. TeslaMate
 // before 1.28 has no charging_state, so then the car's state and the charger's power decide.
 function chargeStatus(car) {
-    var s = car && car.charging_state ? car.charging_state : "";
+    const s = car && car.charging_state ? car.charging_state : "";
     if (s === "") {
         if ((car && car.state === "charging") || num(car, "charger_power") > 0) return "charging";
-        var plugged = triState(car, "plugged_in");
+        const plugged = triState(car, "plugged_in");
         return plugged === null ? "" : plugged ? "plugged" : "unplugged";
     }
     switch (s) {
@@ -174,8 +174,8 @@ function chargeStatus(car) {
 // The usable level when a cold battery holds some of its charge back, else null. It uses
 // TeslaMate's own rule: more than 2 points below the battery level.
 function usableIfCold(car) {
-    var level = num(car, "battery_level");
-    var usable = num(car, "usable_battery_level");
+    const level = num(car, "battery_level");
+    const usable = num(car, "usable_battery_level");
     if (level === null || usable === null || level - usable <= 2) return null;
     return usable;
 }
@@ -188,11 +188,11 @@ function usableIfCold(car) {
 // so the update then just shows as available.
 function updateProgress(car) {
     if (car && car.state === "updating") {
-        var install = num(car, "install_perc");
+        const install = num(car, "install_perc");
         return { phase: "installing", percent: install !== null && install > 0 ? install : null };
     }
     if (!bool(car, "update_available")) return { phase: "", percent: null };
-    var download = num(car, "download_perc");
+    const download = num(car, "download_perc");
     if (download !== null && download > 0 && download < 100) return { phase: "downloading", percent: download };
     return { phase: "available", percent: null };
 }
@@ -201,10 +201,10 @@ function updateProgress(car) {
 // phases than a charger has, so, as TeslaMate does, the count is trusted only when the
 // power matches current × voltage × phases.
 function showPhases(car) {
-    var phases = num(car, "charger_phases");
-    var amps = num(car, "charger_actual_current");
-    var volts = num(car, "charger_voltage");
-    var kw = num(car, "charger_power");
+    const phases = num(car, "charger_phases");
+    const amps = num(car, "charger_actual_current");
+    const volts = num(car, "charger_voltage");
+    const kw = num(car, "charger_power");
     if (phases === null || phases <= 1 || amps === null || amps <= 0
         || volts === null || volts <= 0 || kw === null) return null;
     return Math.round(kw * 1000 / (amps * volts)) === phases ? phases : null;
@@ -217,22 +217,22 @@ function showPhases(car) {
 // between routes on 1.29 and newer, and kept the last destination on 1.28.4 and 1.28.5.
 // Numbers TeslaMate leaves out are null.
 function activeRoute(car) {
-    var text = car ? car.active_route : "";
+    const text = car ? car.active_route : "";
     if (!text) return null;
-    var r;
+    let r;
     try {
         r = JSON.parse(text);
     } catch (e) {
         return null;
     }
     if (!r || typeof r !== "object" || Array.isArray(r) || r.error) return null;
-    var destination = typeof r.destination === "string" ? r.destination.trim() : "";
+    const destination = typeof r.destination === "string" ? r.destination.trim() : "";
     if (!destination) return null;
     function number(v) {
         return typeof v === "number" && isFinite(v) ? v : null;
     }
     // TeslaMate gives the distance in miles whatever its own unit setting.
-    var miles = number(r.miles_to_arrival);
+    const miles = number(r.miles_to_arrival);
     return {
         destination: destination,
         minutes: number(r.minutes_to_arrival),
@@ -256,10 +256,10 @@ function carryHealthy(fresh, prevValue, prevSeenAt, nowMs, maxAgeMs) {
 // "Home, Work" -> ["home", "work"], so geofence names compare without regard to case or
 // spacing.
 function geofenceList(text) {
-    var out = [];
-    var names = String(text || "").split(",");
-    for (var i = 0; i < names.length; i++) {
-        var name = names[i].trim().toLowerCase();
+    const out = [];
+    const names = String(text || "").split(",");
+    for (let i = 0; i < names.length; i++) {
+        const name = names[i].trim().toLowerCase();
         if (name) out.push(name);
     }
     return out;
@@ -267,7 +267,7 @@ function geofenceList(text) {
 
 // Shared by attention() and isResolved(), so the two agree on where unlocked is fine.
 function atOkGeofence(car, okGeofences) {
-    var here = String((car && car.geofence) || "").trim().toLowerCase();
+    const here = String((car && car.geofence) || "").trim().toLowerCase();
     return here !== "" && (okGeofences || []).indexOf(here) >= 0;
 }
 
@@ -275,25 +275,25 @@ function atOkGeofence(car, okGeofences) {
 // okGeofences comes from geofenceList(). A charger with no power isn't here: smart and
 // solar chargers report that every evening, so the card shows it as a plain status.
 function attention(car, okGeofences) {
-    var items = [];
+    const items = [];
     function add(id, type, part) {
         items.push({ id: id, type: type, part: part || "" });
     }
     if (car && car.healthy === "false") add("unhealthy", "unhealthy");
     if (bool(car, "service_mode")) add("service", "service");
-    for (var t = 0; t < TIRES.length; t++)
+    for (let t = 0; t < TIRES.length; t++)
         if (bool(car, "tpms_soft_warning_" + TIRES[t])) add("tire:" + TIRES[t], "tire", TIRES[t]);
     // Only when the car says nobody is inside, so someone sitting in an unlocked car, or a
     // TeslaMate that doesn't report presence, doesn't count.
     if (triState(car, "locked") === false && !isDriving(car)
         && triState(car, "is_user_present") === false && !atOkGeofence(car, okGeofences))
         add("unlocked", "unlocked");
-    var kinds = ["door", "window"];
-    for (var k = 0; k < kinds.length; k++) {
-        var states = parts(car, kinds[k]);
-        var named = false;
-        var some = false;
-        for (var p = 0; p < PARTS.length; p++) {
+    const kinds = ["door", "window"];
+    for (let k = 0; k < kinds.length; k++) {
+        const states = parts(car, kinds[k]);
+        let named = false;
+        let some = false;
+        for (let p = 0; p < PARTS.length; p++) {
             if (states[PARTS[p]] === true) {
                 add(kinds[k] + ":" + PARTS[p], kinds[k], PARTS[p]);
                 named = true;
@@ -317,15 +317,15 @@ function attention(car, okGeofences) {
 // that went empty doesn't count, so a value TeslaMate stops sending can't end a warning
 // that would then start over when it comes back.
 function isResolved(car, id, okGeofences) {
-    var colon = id.indexOf(":");
-    var type = colon < 0 ? id : id.slice(0, colon);
-    var part = colon < 0 ? "" : id.slice(colon + 1);
+    const colon = id.indexOf(":");
+    const type = colon < 0 ? id : id.slice(0, colon);
+    const part = colon < 0 ? "" : id.slice(colon + 1);
     switch (type) {
     case "door":
     case "window": {
-        var states = parts(car, type);
+        const states = parts(car, type);
         if (part !== "some") return states[part] === false;
-        for (var i = 0; i < PARTS.length; i++)
+        for (let i = 0; i < PARTS.length; i++)
             if (states[PARTS[i]] !== false) return false;
         return true;
     }
@@ -360,36 +360,36 @@ function isResolved(car, id, okGeofences) {
 // adds less than 3% stay quiet.
 function notifyStep(prev, car, nowMs, opts) {
     opts = opts || {};
-    var leftOpenMs = opts.leftOpenMs === undefined ? 600000 : opts.leftOpenMs;
-    var staleMs = opts.staleMs === undefined ? 900000 : opts.staleMs;
-    var holdMs = opts.holdMs === undefined ? 180000 : opts.holdMs;
-    var ok = opts.okGeofences || [];
+    const leftOpenMs = opts.leftOpenMs === undefined ? 600000 : opts.leftOpenMs;
+    const staleMs = opts.staleMs === undefined ? 900000 : opts.staleMs;
+    const holdMs = opts.holdMs === undefined ? 180000 : opts.holdMs;
+    const ok = opts.okGeofences || [];
     // A clock set back would leave every timer in the future, so that starts over too.
-    var gap = prev ? nowMs - prev.at : NaN;
-    var first = !(gap >= 0 && gap <= staleMs);
-    var old = first ? {} : prev.tracked || {};
+    const gap = prev ? nowMs - prev.at : NaN;
+    const first = !(gap >= 0 && gap <= staleMs);
+    const old = first ? {} : prev.tracked || {};
 
     // Things left open and the unlocked car, with a timer that only runs while nobody is in
     // the car; tires and updates, which notify on the next snapshot.
-    var unattended = !isDriving(car) && triState(car, "is_user_present") !== true;
-    var candidates = [];
-    var items = attention(car, ok);
-    for (var i = 0; i < items.length; i++) {
-        var type = items[i].type;
+    const unattended = !isDriving(car) && triState(car, "is_user_present") !== true;
+    const candidates = [];
+    const items = attention(car, ok);
+    for (let i = 0; i < items.length; i++) {
+        const type = items[i].type;
         if (LEFT[type] || type === "unlocked" || type === "tire") candidates.push(items[i]);
     }
     if (bool(car, "update_available"))
         candidates.push({ id: "update:" + (car.update_version || ""), type: "update", part: "" });
 
-    var tracked = {};
-    var leftDue = [];
-    var unlockedDue = false;
-    var tiresDue = [];
-    var updateDue = null;
-    for (var c = 0; c < candidates.length; c++) {
-        var item = candidates[c];
-        var was = old[item.id];
-        var entry = was ? { since: was.since, done: was.done } : { since: nowMs, done: first };
+    const tracked = {};
+    const leftDue = [];
+    let unlockedDue = false;
+    const tiresDue = [];
+    let updateDue = null;
+    for (let c = 0; c < candidates.length; c++) {
+        const item = candidates[c];
+        const was = old[item.id];
+        const entry = was ? { since: was.since, done: was.done } : { since: nowMs, done: first };
         if (LEFT[item.type] || item.type === "unlocked") {
             if (!unattended) {
                 entry.since = nowMs;
@@ -407,31 +407,31 @@ function notifyStep(prev, car, nowMs, opts) {
     }
     // An item that's gone is forgotten only once its value says it's fine. A topic that went
     // empty keeps it, so the item doesn't notify again when the value comes back.
-    var released = [];
+    const released = [];
     function release(key) {
         if (released.indexOf(key) < 0) released.push(key);
     }
-    for (var id in old) {
+    for (const id in old) {
         if (tracked.hasOwnProperty(id)) continue;
         if (isResolved(car, id, ok)) release(itemKey(id));
         else tracked[id] = { since: old[id].since, done: old[id].done };
     }
     // Whatever is fine ends its claim even when this copy wasn't tracking it, such as right
     // after it started over, since another copy, or this one before the gap, may hold it.
-    for (var r = 0; r < TRACKABLE.length; r++) {
+    for (let r = 0; r < TRACKABLE.length; r++) {
         if (isResolved(car, TRACKABLE[r], ok)) release(itemKey(TRACKABLE[r]));
     }
 
-    var s = chargeStatus(car);
+    const s = chargeStatus(car);
     // A charge under way means the next finish or stop belongs to a new charge.
     if (s === "charging") {
         release(eventKey({ type: "chargeComplete" }));
         release(eventKey({ type: "chargeStopped" }));
         release(eventKey({ type: "chargerNoPower" }));
     }
-    var level = num(car, "battery_level");
-    var limit = num(car, "charge_limit_soc");
-    var chargeEvents = [];
+    const level = num(car, "battery_level");
+    const limit = num(car, "charge_limit_soc");
+    const chargeEvents = [];
     function session(status) {
         return { status: status, startLevel: null, wasCharging: false, stopDone: false,
                  noPowerDone: false, pending: null };
@@ -440,7 +440,7 @@ function notifyStep(prev, car, nowMs, opts) {
     function gainOk(start) {
         return start === null || level === null || level - start >= 3;
     }
-    var ch;
+    let ch;
     if (first || !prev.charge) {
         ch = session(s);
         if (s === "charging") {
@@ -448,7 +448,7 @@ function notifyStep(prev, car, nowMs, opts) {
             ch.startLevel = level;
         }
     } else {
-        var p = prev.charge;
+        const p = prev.charge;
         ch = { status: p.status, startLevel: p.startLevel, wasCharging: p.wasCharging,
                stopDone: p.stopDone, noPowerDone: p.noPowerDone,
                pending: p.pending ? { kind: p.pending.kind, since: p.pending.since, count: p.pending.count } : null };
@@ -475,7 +475,7 @@ function notifyStep(prev, car, nowMs, opts) {
                 ch.pending = null;
                 break;
             }
-            var kind = s === "nopower" ? "nopower" : "stop";
+            const kind = s === "nopower" ? "nopower" : "stop";
             ch.pending = ch.pending && ch.pending.kind === kind
                 ? { kind: kind, since: ch.pending.since, count: ch.pending.count + 1 }
                 : { kind: kind, since: nowMs, count: 1 };
@@ -505,7 +505,7 @@ function notifyStep(prev, car, nowMs, opts) {
         if (s !== "") ch.status = s;
     }
 
-    var events = [];
+    let events = [];
     if (!first) {
         events = chargeEvents;
         if (leftDue.length > 0) events.push({ type: "leftOpen", items: leftDue });
@@ -527,8 +527,8 @@ function eventKey(e) {
     case "unlocked": return "unlocked";
     case "tires":
     case "leftOpen": {
-        var keys = [];
-        for (var i = 0; i < e.items.length; i++)
+        const keys = [];
+        for (let i = 0; i < e.items.length; i++)
             keys.push(e.type === "tires" ? e.items[i] : e.items[i].id);
         keys.sort();
         return e.type + "|" + keys.join(",");
@@ -539,9 +539,9 @@ function eventKey(e) {
 
 // The claim key, as eventKey() names it, for an id that notifyStep() tracks.
 function itemKey(id) {
-    var colon = id.indexOf(":");
-    var type = colon < 0 ? id : id.slice(0, colon);
-    var part = colon < 0 ? "" : id.slice(colon + 1);
+    const colon = id.indexOf(":");
+    const type = colon < 0 ? id : id.slice(0, colon);
+    const part = colon < 0 ? "" : id.slice(colon + 1);
     if (type === "unlocked") return eventKey({ type: "unlocked" });
     if (type === "tire") return eventKey({ type: "tires", items: [part] });
     if (type === "update") return eventKey({ type: "update", version: part });
@@ -560,23 +560,23 @@ function itemKey(id) {
 // longest "While the car sleeps" setting puts polls an hour apart, so a claim nobody
 // releases lasts two hours.
 function claimEvent(e, claim) {
-    var windowMs = 7200000;
+    const windowMs = 7200000;
     if (!e.items) return claim(eventKey(e), windowMs) ? e : null;
-    var items = [];
-    for (var i = 0; i < e.items.length; i++) {
+    const items = [];
+    for (let i = 0; i < e.items.length; i++) {
         if (claim(eventKey({ type: e.type, items: [e.items[i]] }), windowMs)) items.push(e.items[i]);
     }
     if (items.length === 0) return null;
-    var mine = {};
-    for (var k in e) mine[k] = e[k];
+    const mine = {};
+    for (const k in e) mine[k] = e[k];
     mine.items = items;
     return mine;
 }
 
 // Breeze battery icon name for a level (0..100).
 function batteryIcon(level, charging) {
-    var step = level === null ? 50 : Math.max(0, Math.min(100, Math.round(level / 10) * 10));
-    var name = "battery-" + (step < 10 ? "00" : step < 100 ? "0" : "") + step;
+    const step = level === null ? 50 : Math.max(0, Math.min(100, Math.round(level / 10) * 10));
+    const name = "battery-" + (step < 10 ? "00" : step < 100 ? "0" : "") + step;
     return charging ? name + "-charging" : name;
 }
 
@@ -584,7 +584,7 @@ function batteryIcon(level, charging) {
 // taken for Midnight Silver or for Red, and "Quicksilver" isn't taken for Silver. The colors
 // are close to the paints rather than exact, and black is lifted a little so the drawing's
 // shading still shows on it.
-var PAINTS = [
+const PAINTS = [
     ["cherry", "#5a1a25"],
     ["ultrared", "#b5141f"],
     ["red", "#a31e27"],
@@ -612,8 +612,8 @@ var PAINTS = [
 // the drawing in theme colors. Case, spaces and punctuation don't matter, since the car
 // reports the same paint as "RedMulticoat" or "Red" depending on its age.
 function paintColor(name) {
-    var s = String(name || "").toLowerCase().replace(/[^a-z]/g, "");
-    for (var i = 0; i < PAINTS.length; i++) {
+    const s = String(name || "").toLowerCase().replace(/[^a-z]/g, "");
+    for (let i = 0; i < PAINTS.length; i++) {
         if (s.indexOf(PAINTS[i][0]) >= 0) return PAINTS[i][1];
     }
     return "";
@@ -624,8 +624,8 @@ function paintColor(name) {
 // faster than the normal rate. Without data it keeps trying at the normal rate, since the
 // state isn't known yet.
 function pollIntervalMs(refresh, idle, state, hasData, popupOpen) {
-    var fast = Math.max(5, refresh || 15);
-    var sleeping = state === "asleep" || state === "offline" || state === "suspended";
+    const fast = Math.max(5, refresh || 15);
+    const sleeping = state === "asleep" || state === "offline" || state === "suspended";
     if (hasData && !popupOpen && sleeping) return Math.max(fast, idle || 0) * 1000;
     return fast * 1000;
 }
@@ -640,27 +640,27 @@ function shellQuote(s) {
 // [fd00::1]:1883 or host:1884, into its parts. tls is true or false when the scheme says
 // so and null otherwise. port is null when there is none or it is out of range.
 function parseBrokerHost(text) {
-    var r = { host: "", port: null, tls: null, user: "", password: "" };
-    var s = String(text || "").trim();
-    var scheme = /^([a-z][a-z0-9+.-]*):\/\//i.exec(s);
+    const r = { host: "", port: null, tls: null, user: "", password: "" };
+    let s = String(text || "").trim();
+    const scheme = /^([a-z][a-z0-9+.-]*):\/\//i.exec(s);
     if (scheme) {
-        var name = scheme[1].toLowerCase();
+        const name = scheme[1].toLowerCase();
         if (["mqtts", "ssl", "tls", "wss"].indexOf(name) >= 0) r.tls = true;
         else if (["mqtt", "tcp", "ws"].indexOf(name) >= 0) r.tls = false;
         s = s.slice(scheme[0].length);
     }
     s = s.split(/[\/?#]/)[0];
     // The last @ ends the credentials, so a password may contain one.
-    var at = s.lastIndexOf("@");
+    const at = s.lastIndexOf("@");
     if (at >= 0) {
-        var cred = s.slice(0, at);
-        var colon = cred.indexOf(":");
+        const cred = s.slice(0, at);
+        const colon = cred.indexOf(":");
         r.user = colon < 0 ? cred : cred.slice(0, colon);
         r.password = colon < 0 ? "" : cred.slice(colon + 1);
         s = s.slice(at + 1);
     }
-    var port = "";
-    var bracketed = /^\[([^\]]*)\](?::(.*))?$/.exec(s);
+    let port = "";
+    const bracketed = /^\[([^\]]*)\](?::(.*))?$/.exec(s);
     if (bracketed) {
         s = bracketed[1];
         port = bracketed[2] || "";
@@ -670,7 +670,7 @@ function parseBrokerHost(text) {
         s = s.slice(0, s.indexOf(":"));
     }
     if (/^\d+$/.test(port)) {
-        var p = parseInt(port, 10);
+        const p = parseInt(port, 10);
         if (p >= 1 && p <= 65535) r.port = p;
     }
     r.host = s;
@@ -681,7 +681,7 @@ function parseBrokerHost(text) {
 // browser opens. Without a scheme, "teslamate.local:4000" would read as a URL whose scheme
 // is "teslamate.local", so http:// goes in front. "" stays "", meaning no link.
 function normalizeUrl(text) {
-    var s = String(text || "").trim();
+    const s = String(text || "").trim();
     if (!s) return "";
     return /^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? s : "http://" + s;
 }
@@ -693,25 +693,25 @@ function normalizeUrl(text) {
 // which keeps the install hint working.
 function mosquittoCommand(o) {
     o = o || {};
-    var b = parseBrokerHost(o.host);
+    const b = parseBrokerHost(o.host);
     if (!b.host) return "";
-    var wait = Math.max(1, Math.round(o.wait || 2));
-    var given = parseInt(o.port, 10);
-    var port = b.port || (given >= 1 && given <= 65535 ? given : 1883);
-    var cmd = "timeout " + (wait + 10) + " mosquitto_sub -h " + shellQuote(b.host) + " -p " + port;
-    var topics = o.topics || [];
-    for (var i = 0; i < topics.length; i++) cmd += " -t " + shellQuote(topics[i]);
+    const wait = Math.max(1, Math.round(o.wait || 2));
+    const given = parseInt(o.port, 10);
+    const port = b.port || (given >= 1 && given <= 65535 ? given : 1883);
+    let cmd = "timeout " + (wait + 10) + " mosquitto_sub -h " + shellQuote(b.host) + " -p " + port;
+    const topics = o.topics || [];
+    for (let i = 0; i < topics.length; i++) cmd += " -t " + shellQuote(topics[i]);
     cmd += " -v -W " + wait;
     if (o.tls || b.tls === true) {
-        var ca = String(o.caFile || "").trim();
+        const ca = String(o.caFile || "").trim();
         // Only an unquoted leading ~ expands, so a home-relative path keeps it outside
         // the quotes.
         if (ca.indexOf("~/") === 0) cmd += " --cafile ~/" + shellQuote(ca.slice(2));
         else if (ca) cmd += " --cafile " + shellQuote(ca);
         else cmd += " --tls-use-os-certs";
     }
-    var user = o.user || b.user;
-    var password = o.password || b.password;
+    const user = o.user || b.user;
+    const password = o.password || b.password;
     if (user) cmd += " -u " + shellQuote(user);
     // MQTT 3.1.1 has no password without a username, and mosquitto_sub refuses to start
     // with one ("Problem setting username and/or password."). A password left behind after
@@ -723,8 +723,8 @@ function mosquittoCommand(o) {
 // Sorts a failed mosquitto_sub run into a kind that QML words for people, with the detail
 // a message needs. kind "" means the run was fine, even if no messages arrived.
 function mqttError(code, stderr, hasOutput) {
-    var e = String(stderr || "").trim();
-    var plain = e.replace(/^Error:\s*/, "");
+    const e = String(stderr || "").trim();
+    const plain = e.replace(/^Error:\s*/, "");
     function result(kind, detail) {
         return { kind: kind, detail: detail || "" };
     }
@@ -757,22 +757,22 @@ function mqttError(code, stderr, hasOutput) {
 // then by car id as a number, so car 2 comes before car 10. TeslaMate's ids are numbers;
 // anything else goes after them in text order, which keeps the order consistent.
 function parseCars(out) {
-    var all = parseMqtt(out, "");
-    var re = /^(teslamate\/(?:([^\/]+)\/)?cars\/([^\/]+))\/display_name$/;
-    var found = [];
-    for (var topic in all) {
-        var m = re.exec(topic);
+    const all = parseMqtt(out, "");
+    const re = /^(teslamate\/(?:([^\/]+)\/)?cars\/([^\/]+))\/display_name$/;
+    const found = [];
+    for (const topic in all) {
+        const m = re.exec(topic);
         if (m) found.push({ prefix: m[1], name: all[topic], ns: m[2] || "", id: m[3] });
     }
     found.sort(function (a, b) {
         if (a.ns !== b.ns) return a.ns < b.ns ? -1 : 1;
-        var an = /^\d+$/.test(a.id), bn = /^\d+$/.test(b.id);
+        const an = /^\d+$/.test(a.id), bn = /^\d+$/.test(b.id);
         if (an !== bn) return an ? -1 : 1;
         if (an && Number(a.id) !== Number(b.id)) return Number(a.id) - Number(b.id);
         return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
     });
-    var cars = [];
-    for (var i = 0; i < found.length; i++) cars.push({ prefix: found[i].prefix, name: found[i].name });
+    const cars = [];
+    for (let i = 0; i < found.length; i++) cars.push({ prefix: found[i].prefix, name: found[i].name });
     return cars;
 }
 
