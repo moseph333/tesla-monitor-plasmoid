@@ -8,21 +8,21 @@ const HOUR = 60 * MINUTE;
 // where key is the topic with the prefix stripped, e.g. "battery_level". An empty
 // prefix keeps the full topics.
 function parseMqtt(out, prefix) {
-    const map = {};
+    const values = {};
     const base = String(prefix || "").replace(/\/+$/, "");
-    const pre = base ? base + "/" : "";
+    const start = base ? base + "/" : "";
     for (const rawLine of String(out || "").split("\n")) {
         const line = rawLine.replace(/\r$/, "");
         if (!line) continue;
-        const sp = line.indexOf(" ");
-        const topic = sp < 0 ? line : line.slice(0, sp);
-        const payload = sp < 0 ? "" : line.slice(sp + 1);
-        if (topic.indexOf(pre) !== 0 || topic.length === pre.length) continue;
+        const space = line.indexOf(" ");
+        const topic = space < 0 ? line : line.slice(0, space);
+        const payload = space < 0 ? "" : line.slice(space + 1);
+        if (!topic.startsWith(start) || topic.length === start.length) continue;
         // mosquitto_sub prints an empty publish, which is how TeslaMate clears a value,
         // as "(null)". It must read as missing rather than show up as text.
-        map[topic.slice(pre.length)] = payload === "(null)" ? "" : payload;
+        values[topic.slice(start.length)] = payload === "(null)" ? "" : payload;
     }
-    return map;
+    return values;
 }
 
 function num(car, key) {
@@ -273,7 +273,7 @@ function geofenceList(text) {
 // Shared by attention() and isResolved(), so the two agree on where unlocked is fine.
 function atOkGeofence(car, okGeofences) {
     const here = String((car && car.geofence) || "").trim().toLowerCase();
-    return here !== "" && (okGeofences || []).indexOf(here) >= 0;
+    return here !== "" && (okGeofences || []).includes(here);
 }
 
 // Everything that needs someone's attention, most severe first, as {id, type, part}.
@@ -460,7 +460,7 @@ function trackItems(old, car, nowMs, first, leftOpenMs, okGeofences) {
     // empty keeps it, so the item doesn't notify again when the value comes back.
     const released = [];
     function release(key) {
-        if (released.indexOf(key) < 0) released.push(key);
+        if (!released.includes(key)) released.push(key);
     }
     for (const id in old) {
         if (tracked.hasOwnProperty(id)) continue;
@@ -626,8 +626,8 @@ function parseBrokerHost(text) {
     const scheme = /^([a-z][a-z0-9+.-]*):\/\//i.exec(rest);
     if (scheme) {
         const name = scheme[1].toLowerCase();
-        if (["mqtts", "ssl", "tls", "wss"].indexOf(name) >= 0) broker.tls = true;
-        else if (["mqtt", "tcp", "ws"].indexOf(name) >= 0) broker.tls = false;
+        if (["mqtts", "ssl", "tls", "wss"].includes(name)) broker.tls = true;
+        else if (["mqtt", "tcp", "ws"].includes(name)) broker.tls = false;
         rest = rest.slice(scheme[0].length);
     }
     rest = rest.split(/[\/?#]/)[0];
@@ -645,10 +645,9 @@ function parseBrokerHost(text) {
     if (bracketed) {
         rest = bracketed[1];
         port = bracketed[2] || "";
-    } else if (rest.indexOf(":") >= 0 && rest.indexOf(":") === rest.lastIndexOf(":")) {
+    } else if (rest.split(":").length === 2) {
         // A single colon separates a port; more than one is a bare IPv6 address.
-        port = rest.slice(rest.indexOf(":") + 1);
-        rest = rest.slice(0, rest.indexOf(":"));
+        [rest, port] = rest.split(":");
     }
     if (/^\d+$/.test(port)) {
         const number = parseInt(port, 10);
