@@ -9,16 +9,15 @@ PlasmoidItem {
     id: root
 
     readonly property var cfg: Plasmoid.configuration
-    // The same test the command builder uses, so a host such as "mqtt://" can't leave the
-    // card waiting for data that no command will fetch.
+    // Uses the command builder's own test, so a host like "mqtt://" counts as not configured.
     readonly property bool configured: Logic.parseBrokerHost(cfg.brokerHost).host !== ""
-    // One value for both the subscription and stripping topics, so the two can't disagree.
+    // Used for both subscribing and stripping topics.
     readonly property string prefix: Logic.topicPrefix(cfg.topicPrefix)
-    // Automatic follows Measurement units in Region & Language, which Qt reads from the locale.
+    // Automatic follows the locale's measurement system.
     readonly property var units: Logic.resolveUnits(cfg.distanceUnit, cfg.temperatureUnit, cfg.pressureUnit,
                                                     Qt.locale().measurementSystem)
 
-    // Raw TeslaMate values keyed by topic suffix
+    // Raw TeslaMate values, keyed by topic suffix.
     property var car: ({})
     property bool hasData: false
     property string errorText: ""
@@ -26,18 +25,17 @@ PlasmoidItem {
     property real now: Date.now()
     // When healthy last arrived, so its carried-over value can expire.
     property var healthySeenAt: null
-    // Only a refresh someone asked for shows a spinner, so the regular polls stay quiet.
+    // A spinner only shows for a refresh someone asked for, not for regular polls.
     property bool userRefreshing: false
 
-    // The widget is a card on the desktop, where it has no panel icon or popup.
+    // On the desktop the widget is always the card, with no panel icon or popup.
     readonly property bool onDesktop: Plasmoid.formFactor === PlasmaCore.Types.Planar
-    // A card on the desktop counts as closed, so it polls at the idle rate while the car
-    // sleeps.
+    // A desktop card counts as closed, so it polls at the idle rate while the car sleeps.
     readonly property bool popupOpen: expanded && !onDesktop
     readonly property int pollMs: Logic.pollIntervalMs(cfg.refreshSeconds, cfg.idleRefreshSeconds, carState,
                                                        hasData, popupOpen)
-    // The last poll failed and the data is older than a minute, or two intervals while
-    // polling slowly, so one missed poll of a sleeping car doesn't count.
+    // The last poll failed and the data is over a minute old (or two intervals, when polling
+    // slowly), so one missed poll doesn't count.
     readonly property bool stale: hasData && errorText !== "" && lastUpdated !== null
                                   && now - lastUpdated.getTime() > Math.max(60 * 1000, 2 * pollMs)
 
@@ -49,14 +47,14 @@ PlasmoidItem {
     readonly property real limit: Logic.num(car, "charge_limit_soc") ?? -1
     readonly property real chargerKw: Logic.num(car, "charger_power") ?? 0
     readonly property string chargeStatus: Logic.chargeStatus(car)
-    // Starting counts, so the icon and the ring don't wait for the charger to ramp up.
+    // Includes starting, so the icon and ring don't wait for the charger to ramp up.
     readonly property bool charging: chargeStatus === "charging" || chargeStatus === "starting"
     readonly property bool driving: Logic.isDriving(car)
     readonly property var hoursToFull: Logic.num(car, "time_to_full_charge")
-    // kW, negative while regenerating. TeslaMate's docs say watts, but it publishes kW.
+    // kW, negative while regenerating. (TeslaMate's docs say watts, but it publishes kW.)
     readonly property var power: Logic.num(car, "power")
-    // Only when turned on, since it names where the car is going, and only while driving, so
-    // a route still retained from an earlier drive doesn't show on a parked car.
+    // Opt-in, since it names where the car is going. Only while driving, because a route
+    // from an earlier drive can stay retained.
     readonly property var route: cfg.showNavigation && driving ? Logic.activeRoute(car) : null
     // In the order of the Range setting's choices.
     readonly property var rangeTopics: ["rated_battery_range_km", "est_battery_range_km", "ideal_battery_range_km"]
@@ -65,31 +63,28 @@ PlasmoidItem {
     readonly property var attentionItems: Logic.attention(car, okGeofences)
     readonly property var attentionLines: texts.attentionLines(attentionItems)
     readonly property var usableCold: Logic.usableIfCold(car)
-    // Not "update", which would hide Item's update() method.
+    // Not named "update": that would hide Item's update() method.
     readonly property var softwareUpdate: Logic.updateProgress(car)
-    // "" while no address is set, which hides the link and the context menu entry.
+    // "" when unset, which hides the link and the context menu entry.
     readonly property string teslamateUrl: Logic.normalizeUrl(cfg.teslamateUrl)
-    // The body color for the car drawing, or "" for theme colors: when that's the setting,
-    // or TeslaMate reports no paint the widget knows.
+    // The car drawing's body color, or "" for theme colors (by setting, or unknown paint).
     readonly property string paint: cfg.carColor === 0 ? Logic.paintColor(car.exterior_color) : ""
-    // Which car the panel icon and the card draw: the settings' choice, or the model
-    // TeslaMate reports.
+    // Which model to draw: the setting's choice, or what TeslaMate reports.
     readonly property string carModel: Models.modelKey(cfg.carModel, car.model)
 
     readonly property string distUnit: units.distance
     readonly property string tempUnit: "°" + units.temperature
     readonly property string pressUnit: units.pressure
 
-    // Whole units, except that keepTenths keeps one decimal below 10, for a distance such as
-    // what's left of a route, where "0 km" would say nothing.
+    // Rounds to whole units. keepTenths keeps one decimal below 10, for the end of a route.
     function fmtDistance(km, keepTenths) {
         const d = Logic.distance(km, units.distance)
         if (d === null) return "—"
         const digits = keepTenths && d < 10 ? 1 : 0
         return (digits ? d : Math.round(d)).toLocaleString(Qt.locale(), "f", digits) + " " + distUnit
     }
-    // A whole number with a minus sign (U+2212) that is as wide as the digits, unlike a
-    // hyphen. Rounded before the sign is chosen, so a small negative value can't show as "−0".
+    // A whole number with a real minus sign (U+2212), which is as wide as a digit. Rounds
+    // first, so a small negative value can't show as "−0".
     function signed(n) {
         const r = Math.round(n)
         return (r < 0 ? "−" : "") + Math.abs(r)
@@ -102,9 +97,8 @@ PlasmoidItem {
         const v = Logic.distance(kmh, units.distance)
         return v === null ? "" : Math.round(v) + (units.distance === "mi" ? " mph" : " km/h")
     }
-    // A tenth of a bar matters, but psi and kPa are read in whole numbers. The tenth takes
-    // the locale's decimal separator, as the other numbers on the card do. The card shows
-    // the value and the unit in different sizes; a notification takes the text.
+    // One tire's pressure as {value, unit, text, warn}. bar gets one decimal, psi and kPa
+    // none. The card shows value and unit in different sizes; notifications use text.
     function tire(pos) {
         const p = Logic.pressure(Logic.num(car, "tpms_pressure_" + pos), units.pressure)
         const value = p === null ? "—"
@@ -136,14 +130,13 @@ PlasmoidItem {
         }
     }
 
-    // The locale's short time, "11:40 PM" or "23:40". Qt.formatTime(t, Locale.ShortFormat)
-    // would read the enum as Qt.ISODate and give "23:40:00".
+    // The locale's short time: "11:40 PM" or "23:40". (Qt.formatTime(t, Locale.ShortFormat)
+    // would read the enum as Qt.ISODate and give "23:40:00".)
     function shortTime(d) {
         return d.toLocaleTimeString(Qt.locale(), Locale.ShortFormat)
     }
 
-    // A time that may be days away, such as a scheduled charge, so it names the weekday
-    // when it isn't today: "11:40 PM" or "Sat 7:00 AM".
+    // Like shortTime(), with the weekday when it isn't today: "Sat 7:00 AM".
     function clock(ms) {
         const d = new Date(ms)
         const time = shortTime(d)
@@ -151,20 +144,19 @@ PlasmoidItem {
         return Qt.locale().dayName(d.getDay(), Locale.ShortFormat) + " " + time
     }
 
-    // How long the charge still takes: "1h 30m to 80%", or "1h 30m left" while the car
-    // reports no limit to name. "" when it doesn't say how long.
+    // "1h 30m to 80%", or "1h 30m left" if the car reports no limit. "" if the time is unknown.
     function chargeRemainingText() {
         const t = Logic.formatHours(hoursToFull)
         if (!t) return ""
         return limit >= 0 ? i18n("%1 to %2%", t, limit) : i18nc("how long a charge still takes", "%1 left", t)
     }
 
-    // The keys that press a button.
+    // The keys that activate a button.
     function isActivationKey(key) {
         return [Qt.Key_Space, Qt.Key_Enter, Qt.Key_Return, Qt.Key_Select].includes(key)
     }
 
-    // The browser takes over, so the popup closes rather than stay open behind it.
+    // Closes the popup too, so it doesn't stay open behind the browser.
     function openTeslaMate() {
         if (!teslamateUrl) return
         Qt.openUrlExternally(teslamateUrl)
@@ -178,7 +170,7 @@ PlasmoidItem {
     preferredRepresentation: onDesktop ? fullRepresentation : compactRepresentation
 
     toolTipMainText: carName
-    // Car names, places and errors come from MQTT; show them as written, never as markup.
+    // Names, places and errors come from MQTT, so they are never treated as markup.
     toolTipTextFormat: Text.PlainText
     toolTipSubText: {
         if (!configured) return i18n("Not configured")
@@ -187,7 +179,7 @@ PlasmoidItem {
         if (level >= 0) summary.push(level + "%", fmtDistance(rangeKm))
         const remaining = chargeRemainingText()
         if (charging && remaining) summary.push(remaining)
-        // Every attention line, since the panel icon has no other way to show them.
+        // The tooltip is the only place the panel icon can show attention lines.
         const lines = [summary.join(" · ")].concat(attentionLines)
         if (stale)
             lines.push(i18n("Not updated since %1. %2", lastUpdated.toLocaleString(Qt.locale(), Locale.ShortFormat), errorText))
@@ -209,8 +201,8 @@ PlasmoidItem {
     ]
 
     // ---------- MQTT via mosquitto_sub ----------
-    // TeslaMate publishes every value except healthy as a retained message, so a
-    // short-lived subscriber receives a full snapshot immediately and exits after -W seconds.
+    // TeslaMate retains every value except healthy, so a short-lived subscriber gets a full
+    // snapshot at once and exits after -W seconds.
 
     function connectionOptions(topics, wait) {
         return {
@@ -225,8 +217,8 @@ PlasmoidItem {
         }
     }
 
-    // manual is true when someone asked, which shows a spinner until the result arrives. If a
-    // poll is already running, its result is the one they get.
+    // manual shows a spinner until the result arrives. If a poll is already running, its
+    // result is used.
     function refresh(manual) {
         if (!configured) return
         if (manual) userRefreshing = true
@@ -241,8 +233,7 @@ PlasmoidItem {
         if (Object.keys(parsed).length === 0) {
             errorText = err || i18n("No TeslaMate data on %1/#. Check the topic prefix and that MQTT is enabled in TeslaMate.", prefix)
         } else {
-            // TeslaMate 2.1 and newer don't retain healthy, so it's only in the polls that
-            // happen to catch it. Its last value stays for 10 minutes.
+            // TeslaMate 2.1+ doesn't retain healthy, so its last value is kept for 10 minutes.
             const healthy = Logic.carryHealthy(parsed.healthy, car.healthy, healthySeenAt, now, 10 * 60 * 1000)
             if (healthy.value !== undefined) parsed.healthy = healthy.value
             healthySeenAt = healthy.seenAt
@@ -266,8 +257,7 @@ PlasmoidItem {
         widget: root
     }
 
-    // A new interval restarts the countdown, so the rate changes as soon as the car falls
-    // asleep or the popup opens.
+    // Changing the interval restarts the timer, so a new rate applies at once.
     Timer {
         interval: root.pollMs
         running: root.configured
@@ -276,16 +266,15 @@ PlasmoidItem {
         onTriggered: root.refresh(false)
     }
 
-    // Opening the popup shows fresh data, which matters most while polling slowly. Inside
-    // this handler, bindings on expanded such as popupOpen may not have updated yet, so it
-    // reads the signal's argument instead.
+    // Refresh when the popup opens. Bindings on expanded (such as popupOpen) may not have
+    // updated yet inside this handler, so it uses the signal's argument.
     onExpandedChanged: (expanded) => {
         if (expanded && !onDesktop && configured
             && (!lastUpdated || Date.now() - lastUpdated.getTime() > 5000))
             refresh(false)
     }
 
-    // Keep "asleep for 3h" ticking between polls.
+    // Keeps "asleep for 3h" ticking between polls.
     Timer {
         interval: 60 * 1000
         running: root.hasData
@@ -293,8 +282,7 @@ PlasmoidItem {
         onTriggered: root.now = Date.now()
     }
 
-    // The settings that decide where the data comes from, and their values when it was
-    // last asked for.
+    // The settings that decide where data comes from, and their values at the last request.
     readonly property var connectionKeys: ["brokerHost", "brokerPort", "brokerUser", "brokerPassword",
                                            "topicPrefix", "useTls", "caFile"]
     property string connectionSeen: ""
@@ -304,11 +292,9 @@ PlasmoidItem {
 
     Connections {
         target: Plasmoid.configuration
-        // Only connection settings need fresh data. The display settings (units, range type,
-        // right-hand drive, panel text) update through their bindings. Plasma sends
-        // valueChanged for every key when the configuration is read again, whatever was
-        // changed, so this goes by the values: a key that kept its value must not throw
-        // away the data and poll again.
+        // Only connection settings need a new fetch; display settings update through bindings.
+        // Plasma emits valueChanged for every key whenever the configuration is re-read, so
+        // this compares values: an unchanged key must not discard the data.
         function onValueChanged(key) {
             if (!root.connectionKeys.includes(key)) return
             const now = root.connectionNow()
@@ -335,8 +321,8 @@ PlasmoidItem {
 
     Component.onCompleted: {
         connectionSeen = connectionNow()
-        // 1.5 replaced the imperial checkbox with a setting for each unit. This keeps what an
-        // existing widget showed, once; libplasma saves the new values a moment later.
+        // 1.5 replaced the imperial checkbox with per-unit settings. This carries the old
+        // choice over, once.
         const migrated = Logic.unitMigration(cfg.unitsMigrated, cfg.brokerHost, cfg.imperial)
         for (const key in migrated) Plasmoid.configuration[key] = migrated[key]
     }
