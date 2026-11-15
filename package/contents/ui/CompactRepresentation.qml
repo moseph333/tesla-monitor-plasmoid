@@ -5,6 +5,8 @@ import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.components as PlasmaComponents3
 import org.kde.kirigami as Kirigami
 
+import "logic.js" as Logic
+
 // The widget in a panel: the car as a battery icon, with the level, the range or the time
 // to full beside it. Behaves like Plasma's default panel icon, for the mouse, the keyboard
 // and screen readers.
@@ -19,6 +21,17 @@ MouseArea {
     // it before the click arrives. The click goes by the state at the press, or it would
     // open the popup again straight away.
     property bool wasExpanded: false
+
+    // The text next to the panel icon. While charging, the time to full can take the
+    // range's place, since it's what matters then.
+    function panelLabel() {
+        const parts = []
+        if (widget.cfg.panelText !== 1 && widget.level >= 0) parts.push(widget.level + "%")
+        const toFull = widget.charging && widget.cfg.panelChargingTime ? Logic.formatHours(widget.hoursToFull) : ""
+        if (toFull) parts.push(toFull)
+        else if (widget.cfg.panelText !== 0 && widget.rangeKm !== null) parts.push(widget.fmtDistance(widget.rangeKm))
+        return parts.join(" · ")
+    }
 
     Layout.minimumWidth: horizontal ? row.implicitWidth : -1
     hoverEnabled: true
@@ -64,7 +77,7 @@ MouseArea {
 
         PlasmaComponents3.Label {
             visible: compact.horizontal && widget.cfg.showPanelPercentage && text !== ""
-            text: widget.panelLabel()
+            text: compact.panelLabel()
             font.features: { "tnum": 1 }
         }
     }

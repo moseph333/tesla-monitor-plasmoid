@@ -126,17 +126,6 @@ PlasmoidItem {
         }
     }
 
-    // The text next to the panel icon. While charging, the time to full can take the
-    // range's place, since it's what matters then.
-    function panelLabel() {
-        const parts = []
-        if (cfg.panelText !== 1 && level >= 0) parts.push(level + "%")
-        const toFull = charging && cfg.panelChargingTime ? Logic.formatHours(hoursToFull) : ""
-        if (toFull) parts.push(toFull)
-        else if (cfg.panelText !== 0 && rangeKm !== null) parts.push(fmtDistance(rangeKm))
-        return parts.join(" · ")
-    }
-
     function stateLabel() {
         switch (carState) {
         case "driving": {
