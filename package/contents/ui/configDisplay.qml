@@ -21,7 +21,7 @@ KCM.SimpleKCM {
     property alias cfg_unlockedOkGeofences: unlockedOkGeofences.text
     property alias cfg_teslamateUrl: teslamateUrl.text
 
-    // What Automatic means on this computer, so each combo can say which unit it gives.
+    // What Automatic resolves to on this computer, to show in each combo box.
     readonly property var autoUnits: Logic.resolveUnits(0, 0, 0, Qt.locale().measurementSystem)
 
     Kirigami.FormLayout {
@@ -77,7 +77,7 @@ KCM.SimpleKCM {
             Kirigami.FormData.label: i18n("Car")
         }
 
-        // The order of Models.KEYS, after Automatic.
+        // In the order of Models.KEYS, after Automatic.
         QQC2.ComboBox {
             id: carModel
             Kirigami.FormData.label: i18n("Model:")
@@ -153,8 +153,7 @@ KCM.SimpleKCM {
             text: i18n("Uses TeslaMate's active_route topic (TeslaMate 1.29 or newer), which includes the destination's name and location.")
         }
 
-        // For owners who leave the car unlocked on purpose, such as in a locked garage with
-        // Tesla's Exclude Home setting.
+        // For owners who leave the car unlocked on purpose, such as in a locked garage.
         QQC2.TextField {
             id: unlockedOkGeofences
             Kirigami.FormData.label: i18n("Unlocked is OK at:")
@@ -166,8 +165,8 @@ KCM.SimpleKCM {
             text: i18n("TeslaMate geofence names, separated by commas. There, an unlocked car isn't shown as a warning or notified.")
         }
 
-        // Saved the way the widget opens it, so an address typed without http:// shows
-        // here as the URL it will be.
+        // Normalized as the widget will open it, so an address typed without http:// shows
+        // as the URL it becomes.
         QQC2.TextField {
             id: teslamateUrl
             Kirigami.FormData.label: i18n("TeslaMate:")

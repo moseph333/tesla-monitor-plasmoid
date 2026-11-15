@@ -35,11 +35,8 @@ KCM.SimpleKCM {
             text: i18n("The car is unlocked with nobody inside")
         }
 
-        // The delay belongs to the two settings above it, so it only matters while one of
-        // them is on. The unit sits beside the spin box, not in its text: Plasma's style
-        // takes the value as soon as the typed text reads as a number, so with the unit in
-        // the text only the first digit typed would be saved. The spin box's own text and
-        // parsing follow its locale, digits included, which parseInt() can't read.
+        // The delay applies to the two settings above it. The unit is a label beside the
+        // spin box, not part of its text: see the note in configConnection.qml.
         RowLayout {
             Kirigami.FormData.label: i18n("For at least:")
             enabled: notifyLeftOpen.checked || notifyUnlocked.checked
