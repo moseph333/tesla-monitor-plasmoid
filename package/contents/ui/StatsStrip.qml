@@ -5,9 +5,9 @@ import org.kde.kirigami as Kirigami
 
 import "logic.js" as Logic
 
-// The temperatures, the climate and the odometer, side by side on one tinted surface.
+// Temperatures, climate and odometer, side by side on one tinted surface.
 Rectangle {
-    // main.qml's root item, which knows the car, and the card's Look.
+    // main.qml's root item, which has the car's state, and the card's Look.
     required property PlasmoidItem widget
     required property Look look
 
@@ -20,12 +20,10 @@ Rectangle {
 
         readonly property bool climateOn: Logic.bool(widget.car, "is_climate_on")
         readonly property bool preconditioning: Logic.bool(widget.car, "is_preconditioning")
-        // The cells are as wide as each other, except one whose texts need
-        // more than its share, as "Preconditioning" does. That one gets what
-        // it asks for and the others share the rest, so the hairlines hardly
-        // move when a text changes. This is the width of the cells that
-        // share. It is 0 when the strip is too narrow for what the cells ask
-        // for, and the layout then shrinks them all.
+        // The width of an equal share. Cells are equally wide, except one whose text needs
+        // more (such as "Preconditioning"): it gets what it asks for and the rest share
+        // what is left, so the dividers barely move when a text changes. 0 when the strip
+        // is too narrow, and the layout then shrinks every cell.
         readonly property real share: {
             const needs = [inside, outside, climate, odometer].map(cell => cell.implicitWidth)
             needs.sort((a, b) => b - a)
@@ -64,8 +62,7 @@ Rectangle {
             Layout.fillWidth: true
             Layout.preferredWidth: Math.max(implicitWidth, stats.share)
             label: stats.preconditioning ? i18n("Preconditioning") : i18n("Climate")
-            // A dash, like the readings beside it, while TeslaMate hasn't said
-            // whether the climate is on.
+            // A dash while TeslaMate hasn't reported the climate.
             value: stats.preconditioning || stats.climateOn ? i18n("On")
                 : Logic.triState(widget.car, "is_climate_on") === null ? "—" : i18n("Off")
             dot: stats.preconditioning || stats.climateOn
