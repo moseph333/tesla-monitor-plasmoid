@@ -428,32 +428,14 @@ function trackCharge(prev, car, nowMs, holdMs) {
     return { session: session, events: events, released: released };
 }
 
-// Which notifications a new snapshot calls for. Pass the state it returns back in with the
-// next snapshot; prev is null at the start. opts = {leftOpenMs, staleMs, holdMs, okGeofences}.
-// Returns {state, events, released}, where each event is {type, ...} and QML words it, and
-// released lists the claim keys (see claimEvent) of what this snapshot shows is fine again.
-//
-// Notifications are for changes, so the first snapshot, and the first after a gap longer
-// than staleMs (a suspend or a broker outage), only record what's already the case.
-// Something left open, or the car unlocked with nobody inside, notifies once it has been
-// that way for leftOpenMs while nobody is in the car, and only once until it's explicitly
-// fine again. A low tire and an update notify right away, once. trackCharge() has the rules
-// for a charge.
-function notifyStep(prev, car, nowMs, opts) {
-    opts = opts || {};
-    const leftOpenMs = opts.leftOpenMs === undefined ? 10 * MINUTE : opts.leftOpenMs;
-    const staleMs = opts.staleMs === undefined ? 15 * MINUTE : opts.staleMs;
-    const holdMs = opts.holdMs === undefined ? 3 * MINUTE : opts.holdMs;
-    const ok = opts.okGeofences || [];
-    // A clock set back would leave every timer in the future, so that starts over too.
-    const gap = prev ? nowMs - prev.at : NaN;
-    const first = !(gap >= 0 && gap <= staleMs);
-    const old = first ? {} : prev.tracked || {};
-
-    // Things left open and the unlocked car, with a timer that only runs while nobody is in
-    // the car; tires and updates, which notify on the next snapshot.
+// The other half of notifyStep(): things left open and the unlocked car, with a timer that
+// only runs while nobody is in the car; tires and updates, which notify on the next
+// snapshot. old is what was tracked before this snapshot, as {id: {since, done}}, and first
+// says that this snapshot only records what's already the case. Returns what is tracked
+// now, the events that are due, and the claim keys of what is fine again.
+function trackItems(old, car, nowMs, first, leftOpenMs, okGeofences) {
     const unattended = !isDriving(car) && triState(car, "is_user_present") !== true;
-    const candidates = attention(car, ok)
+    const candidates = attention(car, okGeofences)
         .filter(item => LEFT[item.type] || item.type === "unlocked" || item.type === "tire");
     if (bool(car, "update_available"))
         candidates.push({ id: "update:" + (car.update_version || ""), type: "update", part: "" });
@@ -489,27 +471,46 @@ function notifyStep(prev, car, nowMs, opts) {
     }
     for (const id in old) {
         if (tracked.hasOwnProperty(id)) continue;
-        if (isResolved(car, id, ok)) release(itemKey(id));
+        if (isResolved(car, id, okGeofences)) release(itemKey(id));
         else tracked[id] = { since: old[id].since, done: old[id].done };
     }
     // Whatever is fine ends its claim even when this copy wasn't tracking it, such as right
     // after it started over, since another copy, or this one before the gap, may hold it.
     for (const id of TRACKABLE) {
-        if (isResolved(car, id, ok)) release(itemKey(id));
+        if (isResolved(car, id, okGeofences)) release(itemKey(id));
     }
 
+    const events = [];
+    if (leftDue.length > 0) events.push({ type: "leftOpen", items: leftDue });
+    if (unlockedDue) events.push({ type: "unlocked" });
+    if (tiresDue.length > 0) events.push({ type: "tires", items: tiresDue });
+    if (updateDue !== null) events.push({ type: "update", version: updateDue });
+    return { tracked: tracked, events: events, released: released };
+}
+
+// Which notifications a new snapshot calls for. Pass the state it returns back in with the
+// next snapshot; prev is null at the start. opts = {leftOpenMs, staleMs, holdMs, okGeofences}.
+// Returns {state, events, released}, where each event is {type, ...} and QML words it, and
+// released lists the claim keys (see claimEvent) of what this snapshot shows is fine again.
+//
+// Notifications are for changes, so the first snapshot, and the first after a gap longer
+// than staleMs (a suspend or a broker outage), only record what's already the case.
+// Something left open, or the car unlocked with nobody inside, notifies once it has been
+// that way for leftOpenMs while nobody is in the car, and only once until it's explicitly
+// fine again. A low tire and an update notify right away, once. trackItems() does those,
+// and trackCharge() has the rules for a charge.
+function notifyStep(prev, car, nowMs, opts) {
+    const { leftOpenMs = 10 * MINUTE, staleMs = 15 * MINUTE, holdMs = 3 * MINUTE, okGeofences = [] } = opts || {};
+    // A clock set back would leave every timer in the future, so that starts over too.
+    const gap = prev ? nowMs - prev.at : NaN;
+    const first = !(gap >= 0 && gap <= staleMs);
+    const items = trackItems(first ? {} : prev.tracked || {}, car, nowMs, first, leftOpenMs, okGeofences);
     const charge = trackCharge(first ? null : prev.charge, car, nowMs, holdMs);
-    for (const key of charge.released) release(key);
-
-    let events = [];
-    if (!first) {
-        events = charge.events;
-        if (leftDue.length > 0) events.push({ type: "leftOpen", items: leftDue });
-        if (unlockedDue) events.push({ type: "unlocked" });
-        if (tiresDue.length > 0) events.push({ type: "tires", items: tiresDue });
-        if (updateDue !== null) events.push({ type: "update", version: updateDue });
-    }
-    return { state: { at: nowMs, charge: charge.session, tracked: tracked }, events: events, released: released };
+    return {
+        state: { at: nowMs, charge: charge.session, tracked: items.tracked },
+        events: first ? [] : charge.events.concat(items.events),
+        released: items.released.concat(charge.released)
+    };
 }
 
 // What makes an event from notifyStep() the same one, for copies of the widget that show
