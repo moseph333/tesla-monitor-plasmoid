@@ -340,6 +340,94 @@ function isResolved(car, id, okGeofences) {
     }
 }
 
+// What notifyStep() remembers about a charge between snapshots, starting with nothing known
+// but the charge port's status: whether the car has charged since, and from which level;
+// whether the session has had its notifications; and a stop that has yet to last.
+function chargeSession(status) {
+    return { status: status, startLevel: null, wasCharging: false, stopDone: false,
+             noPowerDone: false, pending: null };
+}
+
+// The charging half of notifyStep(): the session after this snapshot, the events it calls
+// for, and the claim keys it ends. prev is the session before it, or null to start over.
+//
+// A charge that stops early, or a charger that loses power, notifies at most once per
+// plug-in, and only after it has lasted for two snapshots and holdMs, so a charger that
+// pauses for a moment doesn't count. Unplugging, waiting for a schedule and a top-up that
+// adds less than 3% stay quiet.
+function trackCharge(prev, car, nowMs, holdMs) {
+    const status = chargeStatus(car);
+    const level = num(car, "battery_level");
+    const limit = num(car, "charge_limit_soc");
+    // A charge under way means the next finish or stop belongs to a new charge.
+    const released = status !== "charging" ? []
+        : ["chargeComplete", "chargeStopped", "chargerNoPower"].map(type => eventKey({ type: type }));
+    const events = [];
+
+    if (!prev) {
+        const session = chargeSession(status);
+        if (status === "charging") {
+            session.wasCharging = true;
+            session.startLevel = level;
+        }
+        return { session: session, events: events, released: released };
+    }
+
+    // A charge that added less than 3% is the car topping itself up, not worth a word.
+    const worthTelling = prev.startLevel === null || level === null || level - prev.startLevel >= 3;
+    let session = Object.assign({}, prev, { pending: prev.pending ? Object.assign({}, prev.pending) : null });
+    switch (status) {
+    case "charging":
+        session.wasCharging = true;
+        if (session.startLevel === null) session.startLevel = level;
+        session.pending = null;
+        break;
+    case "starting":
+    case "scheduled":
+        session.pending = null;
+        break;
+    case "unplugged":
+        session = chargeSession(status);
+        break;
+    case "complete":
+        if (session.wasCharging && worthTelling) events.push({ type: "chargeComplete", level: level });
+        session = chargeSession(status);
+        break;
+    case "stopped":
+    case "plugged":
+    case "nopower": {
+        if (!session.wasCharging) {
+            session.pending = null;
+            break;
+        }
+        const kind = status === "nopower" ? "nopower" : "stop";
+        session.pending = session.pending && session.pending.kind === kind
+            ? { kind: kind, since: session.pending.since, count: session.pending.count + 1 }
+            : { kind: kind, since: nowMs, count: 1 };
+        if (session.pending.count < 2 || nowMs - session.pending.since < holdMs) break;
+        if (kind === "stop" && level !== null && limit !== null && level >= limit - 1) {
+            // Reaching the limit is how TeslaMate before 1.28 says Complete, so it's
+            // treated the same way, including the new session that follows.
+            if (worthTelling) events.push({ type: "chargeComplete", level: level });
+            session = chargeSession(status);
+            break;
+        }
+        if (kind === "stop" && !session.stopDone)
+            events.push({ type: "chargeStopped", level: level, limit: limit });
+        if (kind === "nopower" && !session.noPowerDone)
+            events.push({ type: "chargerNoPower", level: level });
+        if (kind === "stop") session.stopDone = true;
+        else session.noPowerDone = true;
+        session.wasCharging = false;
+        session.pending = null;
+        break;
+    }
+    }
+    // An empty status says nothing new, so the previous one stands.
+    if (status !== "") session.status = status;
+    return { session: session, events: events, released: released };
+}
+
 // Which notifications a new snapshot calls for. Pass the state it returns back in with the
 // next snapshot; prev is null at the start. opts = {leftOpenMs, staleMs, holdMs, okGeofences}.
 // Returns {state, events, released}, where each event is {type, ...} and QML words it, and
@@ -349,12 +437,8 @@ function isResolved(car, id, okGeofences) {
 // than staleMs (a suspend or a broker outage), only record what's already the case.
 // Something left open, or the car unlocked with nobody inside, notifies once it has been
 // that way for leftOpenMs while nobody is in the car, and only once until it's explicitly
-// fine again. A low tire and an update notify right away, once.
-//
-// A charge that stops early, or a charger that loses power, notifies at most once per
-// plug-in, and only after it has lasted for two snapshots and holdMs, so a charger that
-// pauses for a moment doesn't count. Unplugging, waiting for a schedule and a top-up that
-// adds less than 3% stay quiet.
+// fine again. A low tire and an update notify right away, once. trackCharge() has the rules
+// for a charge.
 function notifyStep(prev, car, nowMs, opts) {
     opts = opts || {};
     const leftOpenMs = opts.leftOpenMs === undefined ? 10 * MINUTE : opts.leftOpenMs;
@@ -414,98 +498,18 @@ function notifyStep(prev, car, nowMs, opts) {
         if (isResolved(car, id, ok)) release(itemKey(id));
     }
 
-    const s = chargeStatus(car);
-    // A charge under way means the next finish or stop belongs to a new charge.
-    if (s === "charging") {
-        release(eventKey({ type: "chargeComplete" }));
-        release(eventKey({ type: "chargeStopped" }));
-        release(eventKey({ type: "chargerNoPower" }));
-    }
-    const level = num(car, "battery_level");
-    const limit = num(car, "charge_limit_soc");
-    const chargeEvents = [];
-    function session(status) {
-        return { status: status, startLevel: null, wasCharging: false, stopDone: false,
-                 noPowerDone: false, pending: null };
-    }
-    // A charge that added less than 3% is the car topping itself up, not worth a word.
-    function gainOk(start) {
-        return start === null || level === null || level - start >= 3;
-    }
-    let ch;
-    if (first || !prev.charge) {
-        ch = session(s);
-        if (s === "charging") {
-            ch.wasCharging = true;
-            ch.startLevel = level;
-        }
-    } else {
-        const p = prev.charge;
-        ch = { status: p.status, startLevel: p.startLevel, wasCharging: p.wasCharging,
-               stopDone: p.stopDone, noPowerDone: p.noPowerDone,
-               pending: p.pending ? { kind: p.pending.kind, since: p.pending.since, count: p.pending.count } : null };
-        switch (s) {
-        case "charging":
-            ch.wasCharging = true;
-            if (ch.startLevel === null) ch.startLevel = level;
-            ch.pending = null;
-            break;
-        case "starting":
-            ch.pending = null;
-            break;
-        case "unplugged":
-            ch = session(s);
-            break;
-        case "complete":
-            if (ch.wasCharging && gainOk(ch.startLevel)) chargeEvents.push({ type: "chargeComplete", level: level });
-            ch = session(s);
-            break;
-        case "stopped":
-        case "plugged":
-        case "nopower": {
-            if (!ch.wasCharging) {
-                ch.pending = null;
-                break;
-            }
-            const kind = s === "nopower" ? "nopower" : "stop";
-            ch.pending = ch.pending && ch.pending.kind === kind
-                ? { kind: kind, since: ch.pending.since, count: ch.pending.count + 1 }
-                : { kind: kind, since: nowMs, count: 1 };
-            if (ch.pending.count < 2 || nowMs - ch.pending.since < holdMs) break;
-            if (kind === "stop" && level !== null && limit !== null && level >= limit - 1) {
-                // Reaching the limit is how TeslaMate before 1.28 says Complete, so it's
-                // treated the same way, including the new session that follows.
-                if (gainOk(ch.startLevel)) chargeEvents.push({ type: "chargeComplete", level: level });
-                ch = session(s);
-                break;
-            }
-            if (kind === "stop" && !ch.stopDone)
-                chargeEvents.push({ type: "chargeStopped", level: level, limit: limit });
-            if (kind === "nopower" && !ch.noPowerDone)
-                chargeEvents.push({ type: "chargerNoPower", level: level });
-            if (kind === "stop") ch.stopDone = true;
-            else ch.noPowerDone = true;
-            ch.wasCharging = false;
-            ch.pending = null;
-            break;
-        }
-        case "scheduled":
-            ch.pending = null;
-            break;
-        }
-        // An empty status says nothing new, so the previous one stands.
-        if (s !== "") ch.status = s;
-    }
+    const charge = trackCharge(first ? null : prev.charge, car, nowMs, holdMs);
+    for (const key of charge.released) release(key);
 
     let events = [];
     if (!first) {
-        events = chargeEvents;
+        events = charge.events;
         if (leftDue.length > 0) events.push({ type: "leftOpen", items: leftDue });
         if (unlockedDue) events.push({ type: "unlocked" });
         if (tiresDue.length > 0) events.push({ type: "tires", items: tiresDue });
         if (updateDue !== null) events.push({ type: "update", version: updateDue });
     }
-    return { state: { at: nowMs, charge: ch, tracked: tracked }, events: events, released: released };
+    return { state: { at: nowMs, charge: charge.session, tracked: tracked }, events: events, released: released };
 }
 
 // What makes an event from notifyStep() the same one, for copies of the widget that show
