@@ -13,9 +13,7 @@ import "models.js" as Models
 // Sentry. Hovering lists the same status as text.
 // The car lies on its side with its nose to the right, like the panel icon, or stands nose
 // up, whichever draws it larger in the room the item has.
-// Its body is filled with the car's own paint, or with tints of the theme's text color when
-// no paint is given. Either way orange means open, green plugged in, and red a low tire or
-// Sentry, so nothing else on the car uses those colors.
+// Its colors are CarPalette's: the car's own paint, or tints of the theme's text color.
 // Everything is in the car's real dimensions: 1 unit = 10 mm. The shapes come from
 // models.js as a plan, drawn for each model after the top view in Tesla's owner's manual,
 // in a box that ends at the mirror tips: a Model 3's body is 185 × 469.4 in it. The
@@ -41,9 +39,6 @@ Item {
     // swing out.
     readonly property var falcon: plan.falcon
 
-    // Whether the body is drawn in the car's paint, or in theme colors.
-    readonly property bool painted: paint !== ""
-
     // ---------- state ----------
 
     readonly property string leftSeat: rightHandDrive ? "passenger" : "driver"
@@ -62,108 +57,12 @@ Item {
         return Logic.partOpen(car, seat + "_" + row + "_window_open", "windows_open")
     }
 
-    // ---------- colors and lines ----------
+    // ---------- lines ----------
 
-    readonly property color textColor: Kirigami.Theme.textColor
-    // Light text on a dark background. A tint of the text color darkens what is under it in
-    // a light scheme and lightens it in a dark one, so the car in theme colors has to turn
-    // its shading around to keep its glass darker than its body.
-    readonly property bool darkScheme: luma(textColor) > luma(Kirigami.Theme.backgroundColor)
-    readonly property color bodyColor: painted ? paint : textColor
-    // How light the paint is, from 0 to 1.
-    readonly property real paintLuma: luma(bodyColor)
-    // A paint so dark that a darker line would not show on it.
-    readonly property bool darkPaint: painted && paintLuma < 0.2
-
-    function luma(c) { return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b }
-    // A color mixed with black and with white.
-    function shade(c, share) { return Qt.rgba(c.r * (1 - share), c.g * (1 - share), c.b * (1 - share), 1) }
-    function glow(c, share) {
-        return Qt.rgba(c.r + (1 - c.r) * share, c.g + (1 - c.g) * share, c.b + (1 - c.b) * share, 1)
-    }
-
-    // The body under a light from above: 0 is the paint itself, 1 is where the light falls
-    // straight on it and -1 is where it turns away at the flank. A dark paint shows the
-    // light more than the shade, and a light paint the other way round. In theme colors
-    // the body is a tint of the text color, a stronger one where a paint would be darker
-    // in a light scheme and where it would be lighter in a dark one.
-    function bodyTone(level) {
-        if (painted)
-            return level > 0 ? glow(bodyColor, level * (0.03 + 0.08 * (1 - paintLuma)))
-                             : shade(bodyColor, -level * 0.34)
-        if (darkScheme)
-            return look.tint(textColor, 0.46 + level * (level > 0 ? 0.08 : 0.18))
-        return look.tint(textColor, 0.10 - level * (level > 0 ? 0.04 : 0.17))
-    }
-    // Across the car, from the flank to the middle.
-    readonly property color bodyEdge: bodyTone(-1)
-    readonly property color bodyTurn: bodyTone(-0.5)
-    readonly property color bodyShoulder: bodyTone(-0.24)
-    readonly property color bodySide: bodyTone(0)
-    readonly property color bodyHigh: bodyTone(0.45)
-    readonly property color bodyCrown: bodyTone(1)
-    // The nose and the tail fall away from the light.
-    readonly property color tipShade: painted ? Qt.rgba(0, 0, 0, 0.26) : noShade
-    readonly property color endShade: painted ? Qt.rgba(0, 0, 0, 0.10) : noShade
-    readonly property color noShade: Qt.rgba(0, 0, 0, 0)
-    // The light on the hood and on the trunk lid.
-    readonly property color sheenColor: Qt.rgba(1, 1, 1, 0.03 + 0.06 * (1 - paintLuma))
-    readonly property color noSheen: Qt.rgba(1, 1, 1, 0)
-    // The line around the body, in both looks: it is what tells a black car from a dark
-    // popup and a white one from a light popup.
-    readonly property color outlineColor: look.tint(textColor, 0.4)
-    // Hood, trunk and door seams.
-    readonly property color seamColor: !painted ? look.tint(textColor, 0.18)
-                                                : darkPaint ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(0, 0, 0, 0.22)
-    readonly property color faintSeamColor: Qt.rgba(seamColor.r, seamColor.g, seamColor.b, seamColor.a * 0.4)
-    // Glass along the car: lighter at the foot of the windshield and of the rear window,
-    // where it slopes, than on the roof. Then the beams across the roof and the line
-    // around a pane, which is light on a paint as dark as the glass itself: there it is
-    // all that tells the panes from the body.
-    readonly property color glassFront: painted ? "#222931" : look.tint(textColor, darkScheme ? 0.10 : 0.86)
-    readonly property color glassColor: painted ? "#0c0e11" : look.tint(textColor, darkScheme ? 0.03 : 0.97)
-    readonly property color glassRear: painted ? "#1a2027" : look.tint(textColor, darkScheme ? 0.08 : 0.90)
-    readonly property color beamColor: painted ? "#2a2e33" : look.tint(textColor, darkScheme ? 0.14 : 0.72)
-    readonly property color glassLine: !painted ? glassColor : darkPaint ? Qt.rgba(1, 1, 1, 0.17) : "#24282d"
-    readonly property color faintGlassColor: Qt.rgba(glassColor.r, glassColor.g, glassColor.b, glassColor.a * 0.45)
-    // What is written on the glass.
-    readonly property color glassInk: darkScheme ? textColor : "#f4f5f6"
-    // Tires are rubber in both looks: dark in a light scheme, and in a dark one just light
-    // enough to show beside the popup.
-    readonly property color tireColor: look.tint(textColor, darkScheme ? 0.25 : 0.85)
-    // What is black on the car itself, such as fender flares.
-    readonly property color trimColor: painted ? "#1d2024" : look.tint(textColor, darkScheme ? 0.36 : 0.7)
-    // A low tire and its reading
-    readonly property color lowColor: Kirigami.Theme.negativeTextColor
-    // Lights are colorless. At the front a clear lens with a blade of light in it, at the
-    // rear a smoked lens with a dim line: bright is the face and dark is the tail, on a
-    // white car as on a black one.
-    readonly property color lensColor: painted ? "#b9c3cd" : look.tint(textColor, 0.5)
-    readonly property color lensLine: painted ? Qt.rgba(0, 0, 0, 0.28) : "transparent"
-    readonly property color headlightColor: painted ? "#ffffff" : "transparent"
-    readonly property color tailLensColor: painted ? Qt.rgba(0.03, 0.04, 0.05, 0.8) : look.tint(textColor, 0.3)
-    readonly property color taillightColor: painted ? Qt.rgba(1, 1, 1, 0.38) : "transparent"
-    // A mirror has the body's tone where the body turns down to the flank.
-    readonly property color mirrorColor: bodyShoulder
-    readonly property color openColor: Kirigami.Theme.neutralTextColor
-    readonly property color openEdge: Qt.darker(openColor, 1.3)
-    readonly property color pluggedColor: Kirigami.Theme.positiveTextColor
-    readonly property color lockedColor: glassInk
-    readonly property color unlockedColor: Kirigami.Theme.neutralTextColor
-    readonly property color sentryColor: Kirigami.Theme.negativeTextColor
-
-    // A part that can be open is solid when it is, and faint while nothing is known about
-    // it. When only the total says that some part of its kind is open it gets a line and
-    // no fill: around it, or for a door, whose outline would crowd the window's, along its
-    // outer edge.
-    function openFill(open, closed) { return open === true ? openColor : closed }
-    function openLine(open, closed, unknown) {
-        return open === true ? openEdge : open === "some" ? openColor : open === null ? unknown : closed
-    }
     // The charge port is green with a cable in it, orange when open and empty, and not
     // drawn when closed or while TeslaMate hasn't reported it.
-    readonly property color portFill: pluggedIn ? pluggedColor : portOpen ? openColor : "transparent"
-    readonly property color portLine: pluggedIn ? Qt.darker(pluggedColor, 1.3) : portOpen ? openEdge : "transparent"
+    readonly property color portFill: pluggedIn ? colors.pluggedColor : portOpen ? colors.openColor : "transparent"
+    readonly property color portLine: pluggedIn ? Qt.darker(colors.pluggedColor, 1.3) : portOpen ? colors.openEdge : "transparent"
 
     // The width of the line around a part, around the body, and of the cable.
     readonly property real lineWidth: 1
@@ -457,6 +356,10 @@ Item {
 
     Texts { id: texts }
     Look { id: look }
+    CarPalette {
+        id: colors
+        paint: root.paint
+    }
 
     implicitWidth: 2 * (readingWidth + gap) + Kirigami.Units.gridUnit * 3
     implicitHeight: Kirigami.Units.gridUnit * 7
@@ -480,7 +383,7 @@ Item {
         property real axle
         property bool low
         path: root.tirePath(onLeft, axle)
-        fillColor: low ? root.lowColor : root.tireColor
+        fillColor: low ? colors.lowColor : colors.tireColor
     }
 
     // Filled when this window is open. When TeslaMate only reports that some window is open,
@@ -490,8 +393,8 @@ Item {
         property var points
         property var open
         path: root.windowPath(onLeft, points, root.lineWidth)
-        fillColor: root.openFill(open, open === null ? root.faintGlassColor : root.glassColor)
-        strokeColor: root.openLine(open, root.glassLine, root.faintGlassColor)
+        fillColor: colors.openFill(open, open === null ? colors.faintGlassColor : colors.glassColor)
+        strokeColor: colors.openLine(open, colors.glassLine, colors.faintGlassColor)
     }
 
     // Hinged at its front edge. Swings out and fills only when TeslaMate says which door is
@@ -531,8 +434,8 @@ Item {
             readonly property real l: root.inUnits(door.height)
             path: door.open === true ? (door.wing ? "" : root.leafPath(door.onLeft, w, l))
                 : door.open === "some" ? root.doorEdgePath(door.onLeft, w, l) : ""
-            fillColor: root.openFill(door.open, "transparent")
-            strokeColor: root.openLine(door.open, "transparent", "transparent")
+            fillColor: colors.openFill(door.open, "transparent")
+            strokeColor: colors.openLine(door.open, "transparent", "transparent")
             strokeWidth: door.open === "some" ? root.doorEdgeWidth : root.lineWidth
             capStyle: ShapePath.RoundCap
         }
@@ -561,17 +464,17 @@ Item {
 
         Part {
             path: wing.shown ? Models.reached(root.falcon.wing, root.flank, wing.lift, wing.mirrorWidth, true) : ""
-            fillColor: root.openColor
-            strokeColor: root.openEdge
+            fillColor: colors.openColor
+            strokeColor: colors.openEdge
         }
         Part {
             path: wing.shown ? root.falcon.glass.map(pane => Models.reached(pane, root.flank, 1, wing.mirrorWidth, true)).join(" ") : ""
-            fillColor: Qt.rgba(root.openEdge.r, root.openEdge.g, root.openEdge.b, 0.3)
-            strokeColor: root.openEdge
+            fillColor: Qt.rgba(colors.openEdge.r, colors.openEdge.g, colors.openEdge.b, 0.3)
+            strokeColor: colors.openEdge
         }
         Part {
             path: wing.shown ? Models.reached(root.falcon.fold, root.flank, 1, wing.mirrorWidth, false) : ""
-            strokeColor: root.openEdge
+            strokeColor: colors.openEdge
             capStyle: ShapePath.FlatCap
         }
     }
@@ -584,8 +487,8 @@ Item {
 
         Part {
             path: root.mirrorPath(frontDoor.onLeft, root.inUnits(frontDoor.width))
-            fillColor: root.mirrorColor
-            strokeColor: root.outlineColor
+            fillColor: colors.mirrorColor
+            strokeColor: colors.outlineColor
         }
     }
 
@@ -709,7 +612,7 @@ Item {
         PlasmaComponents3.Label {
             id: valueLabel
             text: reading.tire.value
-            color: reading.tire.warn ? root.lowColor : root.textColor
+            color: reading.tire.warn ? colors.lowColor : colors.textColor
             opacity: reading.known ? 1 : look.faint
             font.weight: reading.tire.warn && reading.known ? Font.DemiBold : Font.Normal
             font.features: { "tnum": 1 }
@@ -762,31 +665,31 @@ Item {
                 // What is black on the car outside its body, such as fender flares.
                 Part {
                     path: root.plan.trimPath
-                    fillColor: root.trimColor
+                    fillColor: colors.trimColor
                 }
 
                 // The body, shaded across the car. A gradient is laid out in the Shape's own
                 // pixels, whatever the path's scale. A path with a gradient keeps a fill
                 // color that is not transparent, or it would not be filled at all.
                 Part {
-                    path: root.painted ? root.bodyPath : root.openBodyPath
-                    fillColor: root.bodySide
+                    path: colors.painted ? root.bodyPath : root.openBodyPath
+                    fillColor: colors.bodySide
                     fillGradient: LinearGradient {
                         x1: root.u(root.flank)
                         y1: 0
                         x2: root.u(root.boxWidth - root.flank)
                         y2: 0
-                        GradientStop { position: 0; color: root.bodyEdge }
-                        GradientStop { position: 0.035; color: root.bodyTurn }
-                        GradientStop { position: 0.09; color: root.bodyShoulder }
-                        GradientStop { position: 0.22; color: root.bodySide }
-                        GradientStop { position: 0.36; color: root.bodyHigh }
-                        GradientStop { position: 0.5; color: root.bodyCrown }
-                        GradientStop { position: 0.64; color: root.bodyHigh }
-                        GradientStop { position: 0.78; color: root.bodySide }
-                        GradientStop { position: 0.91; color: root.bodyShoulder }
-                        GradientStop { position: 0.965; color: root.bodyTurn }
-                        GradientStop { position: 1; color: root.bodyEdge }
+                        GradientStop { position: 0; color: colors.bodyEdge }
+                        GradientStop { position: 0.035; color: colors.bodyTurn }
+                        GradientStop { position: 0.09; color: colors.bodyShoulder }
+                        GradientStop { position: 0.22; color: colors.bodySide }
+                        GradientStop { position: 0.36; color: colors.bodyHigh }
+                        GradientStop { position: 0.5; color: colors.bodyCrown }
+                        GradientStop { position: 0.64; color: colors.bodyHigh }
+                        GradientStop { position: 0.78; color: colors.bodySide }
+                        GradientStop { position: 0.91; color: colors.bodyShoulder }
+                        GradientStop { position: 0.965; color: colors.bodyTurn }
+                        GradientStop { position: 1; color: colors.bodyEdge }
                     }
                 }
                 // The same along the car, over the paint, and the line around the body.
@@ -796,12 +699,12 @@ Item {
                     y1: 0
                     x2: 0
                     y2: root.u(root.plan.length)
-                    GradientStop { position: 0; color: root.tipShade }
-                    GradientStop { position: 0.035; color: root.endShade }
-                    GradientStop { position: 0.11; color: root.noShade }
-                    GradientStop { position: 0.86; color: root.noShade }
-                    GradientStop { position: 0.955; color: root.endShade }
-                    GradientStop { position: 1; color: root.tipShade }
+                    GradientStop { position: 0; color: colors.tipShade }
+                    GradientStop { position: 0.035; color: colors.endShade }
+                    GradientStop { position: 0.11; color: colors.noShade }
+                    GradientStop { position: 0.86; color: colors.noShade }
+                    GradientStop { position: 0.955; color: colors.endShade }
+                    GradientStop { position: 1; color: colors.tipShade }
                 }
                 Part {
                     path: root.bodyPath
@@ -809,7 +712,7 @@ Item {
                     // only comes with the paint is drawn over the lights instead of under them.
                     fillColor: "black"
                     fillGradient: endShading
-                    strokeColor: root.outlineColor
+                    strokeColor: colors.outlineColor
                     strokeWidth: root.bodyLineWidth
                 }
                 // Hood and trunk lid: a soft light on the closed panel, solid when open.
@@ -819,9 +722,9 @@ Item {
                     y1: root.u(root.plan.hoodSpan[0])
                     x2: 0
                     y2: root.u(root.plan.hoodSpan[1])
-                    GradientStop { position: 0; color: root.noSheen }
-                    GradientStop { position: 0.4; color: root.sheenColor }
-                    GradientStop { position: 1; color: root.noSheen }
+                    GradientStop { position: 0; color: colors.noSheen }
+                    GradientStop { position: 0.4; color: colors.sheenColor }
+                    GradientStop { position: 1; color: colors.noSheen }
                 }
                 LinearGradient {
                     id: trunkSheen
@@ -829,46 +732,46 @@ Item {
                     y1: root.u(root.plan.trunkSpan[0])
                     x2: 0
                     y2: root.u(root.plan.trunkSpan[1])
-                    GradientStop { position: 0; color: root.noSheen }
-                    GradientStop { position: 0.55; color: root.sheenColor }
-                    GradientStop { position: 1; color: root.noSheen }
+                    GradientStop { position: 0; color: colors.noSheen }
+                    GradientStop { position: 0.55; color: colors.sheenColor }
+                    GradientStop { position: 1; color: colors.noSheen }
                 }
                 Part {
                     path: root.frunkPath
-                    fillColor: root.openFill(root.frunkOpen, root.painted ? "white" : "transparent")
-                    fillGradient: root.painted && root.frunkOpen !== true ? hoodSheen : null
-                    strokeColor: root.openLine(root.frunkOpen, root.seamColor, root.faintSeamColor)
+                    fillColor: colors.openFill(root.frunkOpen, colors.painted ? "white" : "transparent")
+                    fillGradient: colors.painted && root.frunkOpen !== true ? hoodSheen : null
+                    strokeColor: colors.openLine(root.frunkOpen, colors.seamColor, colors.faintSeamColor)
                 }
                 Part {
                     path: root.trunkPath
-                    fillColor: root.openFill(root.trunkOpen, root.painted ? "white" : "transparent")
-                    fillGradient: root.painted && root.trunkOpen !== true ? trunkSheen : null
-                    strokeColor: root.openLine(root.trunkOpen, root.seamColor, root.faintSeamColor)
+                    fillColor: colors.openFill(root.trunkOpen, colors.painted ? "white" : "transparent")
+                    fillGradient: colors.painted && root.trunkOpen !== true ? trunkSheen : null
+                    strokeColor: colors.openLine(root.trunkOpen, colors.seamColor, colors.faintSeamColor)
                 }
                 // Lines pressed into the hood, and the slats of a bed's cover.
                 Part {
                     path: root.plan.creasePath
-                    strokeColor: root.faintSeamColor
+                    strokeColor: colors.faintSeamColor
                     capStyle: ShapePath.RoundCap
                 }
                 Part {
                     path: root.plan.slatPath
-                    strokeColor: root.trunkOpen === true ? root.openEdge : root.faintSeamColor
+                    strokeColor: root.trunkOpen === true ? colors.openEdge : colors.faintSeamColor
                     capStyle: ShapePath.FlatCap
                 }
                 Part {
                     path: root.seamPath
-                    strokeColor: root.seamColor
+                    strokeColor: colors.seamColor
                     capStyle: ShapePath.FlatCap
                 }
                 // Behind an open door the flank is open: dark like the cabin's glass.
                 Part {
                     path: root.doorwaysPath
-                    fillColor: root.glassColor
+                    fillColor: colors.glassColor
                 }
                 Part {
                     path: root.beamPath
-                    fillColor: root.beamColor
+                    fillColor: colors.beamColor
                 }
                 LinearGradient {
                     id: glassShade
@@ -876,51 +779,51 @@ Item {
                     y1: root.u(root.plan.glassSpan[0])
                     x2: 0
                     y2: root.u(root.plan.glassSpan[1])
-                    GradientStop { position: 0; color: root.glassFront }
-                    GradientStop { position: 0.3; color: root.glassColor }
-                    GradientStop { position: 0.66; color: root.glassColor }
-                    GradientStop { position: 1; color: root.glassRear }
+                    GradientStop { position: 0; color: colors.glassFront }
+                    GradientStop { position: 0.3; color: colors.glassColor }
+                    GradientStop { position: 0.66; color: colors.glassColor }
+                    GradientStop { position: 1; color: colors.glassRear }
                 }
                 Part {
                     path: root.glassPath
-                    fillColor: root.glassColor
+                    fillColor: colors.glassColor
                     fillGradient: glassShade
-                    strokeColor: root.glassLine
+                    strokeColor: colors.glassLine
                 }
                 // A hatchback's rear window opens with its trunk lid.
                 Part {
                     readonly property var open: root.plan.hatch ? root.trunkOpen : false
                     path: root.rearGlassPath
-                    fillColor: root.openFill(open, root.glassColor)
+                    fillColor: colors.openFill(open, colors.glassColor)
                     fillGradient: open === true ? null : glassShade
-                    strokeColor: root.openLine(open, root.glassLine, root.glassLine)
+                    strokeColor: colors.openLine(open, colors.glassLine, colors.glassLine)
                 }
                 Part {
                     path: root.headlightPath
-                    fillColor: root.lensColor
-                    strokeColor: root.lensLine
+                    fillColor: colors.lensColor
+                    strokeColor: colors.lensLine
                 }
                 Part {
                     path: root.headlightLine
-                    strokeColor: root.headlightColor
+                    strokeColor: colors.headlightColor
                     strokeWidth: root.lightWidth
                     capStyle: ShapePath.RoundCap
                 }
                 Part {
                     path: root.taillightPath
-                    fillColor: root.tailLensColor
+                    fillColor: colors.tailLensColor
                 }
                 Part {
                     path: root.taillightLine
-                    strokeColor: root.taillightColor
+                    strokeColor: colors.taillightColor
                     capStyle: ShapePath.RoundCap
                 }
 
                 // The side glass that doesn't open.
                 Part {
                     path: root.plan.quarterPath
-                    fillColor: root.glassColor
-                    strokeColor: root.glassLine
+                    fillColor: colors.glassColor
+                    strokeColor: colors.glassLine
                 }
                 SideWindow { onLeft: true; points: root.plan.frontWindow; open: root.windowState(root.leftSeat, "front") }
                 SideWindow { onLeft: true; points: root.plan.rearWindow; open: root.windowState(root.leftSeat, "rear") }
@@ -947,7 +850,7 @@ Item {
                 }
                 Part {
                     path: root.cablePath
-                    strokeColor: root.pluggedIn ? root.pluggedColor : "transparent"
+                    strokeColor: root.pluggedIn ? colors.pluggedColor : "transparent"
                     strokeWidth: root.cableWidth
                     capStyle: ShapePath.RoundCap
                 }
@@ -960,14 +863,14 @@ Item {
             centerX: root.boxWidth / 2
             centerY: root.plan.sentryY
             path: root.sentryPath
-            color: root.sentryColor
+            color: colors.sentryColor
         }
         Glyph {
             visible: root.locked !== null
             centerX: root.boxWidth / 2
             centerY: root.plan.lockY
             path: root.locked ? root.lockPath : root.unlockPath
-            color: root.locked ? root.lockedColor : root.unlockedColor
+            color: root.locked ? colors.lockedColor : colors.unlockedColor
         }
     }
 
