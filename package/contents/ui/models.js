@@ -1,18 +1,16 @@
 .pragma library
 
-// The shapes of the cars the widget can draw: a side profile for the panel icon and a
-// top-down plan for the card, for each model TeslaMate knows. Everything is in units of
-// 10 mm. The lengths, widths, heights, overhangs and wheelbases are Tesla's own figures,
-// and the outlines follow the side and top views in Tesla's owner's manuals.
+// The shapes the widget draws for each model: a side profile for the panel icon and a
+// top-down plan for the card. One unit is 10 mm. Dimensions are Tesla's published figures;
+// outlines follow the side and top views in the owner's manuals.
 
 // ---------- which model ----------
 
-// The models in the order of the settings' list, after "Automatic".
+// In the order of the Model setting's choices, after "Automatic".
 const KEYS = ["s", "3", "x", "y", "cybertruck"];
 
-// The model to draw. setting is the settings' choice: 0 goes by what TeslaMate reports in
-// its model topic ("S", "3", "X" or "Y"), and 1 to 5 name a model from KEYS. A missing or
-// unknown report gives the Model 3, which is what the widget drew before it knew others.
+// The key of the model to draw. setting 1 to 5 picks from KEYS; 0 uses TeslaMate's model
+// topic ("S", "3", "X" or "Y"). Unknown or missing falls back to the Model 3.
 function modelKey(setting, reported) {
     const choice = Math.round(Number(setting));
     if (choice >= 1 && choice <= KEYS.length) return KEYS[choice - 1];
@@ -27,8 +25,8 @@ function modelKey(setting, reported) {
 
 function round2(v) { return Math.round(v * 100) / 100; }
 
-// A chain of lines and curves as an SVG path. points starts with [x, y]; after it [x, y]
-// is a line to there and [c1x, c1y, c2x, c2y, x, y] a curve.
+// An SVG path from a chain of points. The first is [x, y]; after that [x, y] is a line
+// to that point and [c1x, c1y, c2x, c2y, x, y] a cubic curve.
 function chain(points) {
     const out = ["M", round2(points[0][0]), round2(points[0][1])];
     for (let i = 1; i < points.length; i++) {
@@ -38,11 +36,11 @@ function chain(points) {
     return out.join(" ");
 }
 
-// Where a piece of a chain ends, and where the whole chain does.
+// The end point of one piece of a chain, and of the whole chain.
 function endOf(segment) { return [segment[segment.length - 2], segment[segment.length - 1]]; }
 function chainEnd(points) { return endOf(points[points.length - 1]); }
 
-// The same chain on the other side of a car that is w wide, run backwards.
+// The path of the chain mirrored across a car w wide, run backwards.
 function mirrored(w, points) {
     const out = [];
     for (let i = points.length - 1; i >= 1; i--) {
@@ -54,9 +52,9 @@ function mirrored(w, points) {
     return out.join(" ");
 }
 
-// A closed shape that is the same on both sides of the car, from its left half: a chain
-// from the front to the rear. Where the chain doesn't start or end on the car's middle,
-// top and bottom give the control point, on the left, of the curve that crosses over.
+// A closed, left-right symmetric shape from its left half: a chain from front to rear.
+// If the chain doesn't start or end on the centerline, top and bottom give the left
+// control point of the curve that crosses over (a straight line if omitted).
 function symmetric(w, points, top, bottom) {
     const first = points[0];
     const last = chainEnd(points);
@@ -72,20 +70,19 @@ function symmetric(w, points, top, bottom) {
     return out.join(" ");
 }
 
-// A chain with every x, across the car, put through moveX. A point or a curve lists x and
-// y in turn.
+// The chain with every x coordinate passed through moveX.
 function mapX(points, moveX) {
     return points.map(p => p.map((value, i) => i % 2 === 0 ? moveX(value) : value));
 }
 
-// A chain drawn on the left side of the car and again, mirrored, on the right.
+// The chain on the left side and, mirrored, on the right.
 function onBothSides(w, points, closed) {
     const other = mapX(points, x => w - x);
     return chain(points) + (closed ? " Z " : " ") + chain(other) + (closed ? " Z" : "");
 }
 
-// Where a chain that runs down the car's left side is at y, across the car. Along each of
-// its pieces y only grows, so the place on a curve is found by halving.
+// The x of a chain running down the car's left side, at a given y. y only increases
+// along each piece, so a curve is solved by bisection.
 function edgeAt(points, y) {
     for (let i = 1; i < points.length; i++) {
         const from = endOf(points[i - 1]);
@@ -117,7 +114,7 @@ function circlePath(cx, cy, r) {
 
 // ---------- side profiles ----------
 
-// Where the line through p with direction d meets the line through a and b.
+// The intersection of the line through p with direction d and the line through a and b.
 function meet(p, d, a, b) {
     const ex = b[0] - a[0];
     const ey = b[1] - a[1];
@@ -127,35 +124,34 @@ function meet(p, d, a, b) {
 
 function xy(p) { return round2(p[0]) + " " + round2(p[1]); }
 
-// A side profile, nose right, for a battery icon: an outline, the part of the body below
-// the windows as the fill, the same fill with a bolt-shaped gap through it, and the bolt.
-// spec gives:
-//   width, height   the icon's box
-//   wheels          [rear, front] axle, with wheelY the height of both
-//   tire, hub       the radius of the wheel's outline and of the dot in the fill
-//   body            the outline from the rear wheel arch over the roof to the front one
-//   sill            the outline's bottom edge between the arches, [from, to, y]
-//   fillY, fillArch the fill's bottom edge and the radius it keeps clear around a wheel
-//   rear            the fill from its rear arch up to where the straight edge under the
-//                   windows starts, belt its two ends, front the fill from there down to
-//                   the front arch
-//   bolt            [x, y, scale]: its middle and its size, 1 being 90 high
+// Builds a side profile (nose right) for the battery icon: the outline, the fill (the
+// body below the windows), the fill with a bolt-shaped gap, and the bolt.
+// spec:
+//   width, height    the icon's box
+//   wheels, wheelY   [rear, front] axle x, and their shared y
+//   tire, hub        radius of the wheel's outline, and of the dot in the fill
+//   body             outline path from the rear wheel arch, over the roof, to the front arch
+//   sill             the outline's bottom edge between the arches, [from, to, y]
+//   fillY, fillArch  the fill's bottom edge, and the radius it keeps clear around a wheel
+//   rear, front      fill paths: rear arch up to the belt, and belt down to the front arch
+//   belt             the two ends of the fill's straight top edge, under the windows
+//   bolt             [x, y, scale]: its center and size (scale 1 is 90 high)
 function profile(spec) {
     const [rearAxle, frontAxle] = spec.wheels;
     const [beltStart, beltEnd] = spec.belt;
     const [sillStart, sillEnd, sillY] = spec.sill;
     const [boltX, boltY, boltScale] = spec.bolt;
     const wheels = radius => `${circlePath(rearAxle, spec.wheelY, radius)} ${circlePath(frontAxle, spec.wheelY, radius)}`;
-    // The fill's bottom edge where it goes around a wheel.
+    // Where the fill's bottom edge goes around a wheel.
     const dy = spec.fillY - spec.wheelY;
     const dx = Math.sqrt(spec.fillArch * spec.fillArch - dy * dy);
     const arch = x => `L ${round2(x + dx)} ${spec.fillY} A ${spec.fillArch} ${spec.fillArch} 0 1 0 ${round2(x - dx)} ${spec.fillY}`;
 
-    // The bolt, drawn around (240, 73), moved and scaled.
+    // The bolt is defined around (240, 73), then moved and scaled.
     const place = (x, y) => [boltX + (x - 240) * boltScale, boltY + (y - 73) * boltScale];
     const bolt = [[254, 28], [218, 80], [236, 80], [226, 118], [262, 64], [244, 64]]
         .map(([x, y]) => xy(place(x, y)));
-    // The gap around it: on its left the bolt's own edges moved out, on its right one line.
+    // The gap around the bolt: parallel to the bolt's edges on the left, one line on the right.
     const floor = [[0, spec.fillY], [1, spec.fillY]];
     const a = place(202.7, 88);
     const b = place(225.7, 88);
@@ -179,7 +175,7 @@ function profile(spec) {
 }
 
 const PROFILES = {
-    // 4694 long, 1443 high, 2875 between the axles.
+    // 4694 long, 1443 high, 2875 wheelbase (mm).
     "3": {
         width: 477.4, height: 148.3, wheels: [102, 389.5], wheelY: 114.9, tire: 29.4, hub: 14,
         body: "M 56 131.4 C 44 130 32 126.5 20 120 C 12 108 6 90 4 70 C 4 60 7 50 11 44 C 12 42 14 41 18 41 C 64 34 124 8 224 4 C 266 4 300 24 330 40 C 338 44.5 349 47 362 49 C 389 53 424 60 449 70 C 461 75 469 86 472 95 C 474 104 473 116 467 124 C 463 130 456 132 449 132 L 435.4 132",
@@ -189,8 +185,7 @@ const PROFILES = {
         front: "C 344 59.5 354 60 362 61 C 389 65 416 70.5 442 81 C 451 85 456 92 459 99 C 461 105 461 112 456 116 C 453 119 449 120 444 120",
         bolt: [240, 73, 1]
     },
-    // 5021 long, 1431 high, 2960 between the axles: lower and longer, with a long hood
-    // and a roof that runs out into a lip over the tail.
+    // 5021 long, 1431 high, 2960 wheelbase.
     "s": {
         width: 510.1, height: 147.1, wheels: [114.0, 410.0], wheelY: 111.9, tire: 31.2, hub: 15,
         body: "M 66.3 133 C 52 132.5 36 130.5 24 126.5 C 16 124 8 121 5.5 115 C 3.5 108 3 98 4.5 92 C 6 87 10 83.5 11.5 77 C 13.5 69 14.5 60 14 52 C 13.8 48 13 45.5 13 44 C 22 43 32 42 41 40 C 56 36 70 29.5 86 24 C 126 11 172 4 216 4 C 244 4 262 6.5 280 11 C 308 18.5 336 31 362 43.5 C 368 46.5 376 49 386 50.5 C 410 54 432 56.5 452 61 C 470 65.5 486 73 498 80.5 C 503 84 506 89 506.5 95 C 507 103 506.5 112 505 119 C 503.5 125 499 129.5 492 131 C 482 133 470 133 457.7 133",
@@ -200,8 +195,7 @@ const PROFILES = {
         front: "C 447.4 71.8 466.6 76.5 485.6 87.1 C 488.3 88.6 492 90.1 493.7 93 C 495.7 96.6 494.8 102.3 494.5 106.2 C 494.3 110.2 494.3 114.7 492.1 118.1 C 483.1 122.3 462.2 121 452.2 121",
         bolt: [256, 76, 0.99]
     },
-    // 5057 long, 1680 high, 2965 between the axles: one arc from the hood to the
-    // spoiler, over tall windows.
+    // 5057 long, 1680 high, 2965 wheelbase.
     "x": {
         width: 513.7, height: 172.0, wheels: [114.4, 410.9], wheelY: 134.8, tire: 33.2, hub: 16,
         body: "M 64.7 149 C 54 148 40 144.5 26 141 C 17 138.5 10 134 8 127 C 5.5 120 4 110 4.5 101 C 5 92 7 84 7.3 76 C 7.6 66 7 56 6.5 48 C 6.2 43 5.5 40 6.5 37 C 13 35 20 34 27 33.5 C 40 32 52 28.5 64 24.5 C 104 11.5 150 4 200 4 C 232 4 252 5.5 270 8.5 C 304 15 334 26.5 364 40 C 370 43 376 47 384 49.5 C 404 53.5 424 57 442 60.5 C 462 65 480 71.5 496 78.5 C 503 82 508 88 509 95 C 510 106 510 118 509.5 128 C 509 135 505 140 498 142 C 487 145.5 474 149 460.6 149",
@@ -211,8 +205,7 @@ const PROFILES = {
         front: "C 471.4 81.5 494.2 87.9 496.8 95.4 C 498.2 99.6 497.7 105.5 497.8 109.9 C 497.9 116.1 498.6 123.3 496.9 129.2 C 485.4 135.3 468.9 136.9 456 137",
         bolt: [256, 84, 1.16]
     },
-    // 4750 long, 1624 high, 2890 between the axles: the Model 3's nose under a taller
-    // cabin that ends in a hatch.
+    // 4750 long, 1624 high, 2890 wheelbase.
     "y": {
         width: 483.0, height: 166.4, wheels: [102.6, 391.6], wheelY: 130.8, tire: 31.6, hub: 15,
         body: "M 54.5 149 C 44 146.5 30 141 18 136 C 12 134 8 131 6.5 126 C 4.5 119 3.5 106 5 96 C 6.5 90 10 84 11.5 76 C 12.5 68 12 58 10 50 C 9.5 46.5 9 44 9.5 42.5 C 13 40.5 19 40.5 25 39.5 C 37 36.5 49 31.5 61 27.5 C 100 15 150 4 200 4 C 232 4 250 7 268 11 C 296 19 322 33 346 45 C 352 48.5 358 51.5 366 54 C 384 58 402 62 420 66.5 C 438 71.5 454 79 468 86.5 C 474 90 478 95 479 101 C 479.5 110 479 120 478 128 C 477 135 474 140 468 143 C 460 146.5 450 148.5 439.7 149",
@@ -222,8 +215,7 @@ const PROFILES = {
         front: "C 414.3 77.3 432.6 82 455.1 93.3 C 459 95.3 464.4 97.1 466.6 101.3 C 468.4 104.7 466.9 119.2 466.4 123.6 C 466.2 125.8 466.1 128.6 464.8 130.5 C 461.1 135.8 440.7 136.9 434.8 137",
         bolt: [241, 85, 1.12]
     },
-    // 5683 long, 1791 high, 3635 between the axles: straight lines to a peak over the
-    // front seats, and a bed behind the cabin whose sides rise to the roof.
+    // 5683 long, 1791 high, 3635 wheelbase.
     "cybertruck": {
         width: 576.3, height: 183.1, wheels: [121, 484.5], wheelY: 139.2, tire: 39.9, hub: 19,
         body: "M 64.6 154 L 50 151.5 L 24 148.5 L 12 144 L 4.5 138 L 4.5 115 L 12.5 108.5 L 8.5 49 C 8.5 48 9.5 47.3 11 47 L 290 7 C 310 4.3 322 3.5 337 3.5 L 342 4 L 488 49 L 566 78.5 C 569.5 80 571.5 82 571.5 85 L 572 124 L 564 128 L 563 146 L 547 150.5 L 540.9 154",
@@ -237,8 +229,8 @@ const PROFILES = {
 
 const profileCache = {};
 
-// The side profile of a model from KEYS: { boxWidth, boxHeight, outlinePath, fillPath,
-// chargingFillPath, boltPath }.
+// The side profile for a key from KEYS: {boxWidth, boxHeight, outlinePath, fillPath,
+// chargingFillPath, boltPath}.
 function sideProfile(key) {
     const k = PROFILES[key] ? key : "3";
     if (!profileCache[k]) profileCache[k] = profile(PROFILES[k]);
@@ -247,15 +239,13 @@ function sideProfile(key) {
 
 // ---------- plans ----------
 
-// A closed chain moved dx across the car, for the left side, or its mirror image on the
-// right side of a car that is w wide.
+// A closed chain shifted by dx. With w, mirrored onto the right side of a car w wide.
 function placed(points, dx, w) {
     return chain(mapX(points, x => w === undefined ? x + dx : w - (x + dx))) + " Z";
 }
 
-// A chain of which the part outside the flank is drawn only share of the way out: 0
-// leaves it on the flank and 1 where the chain has it. For the left side, or mirrored on
-// the right side of a car that is w wide.
+// A chain whose part outside the flank is pulled in: share 0 puts it on the flank, 1
+// leaves it as drawn. With w, mirrored onto the right side.
 function reached(points, flank, share, w, closed) {
     const moved = mapX(points, x => {
         const out = x < flank ? flank - (flank - x) * share : x;
@@ -264,51 +254,45 @@ function reached(points, flank, share, w, closed) {
     return chain(moved) + (closed ? " Z" : "");
 }
 
-// A mirror's outline as a path inside its door, which is w wide: the mirror swings with
-// it. points gives [out, along]: how far out from the body's flank, and how far behind the
-// door's front edge. base is how far the flank is outside the door's own outer edge.
+// A mirror's outline in the coordinates of its door (w wide), so it swings with the door.
+// points are [out, along]: distance out from the flank, and back from the door's front
+// edge. base is how far the flank is outside the door's outer edge.
 function mirrorPath(points, base, w, onLeft) {
     return chain(mapX(points, out => onLeft ? -(base + out) : w + base + out));
 }
 
-// The plan of a car, nose up, in a box that ends at the mirror tips. Across the car x
-// starts at the left mirror's tip, and along it y starts at the nose. A plan is built
-// from:
-//   w, length       the box across, and the car's length
-//   flank           x of the body's side along the doors, which is straight. The fenders
-//                   in front of it and the haunches behind it stand out a little further
-//   belt            x of the side windows' outer edge
-//   frontAxle, rearAxle, tire   where the wheels are, and half a tire's length
-//   body            the body's left outline from the nose to the tail, as a function of
-//                   where the flank really is: whoever draws the car moves that long
-//                   straight edge onto whole pixels
-//   hood, trunk     the lids, as { points, top, bottom } for symmetric()
-//   creases         lines pressed into the hood, on the left side
-//   panes, beams    the windshield and the glass over the cabin, and the beams between
-//                   them. rear is the rear window: with hatch set it is part of the trunk
-//                   lid and opens with it
-//   sidePanes       glass over the cabin that does not reach across its middle, on the
-//                   left side
-//   frontWindow, rearWindow   the two side windows that open, and quarter the fixed
-//                   glass, as closed chains whose outer edge is on the belt
-//   frontDoor, rearDoor       where each door starts and ends along the car
-//   headlight, taillight      a lens on the left side, and headlightLine, taillightLine
-//                   the light in it
-//   mirror          its outline for mirrorPath()
-//   port            where the charge port is
-//   sentryY, lockY  where the two signs go on the glass
-//   falcon          for rear doors that lift like wings: see the Model X
-//   trim            black parts outside the body, on the left side
-//   slats           lines across the trunk lid
+// Builds the plan of a car, nose up, in a box that ends at the mirror tips. x runs across
+// from the left mirror's tip, y along from the nose. Chains describe the left side.
+// spec:
+//   w, length          the box's width, and the car's length
+//   flank              x of the body's straight side along the doors
+//   belt               x of the side windows' outer edge
+//   frontAxle, rearAxle, tire   axle positions, and half a tire's length
+//   body(flank)        the left outline, nose to tail, for a given flank: the caller
+//                      snaps that long straight edge to whole pixels
+//   hood, trunk        the lids, as {points, top, bottom} for symmetric()
+//   creases            lines pressed into the hood
+//   panes, beams       the windshield and roof glass, and the beams between them
+//   rear               the rear window. With hatch set it opens with the trunk lid
+//   sidePanes          roof glass that doesn't cross the centerline
+//   frontWindow, rearWindow, quarter   the opening side windows and the fixed glass,
+//                      as closed chains with their outer edge on the belt
+//   frontDoor, rearDoor   [start, end] of each door along the car
+//   headlight, taillight, headlightLine, taillightLine   a lens, and the light in it
+//   mirror             its outline, for mirrorPath()
+//   port               [x, y] of the charge port
+//   sentryY, lockY     where the two glyphs go on the glass
+//   falcon             rear doors that lift like wings: see the Model X
+//   trim               black parts outside the body
+//   slats              lines across the trunk lid
 function makePlan(spec) {
     const w = spec.w;
     const sym = o => symmetric(w, o.points, o.top, o.bottom);
     const each = (list, closed) => (list || []).map(c => onBothSides(w, c, closed)).join(" ");
     const base = spec.panes[0];
-    // All the glass over the cabin and the beams in it, as one outline: the left edges of
-    // the pieces that reach the cabin's side, one after the other from the windshield's
-    // foot. A body that is not opaque has this cut out of it in one piece, since the edges
-    // of holes that touch would show as hairlines.
+    // All the cabin glass and beams as one outline, built from the left edges of the pieces
+    // in order from the windshield. A translucent body has this cut out as a single hole:
+    // separate holes that touch would show hairlines between them.
     const sides = (spec.sidePanes || []).map(c => c.filter((q, i) => i === 0 || endOf(q)[0] < w / 4));
     const edge = [];
     spec.panes.concat(spec.beams, [spec.rear]).map(o => o.points).concat(sides)
@@ -341,10 +325,9 @@ function makePlan(spec) {
         mirror: spec.mirror,
         frontWindow: spec.frontWindow,
         rearWindow: spec.rearWindow,
-        // How long the windshield is, which is all the room a sign on it has.
+        // The room a glyph on the windshield has.
         windshieldLength: chainEnd(base.points)[1] - base.points[0][1],
-        // From where to where, along the car, the light on the hood, on the trunk lid and
-        // on the glass is spread.
+        // The y range of the highlight gradient on the hood, the trunk lid and the glass.
         hoodSpan: [spec.hood.points[0][1], chainEnd(spec.hood.points)[1]],
         trunkSpan: [spec.trunk.points[0][1], chainEnd(spec.trunk.points)[1]],
         glassSpan: [base.points[0][1], chainEnd(spec.rear.points)[1]],
@@ -369,9 +352,7 @@ function makePlan(spec) {
 
 const PLANS = {};
 
-// 4694 long, 1850 wide, 2875 between the axles. A round nose, a windshield that bows
-// forward, glass from there to a short trunk lid, with one beam over the front seats'
-// backs.
+// 4694 long, 1850 wide, 2875 wheelbase (mm).
 PLANS["3"] = function () {
     return makePlan({
         w: 209, length: 469.4, flank: 14.25, belt: 27, frontAxle: 84, rearAxle: 371.5, tire: 33,
@@ -408,8 +389,7 @@ PLANS["3"] = function () {
     });
 };
 
-// 4750 long, 1921 wide, 2890 between the axles. A blunter nose than the Model 3's, wide
-// haunches, and one pane of glass from the windshield to the hatch.
+// 4750 long, 1921 wide, 2890 wheelbase.
 PLANS["y"] = function () {
     return makePlan({
         w: 216.1, length: 475, flank: 13.9, belt: 25.5, frontAxle: 87.4, rearAxle: 376.4, tire: 35,
@@ -446,8 +426,7 @@ PLANS["y"] = function () {
     });
 };
 
-// 5021 long, 1987 wide, 2960 between the axles. A long hood, slim lights, and glass that
-// narrows all the way to a lip over the tail.
+// 5021 long, 1987 wide, 2960 wheelbase.
 PLANS["s"] = function () {
     return makePlan({
         w: 222.7, length: 502.1, flank: 15.6, belt: 22.5, frontAxle: 96.1, rearAxle: 392.1, tire: 35,
@@ -485,9 +464,7 @@ PLANS["s"] = function () {
     });
 };
 
-// 5057 long, 1999 wide, 2965 between the axles. The windshield reaches back over the
-// front seats, the rear doors carry the roof's glass on either side of a spine, and the
-// side windows lean far in.
+// 5057 long, 1999 wide, 2965 wheelbase. The rear doors carry the roof glass.
 PLANS["x"] = function () {
     return makePlan({
         w: 223.9, length: 505.7, flank: 16, belt: 22.5, frontAxle: 98.8, rearAxle: 395.3, tire: 37,
@@ -516,14 +493,15 @@ PLANS["x"] = function () {
         rearWindow: [[22.5, 288], [41.2, 288], [42.5, 310, 43.2, 360, 43.5, 396], [31.5, 396], [29, 370, 24, 318, 22.5, 288]],
         quarter: [[32.5, 402], [43.6, 402], [44, 418, 44.3, 434, 43.8, 445], [41, 436, 35.5, 418, 32.5, 402]],
         frontDoor: [156, 284], rearDoor: [286, 398],
-        // The rear doors are hinged along the spine and lift like wings, in two leaves:
-        // the upper one, with the roof's glass, stands up steeply, and the lower one,
-        // the door's side, lies out flat above the roof and over the body's side, about
-        // 30 further than the body. wing is an open door from above, on the left. Its
-        // tip is the sill it left, which is shorter than the door because the door is
-        // cut around the rear wheel. fold is where the two leaves meet, glass the pane in
-        // each of them, seam how far across the roof a closed door's edges run, and back
-        // where an open door ends beside the body.
+        // The rear doors hinge along the roof's spine and open in two leaves: the upper
+        // one (with the roof glass) stands up steeply, the lower one lies out flat,
+        // reaching about 30 past the body.
+        //   wing   an open door seen from above, left side. Its tip is shorter than the
+        //          door because the door is cut around the rear wheel
+        //   fold   where the two leaves meet
+        //   glass  the pane in each leaf
+        //   seam   how far across the roof a closed door's edges run
+        //   back   y where an open door ends beside the body
         falcon: {
             wing: [[102, 290], [-8, 293], [-12, 293, -12, 297, -12, 301], [-12, 334], [-12, 342, -6, 350, 2, 358],
                    [10, 367, 16, 384, 24, 396], [102, 395]],
@@ -543,9 +521,8 @@ PLANS["x"] = function () {
     });
 };
 
-// 5683 long, 2032 wide over its fender flares, 3635 between the axles. Flat steel
-// with no curve in it: a light bar across the nose, a windshield from the hood to the
-// roof's peak, and behind the cabin the bed under its cover, which is the trunk here.
+// 5683 long, 2032 wide over the fender flares, 3635 wheelbase. The bed's cover is
+// treated as the trunk.
 PLANS["cybertruck"] = function () {
     const slats = [];
     for (let y = 403; y < 550; y += 13) slats.push("M 51 " + y + " H 190.3");
@@ -582,7 +559,7 @@ PLANS["cybertruck"] = function () {
 
 const planCache = {};
 
-// The plan of a model from KEYS.
+// The plan for a key from KEYS.
 function plan(key) {
     const k = PLANS[key] ? key : "3";
     if (!planCache[k]) planCache[k] = PLANS[k]();
