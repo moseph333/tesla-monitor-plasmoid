@@ -1,5 +1,9 @@
 .pragma library
 
+const SECOND = 1000;
+const MINUTE = 60 * SECOND;
+const HOUR = 60 * MINUTE;
+
 // Parse `mosquitto_sub -v` output ("topic payload" per line) into { key: payload }
 // where key is the topic with the prefix stripped, e.g. "battery_level". An empty
 // prefix keeps the full topics.
@@ -341,9 +345,9 @@ function isResolved(car, id, okGeofences) {
 // adds less than 3% stay quiet.
 function notifyStep(prev, car, nowMs, opts) {
     opts = opts || {};
-    const leftOpenMs = opts.leftOpenMs === undefined ? 600000 : opts.leftOpenMs;
-    const staleMs = opts.staleMs === undefined ? 900000 : opts.staleMs;
-    const holdMs = opts.holdMs === undefined ? 180000 : opts.holdMs;
+    const leftOpenMs = opts.leftOpenMs === undefined ? 10 * MINUTE : opts.leftOpenMs;
+    const staleMs = opts.staleMs === undefined ? 15 * MINUTE : opts.staleMs;
+    const holdMs = opts.holdMs === undefined ? 3 * MINUTE : opts.holdMs;
     const ok = opts.okGeofences || [];
     // A clock set back would leave every timer in the future, so that starts over too.
     const gap = prev ? nowMs - prev.at : NaN;
@@ -533,7 +537,7 @@ function itemKey(id) {
 // longest "While the car sleeps" setting puts polls an hour apart, so a claim nobody
 // releases lasts two hours.
 function claimEvent(e, claim) {
-    const windowMs = 7200000;
+    const windowMs = 2 * HOUR;
     if (!e.items) return claim(eventKey(e), windowMs) ? e : null;
     const items = e.items.filter(item => claim(eventKey({ type: e.type, items: [item] }), windowMs));
     if (items.length === 0) return null;
@@ -593,8 +597,8 @@ function paintColor(name) {
 function pollIntervalMs(refresh, idle, state, hasData, popupOpen) {
     const fast = Math.max(5, refresh || 15);
     const sleeping = state === "asleep" || state === "offline" || state === "suspended";
-    if (hasData && !popupOpen && sleeping) return Math.max(fast, idle || 0) * 1000;
-    return fast * 1000;
+    if (hasData && !popupOpen && sleeping) return Math.max(fast, idle || 0) * SECOND;
+    return fast * SECOND;
 }
 
 // Single-quotes a value for the shell, so hosts, topics and passwords reach mosquitto_sub
