@@ -3,8 +3,8 @@ import org.kde.plasma.plasma5support as P5Support
 
 import "logic.js" as Logic
 
-// Runs mosquitto_sub for both the widget's poll and the settings page's buttons, and turns
-// a failed run into a sentence people can act on.
+// Runs mosquitto_sub for the widget's poll and for the settings page's buttons, and words a
+// failure as a message people can act on.
 QtObject {
     id: fetch
 
@@ -16,8 +16,8 @@ QtObject {
 
     signal finished(string stdout, string errorText)
 
-    // connection = {host, port, user, password, tls, caFile, topics, wait}. Returns false,
-    // and runs nothing, when the host can't be used.
+    // connection = {host, port, user, password, tls, caFile, topics, wait}. Returns false
+    // and runs nothing if the host is unusable.
     function run(connection) {
         const command = Logic.mosquittoCommand(connection)
         if (!command) return false
@@ -27,16 +27,16 @@ QtObject {
         return true
     }
 
-    // The running command's result is dropped when it arrives, so settings that just
-    // changed can't be overwritten by data from the old ones.
+    // Drops the running command's result, so data from old settings can't arrive after they
+    // change.
     function cancel() {
         pending = ""
     }
 
-    // The sentence for an error from Logic.mqttError(), or "" when there was none.
+    // The message for an error from Logic.mqttError(), or "" if there was none.
     function message(error) {
         const broker = Logic.parseBrokerHost(options.host)
-        // Passed as a string so i18n() can't format it as a localized number such as "8,883".
+        // A string, so i18n() doesn't format it as a number ("8,883").
         const port = String(broker.port || options.port || 1883)
         switch (error.kind) {
         case "": return ""
@@ -56,8 +56,8 @@ QtObject {
         }
     }
 
-    // The executable engine shares one source between everyone who runs the same command
-    // text, which is why the settings page waits 3 seconds where the widget waits 2.
+    // The executable engine shares one source between identical command lines, which is why
+    // the settings page waits 3 seconds and the widget 2.
     property QtObject executable: P5Support.DataSource {
         id: exec
         engine: "executable"
