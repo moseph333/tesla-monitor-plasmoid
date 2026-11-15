@@ -56,6 +56,7 @@ PlasmoidItem {
     // ---------- derived values ----------
 
     readonly property string carState: car.state || ""
+    readonly property string carName: car.display_name || i18n("Tesla")
     readonly property real level: Logic.num(car, "battery_level") ?? -1
     readonly property real limit: Logic.num(car, "charge_limit_soc") ?? -1
     readonly property real chargerKw: Logic.num(car, "charger_power") ?? 0
@@ -314,7 +315,7 @@ PlasmoidItem {
     Plasmoid.backgroundHints: PlasmaCore.Types.DefaultBackground | PlasmaCore.Types.ConfigurableBackground
     preferredRepresentation: Plasmoid.formFactor === PlasmaCore.Types.Planar ? fullRepresentation : compactRepresentation
 
-    toolTipMainText: car.display_name || i18n("Tesla")
+    toolTipMainText: carName
     // Car names, places and errors come from MQTT; show them as written, never as markup.
     toolTipTextFormat: Text.PlainText
     toolTipSubText: {
@@ -507,7 +508,7 @@ PlasmoidItem {
         const at = Date.now()
         const mine = Logic.claimEvent(e, (key, windowMs) => Hub.claim(notifySource + "|" + key, at, windowMs))
         if (!mine) return
-        const content = notificationContent(mine, car.display_name || i18n("Tesla"))
+        const content = notificationContent(mine, carName)
         if (!content) return
         const note = notificationComponent.createObject(root, {
             title: content.title,
@@ -769,11 +770,11 @@ PlasmoidItem {
                     spacing: 0
 
                     PlasmaExtras.Heading {
-                        id: carName
+                        id: nameHeading
                         Layout.fillWidth: true
                         level: 3
                         font.weight: Font.DemiBold
-                        text: root.car.display_name || i18n("Tesla")
+                        text: root.carName
                         textFormat: Text.PlainText
                         elide: Text.ElideRight
                         // Underlined like a link while pointed at or focused, once it is one.
@@ -787,9 +788,9 @@ PlasmoidItem {
                         // link goes wherever the text is.
                         Item {
                             id: nameLink
-                            x: carName.effectiveHorizontalAlignment === Text.AlignRight ? carName.width - width : 0
-                            width: Math.min(carName.contentWidth, carName.width)
-                            height: carName.height
+                            x: nameHeading.effectiveHorizontalAlignment === Text.AlignRight ? nameHeading.width - width : 0
+                            width: Math.min(nameHeading.contentWidth, nameHeading.width)
+                            height: nameHeading.height
                             activeFocusOnTab: root.teslamateUrl !== ""
 
                             Keys.onPressed: (event) => {
@@ -805,7 +806,7 @@ PlasmoidItem {
                             }
 
                             Accessible.role: Accessible.Link
-                            Accessible.name: carName.text
+                            Accessible.name: nameHeading.text
                             Accessible.description: i18n("Open TeslaMate")
                             Accessible.ignored: root.teslamateUrl === ""
                             Accessible.onPressAction: root.openTeslaMate()
