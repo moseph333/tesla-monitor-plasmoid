@@ -53,7 +53,7 @@ PlasmoidItem {
     // The last poll failed and the data is older than a minute, or two intervals while
     // polling slowly, so one missed poll of a sleeping car doesn't count.
     readonly property bool stale: hasData && errorText !== "" && lastUpdated !== null
-                                  && now - lastUpdated.getTime() > Math.max(60000, 2 * pollMs)
+                                  && now - lastUpdated.getTime() > Math.max(60 * 1000, 2 * pollMs)
 
     // ---------- derived values ----------
 
@@ -217,7 +217,7 @@ PlasmoidItem {
     function chargeDoneText() {
         if (!chargeRemainingText() || !lastUpdated) return ""
         return i18nc("follows how long a charge still takes", "done by %1",
-                     clock(lastUpdated.getTime() + hoursToFull * 3600000))
+                     clock(lastUpdated.getTime() + hoursToFull * 60 * 60 * 1000))
     }
 
     // While charging: the energy added so far and what the charger supplies.
@@ -388,7 +388,7 @@ PlasmoidItem {
         } else {
             // TeslaMate 2.1 and newer don't retain healthy, so it's only in the polls that
             // happen to catch it. Its last value stays for 10 minutes.
-            const h = Logic.carryHealthy(parsed.healthy, car.healthy, healthySeenAt, now, 600000)
+            const h = Logic.carryHealthy(parsed.healthy, car.healthy, healthySeenAt, now, 10 * 60 * 1000)
             if (h.value !== undefined) parsed.healthy = h.value
             healthySeenAt = h.seenAt
             car = parsed
@@ -427,7 +427,7 @@ PlasmoidItem {
 
     // Keep "asleep for 3h" ticking between polls.
     Timer {
-        interval: 60000
+        interval: 60 * 1000
         running: root.hasData
         repeat: true
         onTriggered: root.now = Date.now()
@@ -488,10 +488,10 @@ PlasmoidItem {
     // turned off, so turning it on later doesn't bring up something old.
     function processNotifications() {
         const r = Logic.notifyStep(notifyState, car, Date.now(), {
-            leftOpenMs: cfg.leftOpenMinutes * 60000,
-            // Several polls at the slower rate, so only something like a suspend or a broker
-            // outage counts as a gap that starts over.
-            staleMs: Math.max(900000, 3000 * Math.max(cfg.refreshSeconds, cfg.idleRefreshSeconds)),
+            leftOpenMs: cfg.leftOpenMinutes * 60 * 1000,
+            // Three polls at the slower rate and at least 15 minutes, so only something like
+            // a suspend or a broker outage counts as a gap that starts over.
+            staleMs: Math.max(15 * 60 * 1000, 3 * 1000 * Math.max(cfg.refreshSeconds, cfg.idleRefreshSeconds)),
             okGeofences: okGeofences
         })
         notifyState = r.state
