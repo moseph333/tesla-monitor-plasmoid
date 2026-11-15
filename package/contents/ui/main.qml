@@ -125,9 +125,6 @@ PlasmoidItem {
             warn: Logic.bool(car, "tpms_soft_warning_" + pos)
         }
     }
-    function fmtPower(kw) {
-        return signed(kw) + " kW"
-    }
 
     // The text next to the panel icon. While charging, the time to full can take the
     // range's place, since it's what matters then.
@@ -174,108 +171,12 @@ PlasmoidItem {
         return Qt.locale().dayName(d.getDay(), Locale.ShortFormat) + " " + time
     }
 
-    // The charge port's status for the card while it isn't charging.
-    function chargeStatusText() {
-        switch (chargeStatus) {
-        case "complete": return i18n("Charging complete")
-        case "stopped": return i18n("Charging stopped")
-        case "scheduled": return i18n("Charging starts at %1", clock(Date.parse(car.scheduled_charging_start_time)))
-        case "nopower": return i18n("Plugged in, charger has no power")
-        case "plugged": return i18n("Plugged in")
-        case "unplugged": return i18n("Not plugged in")
-        default: return ""
-        }
-    }
-
-    // The charging block's figure. The charger reports no power yet while it starts, and
-    // current × voltage stands in when it reports 0 kW, as it can for a slow charge.
-    function chargePowerText() {
-        if (chargeStatus === "starting") return i18n("Starting…")
-        if (chargerKw > 0) return chargerKw + " kW"
-        const amps = Logic.num(car, "charger_actual_current")
-        const volts = Logic.num(car, "charger_voltage")
-        if (amps > 0 && volts > 0) return (amps * volts / 1000).toLocaleString(Qt.locale(), "f", 1) + " kW"
-        return i18n("Charging")
-    }
-
     // How long the charge still takes: "1h 30m to 80%", or "1h 30m left" while the car
     // reports no limit to name. "" when it doesn't say how long.
     function chargeRemainingText() {
         const t = Logic.formatHours(hoursToFull)
         if (!t) return ""
         return limit >= 0 ? i18n("%1 to %2%", t, limit) : i18nc("how long a charge still takes", "%1 left", t)
-    }
-
-    // While charging: when the limit is reached, on the line after how long that takes.
-    // The car's estimate counts from when it was published, which the last poll is nearest
-    // to, so the time doesn't creep later while data is old.
-    function chargeDoneText() {
-        if (!chargeRemainingText() || !lastUpdated) return ""
-        return i18nc("follows how long a charge still takes", "done by %1",
-                     clock(lastUpdated.getTime() + hoursToFull * 60 * 60 * 1000))
-    }
-
-    // While charging: the energy added so far and what the charger supplies.
-    function chargeSupplyText() {
-        const parts = []
-        const added = Logic.num(car, "charge_energy_added")
-        if (added !== null) parts.push("+" + added.toLocaleString(Qt.locale(), "f", 1) + " kWh")
-        const amps = Logic.num(car, "charger_actual_current")
-        const volts = Logic.num(car, "charger_voltage")
-        if (amps !== null && volts !== null) {
-            parts.push(amps + " A", volts + " V")
-            const phases = Logic.showPhases(car)
-            // ki18n takes the plural form from an integer only, and a number read from a
-            // payload is a real even when it's whole.
-            if (phases !== null) parts.push(i18np("%1 phase", "%1 phases", phases | 0))
-        }
-        return parts.join(" · ")
-    }
-
-    // The car asks for less than the charger offers when its charge current has been
-    // turned down, which explains a slow charge.
-    function chargeRequestText() {
-        const request = Logic.num(car, "charge_current_request")
-        const requestMax = Logic.num(car, "charge_current_request_max")
-        return request !== null && requestMax !== null && request < requestMax
-            ? i18n("Requested %1 of %2 A", request, requestMax) : ""
-    }
-
-    // On a route: when the car arrives, and how much of that is traffic.
-    function routeArrivalText() {
-        const t = route !== null && route.minutes !== null ? Logic.formatHours(route.minutes / 60) : ""
-        if (!t) return ""
-        const arriving = i18n("Arriving in %1", t)
-        return route.trafficMinutes >= 1
-            ? arriving + " · " + i18n("+%1 traffic", Logic.formatHours(route.trafficMinutes / 60)) : arriving
-    }
-
-    // On a route: how far it still is, and the battery level the car expects to arrive with.
-    function routeRemainingText() {
-        if (route === null) return ""
-        const parts = []
-        if (route.km !== null) parts.push(i18n("%1 to go", fmtDistance(route.km, true)))
-        // Negative when the battery won't last as far as the destination.
-        if (route.energyAtArrival !== null) parts.push(i18n("%1% on arrival", signed(route.energyAtArrival)))
-        return parts.join(" · ")
-    }
-
-    // The charge limit, with the range a charge to it gives when that can be worked out.
-    function limitText() {
-        if (limit < 0) return ""
-        const parts = [i18n("Limit %1%", limit)]
-        if (limit > 0 && level > 0 && rangeKm !== null)
-            parts.push(i18nc("the range a charge to the limit gives", "about %1",
-                             fmtDistance(rangeKm / level * limit)))
-        return parts.join(" · ")
-    }
-
-    // When a scheduled charge starts. The status line already says so while the car waits
-    // for it.
-    function scheduleText() {
-        if (chargeStatus === "scheduled") return ""
-        const t = Date.parse(car.scheduled_charging_start_time || "")
-        return isNaN(t) ? "" : i18n("Scheduled %1", shortTime(new Date(t)))
     }
 
     // The update's status in the footer.
