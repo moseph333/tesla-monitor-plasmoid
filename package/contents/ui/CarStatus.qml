@@ -196,6 +196,7 @@ Item {
     readonly property real doorSwing: 30
     readonly property real swingSin: Math.sin(doorSwing * Math.PI / 180)
     readonly property real swingCos: Math.cos(doorSwing * Math.PI / 180)
+    readonly property real swingTan: Math.tan(doorSwing * Math.PI / 180)
     readonly property real doorReach: (plan.frontDoor[1] - plan.frontDoor[0]) * swingSin - doorOuter
     // How far a reading above or below a wheel may reach towards the middle of the car: an
     // open rear door ends this far ahead of the rear axle. On a Model 3, whose rear door is
@@ -294,7 +295,7 @@ Item {
     function leafPath(onLeft, w, l) {
         const d = inUnits(lineWidth / 2)
         const r = 4
-        const cut = leafExtra / Math.tan(doorSwing * Math.PI / 180)
+        const cut = leafExtra / swingTan
         const x0 = snap(onLeft ? 0 : -leafExtra) + d
         const x1 = snap(onLeft ? w + leafExtra : w) - d
         const y0 = d
@@ -326,7 +327,7 @@ Item {
     function doorwayPath(onLeft, from, to) {
         const left = snap(doorOuter)
         const right = Math.max(left, belt - inUnits(doorwayGap))
-        const front = from + 2 + (right - left) * Math.tan(doorSwing * Math.PI / 180)
+        const front = from + 2 + (right - left) * swingTan
         return box(reflect(onLeft, onLeft ? left : right), Math.min(front, to - 2), reflect(onLeft, onLeft ? right : left), to - 2, 2, 0)
     }
     // A mirror grows out of the body. Its outline, from the plan, starts and ends on the
