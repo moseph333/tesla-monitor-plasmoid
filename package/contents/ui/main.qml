@@ -428,11 +428,13 @@ PlasmoidItem {
         onTriggered: root.now = Date.now()
     }
 
-    // The connection settings the data was asked with.
+    // The settings that decide where the data comes from, and their values when it was
+    // last asked for.
+    readonly property var connectionKeys: ["brokerHost", "brokerPort", "brokerUser", "brokerPassword",
+                                           "topicPrefix", "useTls", "caFile"]
     property string connectionSeen: ""
     function connectionNow() {
-        return JSON.stringify([cfg.brokerHost, cfg.brokerPort, cfg.brokerUser, cfg.brokerPassword,
-                               cfg.topicPrefix, cfg.useTls, cfg.caFile])
+        return JSON.stringify(connectionKeys.map(key => cfg[key]))
     }
 
     Connections {
@@ -443,8 +445,7 @@ PlasmoidItem {
         // changed, so this goes by the values: a key that kept its value must not throw
         // away the data and poll again.
         function onValueChanged(key) {
-            if (["brokerHost", "brokerPort", "brokerUser", "brokerPassword", "topicPrefix", "useTls", "caFile"].indexOf(key) < 0)
-                return
+            if (!root.connectionKeys.includes(key)) return
             const now = root.connectionNow()
             if (now === root.connectionSeen) return
             root.connectionSeen = now
