@@ -156,10 +156,8 @@ PlasmoidItem {
             return softwareUpdate.percent !== null ? i18n("Installing update · %1%", Math.round(softwareUpdate.percent))
                                                    : i18n("Installing update")
         case "suspended": return i18n("Falling asleep")
-        case "online": {
-            const shift = car.shift_state || ""
-            return (shift === "D" || shift === "R") ? i18n("Driving") : i18n("Parked")
-        }
+        // In gear, before TeslaMate starts recording the drive.
+        case "online": return driving ? i18n("Driving") : i18n("Parked")
         default: return carState ? carState : i18n("Unknown")
         }
     }
