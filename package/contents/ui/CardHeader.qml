@@ -8,10 +8,10 @@ import org.kde.kirigami as Kirigami
 
 import "logic.js" as Logic
 
-// The card's header: the car's name, which opens TeslaMate once its address is set, what
-// the car is doing, where and since when, and the button that refreshes.
+// The card's header: the car's name (a link to TeslaMate if its address is set), what the
+// car is doing, where and since when, and the refresh button.
 RowLayout {
-    // main.qml's root item, which knows the car, and the card's Look.
+    // main.qml's root item, which has the car's state, and the card's Look.
     required property PlasmoidItem widget
     required property Look look
 
@@ -29,15 +29,13 @@ RowLayout {
             text: widget.carName
             textFormat: Text.PlainText
             elide: Text.ElideRight
-            // Underlined like a link while pointed at or focused, once it is one.
+            // Underlined like a link when hovered or focused, if it is one.
             font.underline: widget.teslamateUrl !== "" && (nameHover.hovered || nameLink.activeFocus)
 
-            // With TeslaMate's address set, the name opens it. This covers only the
-            // text, not the empty width the layout gives the heading, and is what
-            // Tab and screen readers reach, so the heading keeps its own role while
-            // there is no link. Plasma mirrors the popup and the desktop for a
-            // right-to-left language, which draws the name at the right edge, so the
-            // link goes wherever the text is.
+            // The link. It covers only the text, not the heading's full width, and is what
+            // Tab and screen readers reach, so the heading keeps its own role when there is
+            // no link. In right-to-left layouts the text is at the right edge, and the link
+            // follows it.
             Item {
                 id: nameLink
                 x: nameHeading.effectiveHorizontalAlignment === Text.AlignRight ? nameHeading.width - width : 0
@@ -77,8 +75,8 @@ RowLayout {
             Layout.fillWidth: true
             spacing: Kirigami.Units.smallSpacing
 
-            // The state's dot inside a soft halo of its own color. The layout
-            // places the halo, so it stays inside the header's line.
+            // The state's dot in a halo of its own color. The halo is the layout item, so
+            // it stays within the line.
             Rectangle {
                 implicitWidth: stateDot.width + 2 * Math.round(Kirigami.Units.smallSpacing * 0.75)
                 implicitHeight: implicitWidth
@@ -114,9 +112,8 @@ RowLayout {
         }
     }
 
-    // Only for a refresh someone asked for, and beside the button rather than
-    // over it, so the button keeps its icon. Its place is kept while it's
-    // hidden, so the header doesn't move when it shows.
+    // The spinner for a manual refresh. It sits beside the button, not over it, and keeps
+    // its space when hidden so the header doesn't shift.
     Item {
         implicitWidth: Kirigami.Units.iconSizes.small
         implicitHeight: Kirigami.Units.iconSizes.small
@@ -128,8 +125,7 @@ RowLayout {
         }
     }
 
-    // Always visible and enabled, even while refreshing, so it never takes
-    // keyboard focus away by disappearing or turning off.
+    // Always visible and enabled, so it never drops keyboard focus mid-refresh.
     PlasmaComponents3.ToolButton {
         id: refreshButton
         icon.name: "view-refresh"
