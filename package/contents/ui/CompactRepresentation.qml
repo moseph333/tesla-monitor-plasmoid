@@ -7,23 +7,21 @@ import org.kde.kirigami as Kirigami
 
 import "logic.js" as Logic
 
-// The widget in a panel: the car as a battery icon, with the level, the range or the time
-// to full beside it. Behaves like Plasma's default panel icon, for the mouse, the keyboard
-// and screen readers.
+// The widget in a panel: the car as a battery icon, with the level, range or time to full
+// beside it. It behaves like Plasma's default panel icon for mouse, keyboard and screen
+// readers.
 MouseArea {
     id: compact
 
-    // main.qml's root item, which knows the car.
+    // main.qml's root item, which has the car's state.
     required property PlasmoidItem widget
 
     readonly property bool horizontal: Plasmoid.formFactor === PlasmaCore.Types.Horizontal
-    // Pressing the icon while the popup is open takes focus from the popup, which closes
-    // it before the click arrives. The click goes by the state at the press, or it would
-    // open the popup again straight away.
+    // Whether the popup was open at the press. Pressing the icon takes focus from an open
+    // popup, which closes it before the click arrives, and the click would then reopen it.
     property bool wasExpanded: false
 
-    // The text next to the panel icon. While charging, the time to full can take the
-    // range's place, since it's what matters then.
+    // The text next to the icon. While charging, the time to full can replace the range.
     function panelLabel() {
         const parts = []
         if (widget.cfg.panelText !== 1 && widget.level >= 0) parts.push(widget.level + "%")
@@ -42,13 +40,13 @@ MouseArea {
     Keys.onPressed: (event) => {
         if (!widget.isActivationKey(event.key)) return
         Plasmoid.activated()
-        // Taken here, so a system tray holding the widget doesn't act on it as well.
+        // Accepted here so a system tray holding the widget doesn't act on it too.
         event.accepted = true
     }
 
     Accessible.role: Accessible.Button
     Accessible.name: Plasmoid.title
-    // The tooltip, which is all the icon has to say.
+    // The tooltip's text.
     Accessible.description: widget.toolTipMainText + "; " + widget.toolTipSubText
     Accessible.onPressAction: Plasmoid.activated()
 
@@ -57,13 +55,12 @@ MouseArea {
         anchors.centerIn: parent
         height: parent.height
         spacing: Kirigami.Units.smallSpacing
-        // Dimmed while the data is old, so a level from hours ago doesn't pass for now.
+        // Dimmed while the data is stale.
         opacity: widget.stale ? 0.5 : 1
 
         CarBattery {
-            // Plasma's small icon size, so it sits near the system tray's battery icon (whose
-            // battery shape is 12 px tall) instead of growing with the panel. Thinner panels
-            // and vertical panels shrink it to fit.
+            // Plasma's small icon size, to match the system tray's battery icon instead of
+            // growing with the panel. Thin and vertical panels shrink it to fit.
             readonly property real fitHeight: Math.min(Kirigami.Units.iconSizes.small,
                                                        compact.horizontal ? compact.height : compact.width / aspect)
 
