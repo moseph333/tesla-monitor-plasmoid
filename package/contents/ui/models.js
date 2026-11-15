@@ -8,15 +8,15 @@
 // ---------- which model ----------
 
 // The models in the order of the settings' list, after "Automatic".
-var KEYS = ["s", "3", "x", "y", "cybertruck"];
+const KEYS = ["s", "3", "x", "y", "cybertruck"];
 
 // The model to draw. setting is the settings' choice: 0 goes by what TeslaMate reports in
 // its model topic ("S", "3", "X" or "Y"), and 1 to 5 name a model from KEYS. A missing or
 // unknown report gives the Model 3, which is what the widget drew before it knew others.
 function modelKey(setting, reported) {
-    var i = Math.round(Number(setting));
+    const i = Math.round(Number(setting));
     if (i >= 1 && i <= KEYS.length) return KEYS[i - 1];
-    var s = String(reported === undefined || reported === null ? "" : reported)
+    const s = String(reported === undefined || reported === null ? "" : reported)
         .toLowerCase().replace(/[^a-z0-9]/g, "").replace(/^tesla/, "").replace(/^model/, "");
     if (s === "s" || s === "x" || s === "y" || s === "3") return s;
     if (s === "c" || s === "ct" || s.indexOf("cyber") === 0) return "cybertruck";
@@ -30,10 +30,10 @@ function r2(v) { return Math.round(v * 100) / 100; }
 // A chain of lines and curves as an SVG path. points starts with [x, y]; after it [x, y]
 // is a line to there and [c1x, c1y, c2x, c2y, x, y] a curve.
 function chain(points) {
-    var out = ["M", r2(points[0][0]), r2(points[0][1])];
-    for (var i = 1; i < points.length; i++) {
+    const out = ["M", r2(points[0][0]), r2(points[0][1])];
+    for (let i = 1; i < points.length; i++) {
         out.push(points[i].length === 2 ? "L" : "C");
-        for (var j = 0; j < points[i].length; j++) out.push(r2(points[i][j]));
+        for (let j = 0; j < points[i].length; j++) out.push(r2(points[i][j]));
     }
     return out.join(" ");
 }
@@ -42,10 +42,10 @@ function endOf(segment) { return [segment[segment.length - 2], segment[segment.l
 
 // The same chain on the other side of a car that is w wide, run backwards.
 function mirrored(w, points) {
-    var out = [];
-    for (var i = points.length - 1; i >= 1; i--) {
-        var to = endOf(points[i - 1]);
-        var p = points[i];
+    const out = [];
+    for (let i = points.length - 1; i >= 1; i--) {
+        const to = endOf(points[i - 1]);
+        const p = points[i];
         if (p.length === 2) out.push("L", r2(w - to[0]), r2(to[1]));
         else out.push("C", r2(w - p[2]), r2(p[3]), r2(w - p[0]), r2(p[1]), r2(w - to[0]), r2(to[1]));
     }
@@ -56,9 +56,9 @@ function mirrored(w, points) {
 // from the front to the rear. Where the chain doesn't start or end on the car's middle,
 // top and bottom give the control point, on the left, of the curve that crosses over.
 function symmetric(w, points, top, bottom) {
-    var first = points[0];
-    var last = endOf(points[points.length - 1]);
-    var out = [chain(points)];
+    const first = points[0];
+    const last = endOf(points[points.length - 1]);
+    const out = [chain(points)];
     if (Math.abs(last[0] - w / 2) > 0.001) {
         if (bottom) out.push("C", r2(bottom[0]), r2(bottom[1]), r2(w - bottom[0]), r2(bottom[1]), r2(w - last[0]), r2(last[1]));
         else out.push("L", r2(w - last[0]), r2(last[1]));
@@ -72,7 +72,7 @@ function symmetric(w, points, top, bottom) {
 
 // A chain drawn on the left side of the car and again, mirrored, on the right.
 function onBothSides(w, points, closed) {
-    var other = points.map(function (p) {
+    const other = points.map(function (p) {
         return p.length === 2 ? [w - p[0], p[1]] : [w - p[0], p[1], w - p[2], p[3], w - p[4], p[5]];
     });
     return chain(points) + (closed ? " Z " : " ") + chain(other) + (closed ? " Z" : "");
@@ -81,21 +81,21 @@ function onBothSides(w, points, closed) {
 // Where a chain that runs down the car's left side is at y, across the car. Along each of
 // its pieces y only grows, so the place on a curve is found by halving.
 function edgeAt(points, y) {
-    for (var i = 1; i < points.length; i++) {
-        var from = endOf(points[i - 1]);
-        var p = points[i];
-        var to = endOf(p);
+    for (let i = 1; i < points.length; i++) {
+        const from = endOf(points[i - 1]);
+        const p = points[i];
+        const to = endOf(p);
         if (y < from[1] || y > to[1]) continue;
         if (p.length === 2)
             return to[1] === from[1] ? from[0] : from[0] + (to[0] - from[0]) * (y - from[1]) / (to[1] - from[1]);
-        var along = function (axis, t) {
-            var s = 1 - t;
+        const along = function (axis, t) {
+            const s = 1 - t;
             return s * s * s * from[axis] + 3 * s * s * t * p[axis] + 3 * s * t * t * p[2 + axis] + t * t * t * to[axis];
         };
-        var before = 0;
-        var after = 1;
-        for (var k = 0; k < 16; k++) {
-            var t = (before + after) / 2;
+        let before = 0;
+        let after = 1;
+        for (let k = 0; k < 16; k++) {
+            const t = (before + after) / 2;
             if (along(1, t) < y) before = t;
             else after = t;
         }
@@ -113,9 +113,9 @@ function circlePath(cx, cy, r) {
 
 // Where the line through p with direction d meets the line through a and b.
 function meet(p, d, a, b) {
-    var ex = b[0] - a[0];
-    var ey = b[1] - a[1];
-    var t = ((a[0] - p[0]) * ey - (a[1] - p[1]) * ex) / (d[0] * ey - d[1] * ex);
+    const ex = b[0] - a[0];
+    const ey = b[1] - a[1];
+    const t = ((a[0] - p[0]) * ey - (a[1] - p[1]) * ex) / (d[0] * ey - d[1] * ex);
     return [p[0] + d[0] * t, p[1] + d[1] * t];
 }
 
@@ -135,30 +135,30 @@ function pt(p) { return r2(p[0]) + " " + r2(p[1]); }
 //                   the front arch
 //   bolt            [x, y, scale]: its middle and its size, 1 being 90 high
 function profile(s) {
-    var xr = s.wheels[0];
-    var xf = s.wheels[1];
-    var dy = s.fillY - s.wheelY;
-    var dx = Math.sqrt(s.fillArch * s.fillArch - dy * dy);
-    var arch = function (x) {
+    const xr = s.wheels[0];
+    const xf = s.wheels[1];
+    const dy = s.fillY - s.wheelY;
+    const dx = Math.sqrt(s.fillArch * s.fillArch - dy * dy);
+    const arch = function (x) {
         return "L " + r2(x + dx) + " " + s.fillY + " A " + s.fillArch + " " + s.fillArch + " 0 1 0 " + r2(x - dx) + " " + s.fillY;
     };
-    var hubs = " " + circlePath(xr, s.wheelY, s.hub) + " " + circlePath(xf, s.wheelY, s.hub);
-    var from = s.belt[0];
-    var to = s.belt[1];
+    const hubs = " " + circlePath(xr, s.wheelY, s.hub) + " " + circlePath(xf, s.wheelY, s.hub);
+    const from = s.belt[0];
+    const to = s.belt[1];
 
     // The bolt, drawn around (240, 73), moved and scaled.
-    var place = function (x, y) { return [s.bolt[0] + (x - 240) * s.bolt[2], s.bolt[1] + (y - 73) * s.bolt[2]]; };
-    var bolt = [[254, 28], [218, 80], [236, 80], [226, 118], [262, 64], [244, 64]]
+    const place = function (x, y) { return [s.bolt[0] + (x - 240) * s.bolt[2], s.bolt[1] + (y - 73) * s.bolt[2]]; };
+    const bolt = [[254, 28], [218, 80], [236, 80], [226, 118], [262, 64], [244, 64]]
         .map(function (p) { return pt(place(p[0], p[1])); });
     // The gap around it: on its left the bolt's own edges moved out, on its right one line.
-    var floor = [[0, s.fillY], [1, s.fillY]];
-    var a = place(202.7, 88);
-    var b = place(225.7, 88);
-    var c = place(234.3, 120);
-    var topLeft = meet(a, [36, -52], from, to);
-    var bottomLeft = meet(b, [-10, 38], floor[0], floor[1]);
-    var topRight = meet(c, [36, -54], from, to);
-    var bottomRight = meet(c, [36, -54], floor[0], floor[1]);
+    const floor = [[0, s.fillY], [1, s.fillY]];
+    const a = place(202.7, 88);
+    const b = place(225.7, 88);
+    const c = place(234.3, 120);
+    const topLeft = meet(a, [36, -52], from, to);
+    const bottomLeft = meet(b, [-10, 38], floor[0], floor[1]);
+    const topRight = meet(c, [36, -54], from, to);
+    const bottomRight = meet(c, [36, -54], floor[0], floor[1]);
 
     return {
         boxWidth: s.width,
@@ -175,7 +175,7 @@ function profile(s) {
     };
 }
 
-var PROFILES = {
+const PROFILES = {
     // 4694 long, 1443 high, 2875 between the axles.
     "3": {
         width: 477.4, height: 148.3, wheels: [102, 389.5], wheelY: 114.9, tire: 29.4, hub: 14,
@@ -232,12 +232,12 @@ var PROFILES = {
     }
 };
 
-var profileCache = {};
+const profileCache = {};
 
 // The side profile of a model from KEYS: { boxWidth, boxHeight, outlinePath, fillPath,
 // chargingFillPath, boltPath }.
 function sideProfile(key) {
-    var k = PROFILES[key] ? key : "3";
+    const k = PROFILES[key] ? key : "3";
     if (!profileCache[k]) profileCache[k] = profile(PROFILES[k]);
     return profileCache[k];
 }
@@ -247,9 +247,9 @@ function sideProfile(key) {
 // A closed chain moved dx across the car, for the left side, or its mirror image on the
 // right side of a car that is w wide.
 function placed(points, dx, w) {
-    var moved = points.map(function (p) {
-        var q = p.slice();
-        for (var i = 0; i < q.length; i += 2) q[i] = w === undefined ? q[i] + dx : w - (q[i] + dx);
+    const moved = points.map(function (p) {
+        const q = p.slice();
+        for (let i = 0; i < q.length; i += 2) q[i] = w === undefined ? q[i] + dx : w - (q[i] + dx);
         return q;
     });
     return chain(moved) + " Z";
@@ -259,10 +259,10 @@ function placed(points, dx, w) {
 // leaves it on the flank and 1 where the chain has it. For the left side, or mirrored on
 // the right side of a car that is w wide.
 function reached(points, flank, share, w, closed) {
-    var moved = points.map(function (p) {
-        var q = p.slice();
-        for (var i = 0; i < q.length; i += 2) {
-            var x = q[i] < flank ? flank - (flank - q[i]) * share : q[i];
+    const moved = points.map(function (p) {
+        const q = p.slice();
+        for (let i = 0; i < q.length; i += 2) {
+            const x = q[i] < flank ? flank - (flank - q[i]) * share : q[i];
             q[i] = w === undefined ? x : w - x;
         }
         return q;
@@ -274,9 +274,9 @@ function reached(points, flank, share, w, closed) {
 // it. points gives [out, along]: how far out from the body's flank, and how far behind the
 // door's front edge. base is how far the flank is outside the door's own outer edge.
 function mirrorPath(points, base, w, onLeft) {
-    var moved = points.map(function (p) {
-        var q = p.slice();
-        for (var i = 0; i < q.length; i += 2) q[i] = onLeft ? -(base + q[i]) : w + base + q[i];
+    const moved = points.map(function (p) {
+        const q = p.slice();
+        for (let i = 0; i < q.length; i += 2) q[i] = onLeft ? -(base + q[i]) : w + base + q[i];
         return q;
     });
     return chain(moved);
@@ -312,26 +312,26 @@ function mirrorPath(points, base, w, onLeft) {
 //   trim            black parts outside the body, on the left side
 //   slats           lines across the trunk lid
 function makePlan(s) {
-    var w = s.w;
-    var sym = function (o) { return symmetric(w, o.points, o.top, o.bottom); };
-    var each = function (list, closed) {
+    const w = s.w;
+    const sym = function (o) { return symmetric(w, o.points, o.top, o.bottom); };
+    const each = function (list, closed) {
         return (list || []).map(function (c) { return onBothSides(w, c, closed); }).join(" ");
     };
-    var base = s.panes[0];
+    const base = s.panes[0];
     // All the glass over the cabin and the beams in it, as one outline: the left edges of
     // the pieces that reach the cabin's side, one after the other from the windshield's
     // foot. A body that is not opaque has this cut out of it in one piece, since the edges
     // of holes that touch would show as hairlines.
-    var sides = (s.sidePanes || []).map(function (c) {
+    const sides = (s.sidePanes || []).map(function (c) {
         return c.filter(function (q, i) { return i === 0 || endOf(q)[0] < w / 4; });
     });
-    var edge = [];
+    const edge = [];
     s.panes.concat(s.beams, [s.rear]).map(function (o) { return o.points; }).concat(sides)
         .filter(function (c) { return c[0][0] < w / 4; })
         .sort(function (a, b) { return a[0][1] - b[0][1]; })
         .forEach(function (c) {
             c.forEach(function (q, i) {
-                var last = edge.length ? endOf(edge[edge.length - 1]) : null;
+                const last = edge.length ? endOf(edge[edge.length - 1]) : null;
                 if (i === 0 && last && last[0] === q[0] && last[1] === q[1]) return;
                 edge.push(q);
             });
@@ -382,7 +382,7 @@ function makePlan(s) {
     };
 }
 
-var PLANS = {};
+const PLANS = {};
 
 // 4694 long, 1850 wide, 2875 between the axles. A round nose, a windshield that bows
 // forward, glass from there to a short trunk lid, with one beam over the front seats'
@@ -570,8 +570,8 @@ PLANS["x"] = function () {
 // with no curve in it: a light bar across the nose, a windshield from the hood to the
 // roof's peak, and behind the cabin the bed under its cover, which is the trunk here.
 PLANS["cybertruck"] = function () {
-    var slats = [];
-    for (var y = 403; y < 550; y += 13) slats.push("M 51 " + y + " H 190.3");
+    const slats = [];
+    for (let y = 403; y < 550; y += 13) slats.push("M 51 " + y + " H 190.3");
     return makePlan({
         w: 241.3, length: 568.3, flank: 22.5, belt: 33.5, frontAxle: 87.8, rearAxle: 451.3, tire: 44, wheelInset: 16,
         body: function (f) {
@@ -605,11 +605,11 @@ PLANS["cybertruck"] = function () {
     });
 };
 
-var planCache = {};
+const planCache = {};
 
 // The plan of a model from KEYS.
 function plan(key) {
-    var k = PLANS[key] ? key : "3";
+    const k = PLANS[key] ? key : "3";
     if (!planCache[k]) planCache[k] = PLANS[k]();
     return planCache[k];
 }
