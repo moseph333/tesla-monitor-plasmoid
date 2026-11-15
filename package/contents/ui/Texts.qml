@@ -1,11 +1,11 @@
 import QtQuick
 
 // Wording shared by the card, its tooltip and the car drawing. logic.js can't call i18n(),
-// so it hands over keys and this turns them into sentences.
+// so it returns keys and this turns them into text.
 QtObject {
     id: texts
 
-    // The doors and windows by TeslaMate's names for them, worded for use in a sentence.
+    // TeslaMate's door and window names, worded for use in a sentence.
     function partNames() {
         return {
             driver_front: i18n("driver front"), driver_rear: i18n("driver rear"),
@@ -13,7 +13,8 @@ QtObject {
         }
     }
 
-    // "Closed", "driver front, passenger rear open", "At least one open" (total only) or "—".
+    // "Closed", "driver front, passenger rear open", "At least one open" (total only) or
+    // "—".
     function partsText(states) {
         const names = texts.partNames()
         const open = Object.keys(names).filter(k => states[k] === true).map(k => names[k])
@@ -24,7 +25,7 @@ QtObject {
         return "—"
     }
 
-    // Lower case, since it's used inside sentences.
+    // Lower case: used inside sentences.
     function tireName(pos) {
         switch (pos) {
         case "fl": return i18n("front left")
@@ -35,8 +36,8 @@ QtObject {
         }
     }
 
-    // One line per kind of item from Logic.attention(), in its order. Doors, windows and
-    // tires each come as one item per part, and share a line.
+    // One line per type of item from Logic.attention(), in its order. Doors, windows and
+    // tires come as one item per part and share a line.
     function attentionLines(items) {
         const types = []
         const partsOf = {}
@@ -50,7 +51,7 @@ QtObject {
         return types.map(type => texts.attentionLine(type, partsOf[type])).filter(line => line !== "")
     }
 
-    // The line for one kind of item and the parts it came with.
+    // The line for one type of item and its parts.
     function attentionLine(type, parts) {
         switch (type) {
         case "door": return i18n("Doors: %1", texts.partsText(texts.openStates(parts)))
@@ -67,8 +68,7 @@ QtObject {
         }
     }
 
-    // The open doors or windows of attention items, as partsText() takes them. A "some"
-    // item means only the total is known, which partsText() words as such.
+    // partsText()'s input from a list of open parts. "some" means only the total is known.
     function openStates(parts) {
         const states = {}
         for (const part in texts.partNames())
