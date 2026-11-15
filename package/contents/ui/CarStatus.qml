@@ -8,35 +8,31 @@ import org.kde.plasma.components as PlasmaComponents3
 import "logic.js" as Logic
 import "models.js" as Models
 
-// The car from above, showing everything about the car's body at once: a pressure reading at
-// each wheel, doors that swing out when open, windows, frunk, trunk, charge port, lock and
-// Sentry. Hovering lists the same status as text.
-// The car lies on its side with its nose to the right, like the panel icon, or stands nose
-// up, whichever draws it larger in the room the item has.
-// Its colors are CarPalette's: the car's own paint, or tints of the theme's text color.
-// Everything is in the car's real dimensions: 1 unit = 10 mm. The shapes come from
-// models.js as a plan, drawn for each model after the top view in Tesla's owner's manual,
-// in a box that ends at the mirror tips: a Model 3's body is 185 × 469.4 in it. The
-// wheels sit further out than the real track so they stay visible from above.
+// The car from above: a pressure reading at each wheel, doors that swing out when open,
+// windows, frunk, trunk, charge port, lock and Sentry. Hovering lists the same as text. The
+// car lies nose right or stands nose up, whichever draws it larger.
+//
+// Shapes come from models.js as a plan in real dimensions (1 unit = 10 mm), in a box that
+// ends at the mirror tips. The wheels sit further out than the real track so they show from
+// above. Colors come from CarPalette.
 Item {
     id: root
 
-    // Raw TeslaMate values keyed by topic suffix
+    // Raw TeslaMate values, keyed by topic suffix.
     property var car: ({})
-    // Each: { value: "42", unit: "psi", text: "42 psi", warn: bool }
+    // Each tire: {value: "42", unit: "psi", text: "42 psi", warn: bool}
     property var fl: ({ value: "—", unit: "", text: "—", warn: false })
     property var fr: ({ value: "—", unit: "", text: "—", warn: false })
     property var rl: ({ value: "—", unit: "", text: "—", warn: false })
     property var rr: ({ value: "—", unit: "", text: "—", warn: false })
-    // The body color as "#rrggbb", or "" to draw the car in theme colors.
+    // The body color as "#rrggbb", or "" for theme colors.
     property string paint: ""
     // TeslaMate names doors and windows by driver and passenger, not left and right.
     property bool rightHandDrive: false
-    // Which car: a key from Models.KEYS.
+    // A key from Models.KEYS.
     property string model: "3"
     readonly property var plan: Models.plan(model)
-    // What the plan says about rear doors that lift like wings, or null for doors that
-    // swing out.
+    // The plan's data for rear doors that lift like wings, or null for ordinary doors.
     readonly property var falcon: plan.falcon
 
     // ---------- state ----------
@@ -59,17 +55,17 @@ Item {
 
     // ---------- lines ----------
 
-    // The charge port is green with a cable in it, orange when open and empty, and not
-    // drawn when closed or while TeslaMate hasn't reported it.
+    // The charge port: green when plugged in, orange when open and empty, otherwise not
+    // drawn.
     readonly property color portFill: pluggedIn ? colors.pluggedColor : portOpen ? colors.openColor : "transparent"
     readonly property color portLine: pluggedIn ? Qt.darker(colors.pluggedColor, 1.3) : portOpen ? colors.openEdge : "transparent"
 
-    // The width of the line around a part, around the body, and of the cable.
+    // Stroke widths in pixels: around a part, around the body, and the cable.
     readonly property real lineWidth: 1
     readonly property real bodyLineWidth: 1.5
     readonly property real cableWidth: 2
-    // The line that stands for a door when only the total says that some door is open, and
-    // how far inside the door's outer edge it starts: clear of the body's own line.
+    // The line drawn for a door when only the total says some door is open, and its inset
+    // from the door's outer edge, to clear the body's outline.
     readonly property real doorEdgeWidth: 2
     readonly property real doorEdgeInset: 1
     readonly property real lightWidth: 1.5
@@ -80,43 +76,36 @@ Item {
     readonly property real boxHeight: plan.boxHeight
     readonly property real frontAxle: plan.frontAxle
     readonly property real rearAxle: plan.rearAxle
-    // The box ends at the mirror tips. The wheels' outer faces are this far inside it.
+    // How far the wheels' outer faces are inside the box.
     readonly property real wheelInset: plan.wheelInset
-    // Across the car, a door starts just inside the body's side and ends short of its
-    // window. An open one swings doorSwing degrees around its front edge: the rear corner
-    // of a Model 3's front door, which is 116 long and hinged 16 inside the box, is then
-    // doorReach outside the box (116 × sin 30° − 16 = 42).
+    // A door spans from just inside the body's side to just short of its window. Open, it
+    // swings doorSwing degrees around its front edge. doorReach is how far its rear corner
+    // then sticks out of the box: for a Model 3's front door, 116 × sin 30° − 16 = 42.
     readonly property real doorOuter: plan.flank + 1.75
     readonly property real doorWidth: plan.belt - 2 - doorOuter
-    // An open door shows its whole leaf, 19 wide whatever the door's own width: that much
-    // wider towards the cabin, so that it is a panel and not a stick. Its outer edge, and
-    // with it doorReach, stays.
+    // An open door is drawn 19 wide whatever its real width, widened towards the cabin, so
+    // it reads as a panel. Its outer edge, and so doorReach, is unchanged.
     readonly property real leafExtra: 19 - doorWidth
     readonly property real doorSwing: 30
     readonly property real swingSin: Math.sin(doorSwing * Math.PI / 180)
     readonly property real swingCos: Math.cos(doorSwing * Math.PI / 180)
     readonly property real swingTan: Math.tan(doorSwing * Math.PI / 180)
     readonly property real doorReach: (plan.frontDoor[1] - plan.frontDoor[0]) * swingSin - doorOuter
-    // How far a reading above or below a wheel may reach towards the middle of the car: an
-    // open rear door ends this far ahead of the rear axle. On a Model 3, whose rear door is
-    // 9 wide and 70 long from its hinge at 270, that is 36.4
-    // (371.5 − 270 − 9 × sin 30° − 70 × cos 30°).
-    // A rear door that lifts like a wing ends where its plan says.
+    // How far a reading above or below a wheel may extend towards the middle of the car:
+    // the distance from the rear axle to where an open rear door ends. For a Model 3, 371.5
+    // − 270 − 9 × sin 30° − 70 × cos 30° = 36.4. A wing door ends where its plan says.
     readonly property real readingReach: falcon ? rearAxle - falcon.back
                                                 : rearAxle - plan.rearDoor[0] - doorWidth * swingSin
                                                   - (plan.rearDoor[1] - plan.rearDoor[0]) * swingCos
 
-    // The car's two sides mirror each other. A part of the left side that reaches from x0
-    // to x1 across the car lies between these two places on either side, on whole pixels.
-    // The right side's part is the left one's mirror image, taken after rounding: rounded
-    // on its own, an edge that falls on half a pixel goes the same way on both sides, and
-    // one of the two parts ends up a pixel wider than the other.
+    // The [start, end] across the car of a part spanning x0 to x1 on the left side, or its
+    // mirror image on the right, snapped to whole pixels. The right side is mirrored after
+    // snapping: snapping each side separately can leave one part a pixel wider.
     function side(onLeft, x0, x1) {
         return onLeft ? [snap(x0), snap(x1)] : [boxWidth - snap(x1), boxWidth - snap(x0)]
     }
 
-    // The outline of a rectangle with rounded corners, from x0 to x1 across the car and
-    // from y0 to y1 along it, and of a circle, as SVG paths.
+    // SVG paths for a rounded rectangle (x across the car, y along it) and a circle.
     function roundedRect(x0, y0, x1, y1, radius) {
         const r = Math.max(0, Math.min(radius, (x1 - x0) / 2, (y1 - y0) / 2))
         return ["M", x0 + r, y0, "H", x1 - r, "A", r, r, 0, 0, 1, x1, y0 + r,
@@ -128,47 +117,44 @@ Item {
         return ["M", cx - r, cy, "A", r, r, 0, 1, 0, cx + r, cy,
                 "A", r, r, 0, 1, 0, cx - r, cy, "Z"].join(" ")
     }
-    // The same rectangle with its edges on whole pixels, and half the width of the line
-    // around it further in, so that the straight edges fill whole pixels and are sharp.
+    // A rounded rectangle snapped to whole pixels and inset by half its line width, so its
+    // straight edges are sharp.
     function box(x0, y0, x1, y1, radius, line) {
         const d = inUnits(line / 2)
         return roundedRect(snap(x0) + d, snap(y0) + d, snap(x1) - d, snap(y1) - d, radius)
     }
 
-    // The body's side along the doors and the side windows' outer edge are long straight
-    // lines along the car. They are moved, by less than half a pixel, to where such a line
-    // fills whole pixels.
+    // The body's side and the side windows' outer edge are long straight lines. Each is
+    // nudged by under half a pixel so the line fills whole pixels.
     readonly property real flank: crisp(plan.flank, bodyLineWidth)
     readonly property real belt: snap(plan.belt)
     readonly property string bodyPath: plan.bodyPath(flank)
     readonly property string frunkPath: plan.frunkPath
     readonly property string trunkPath: plan.trunkPath
-    // The windshield and the glass over the cabin, and the rear window, which on a
-    // hatchback is part of the trunk lid.
+    // The windshield and roof glass, and the rear window (part of the trunk lid on a
+    // hatchback).
     readonly property string glassPath: plan.glassPath
     readonly property string rearGlassPath: plan.rearGlassPath
-    // The beams across the roof, between the panes of glass.
+    // The beams across the roof, between the panes.
     readonly property string beamPath: plan.beamPath
-    // The body with the glass left out of it, for a body that is not opaque: all of
-    // bodyPath, and inside it, as holes, the glass over the cabin with its beams, the
-    // side windows and the doorways of open doors.
+    // For a translucent body: bodyPath with holes for the cabin glass and beams, the side
+    // windows and the doorways of open doors.
     readonly property string openBodyPath: [
         bodyPath, plan.canopyPath, plan.quarterPath,
         windowPath(true, plan.frontWindow, 0), windowPath(true, plan.rearWindow, 0),
         windowPath(false, plan.frontWindow, 0), windowPath(false, plan.rearWindow, 0),
         doorwaysPath
     ].join(" ")
-    // The doorways of the open doors, as one path. A doorway comes and goes with the
-    // door's leaf, which is drawn only while the door is open.
+    // The doorways of all open doors as one path.
     readonly property string doorwaysPath: [leftFrontDoor, leftRearDoor, rightFrontDoor, rightRearDoor]
         .filter(door => door.open === true && !door.wing).map(door => doorwayPath(door.onLeft, door.from, door.to)).join(" ")
 
-    // The body's left edge beside a wheel.
+    // The x of the body's left edge at y.
     function flankAt(y) { return Models.edgeAt(plan.bodyLeft(flank), y) }
-    // A place across the car on the left side, or its reflection on the right.
+    // x on the left side, or mirrored onto the right.
     function reflect(onLeft, x) { return onLeft ? x : boxWidth - x }
 
-    // What shows of a tire: its outer face and its two ends, from the body's edge outwards.
+    // The visible part of a tire: its outer face and two ends, outside the body's edge.
     function tirePath(onLeft, axle) {
         const face = snap(wheelInset)
         const front = snap(axle - plan.tire)
@@ -179,18 +165,15 @@ Item {
                 "Q", reflect(onLeft, face), rear, reflect(onLeft, face + r), rear,
                 "H", reflect(onLeft, flankAt(rear)), "Z"].join(" ")
     }
-    // A side window, from the plan, where its outer edge is on the belt. The whole window
-    // is moved with that edge onto whole pixels, and half the width of its line further
-    // in, so that the edge is sharp. With no line it is all that the window covers.
+    // A side window from the plan, shifted so its outer edge sits on the snapped belt,
+    // inset by half its line width. With line 0 it is the window's full area.
     function windowPath(onLeft, points, line) {
         return Models.placed(points, belt + inUnits(line / 2) - plan.belt, onLeft ? undefined : boxWidth)
     }
-    // The leaf of an open door that is w wide and l long once it is on whole pixels,
-    // measured, like the mirror on a front door, from the door's own front left corner.
-    // It reaches further towards the cabin, which is to its right on the left side.
-    // The corner of the leaf's extra width at the hinge is cut off along the flank, as the
-    // swung door lies: square, it would reach the window behind a rear door's hinge, and an
-    // open door and an open window would be one shape.
+    // The leaf of an open door w wide and l long, in the door's own coordinates (origin at
+    // its front left corner). It is widened towards the cabin by leafExtra. The extra
+    // width's corner at the hinge is cut along the flank, or a rear door's leaf would touch
+    // the window behind its hinge.
     function leafPath(onLeft, w, l) {
         const d = inUnits(lineWidth / 2)
         const r = 4
@@ -209,19 +192,16 @@ Item {
                "H", x0 + r, "A", r, r, 0, 0, 1, x0, y1 - r,
                "V", y0 + cut, "Z"].join(" ")
     }
-    // The outer edge of a door, as a line that lies inside the door, on whole pixels, and
-    // whose round ends stop short of the door's: on a small car two doors' lines would
-    // otherwise meet across the seam.
+    // A line along a door's outer edge, inside the door. Its round ends stop short of the
+    // door's ends so that two doors' lines don't meet across the seam.
     function doorEdgePath(onLeft, w, l) {
         const half = inUnits(doorEdgeWidth / 2)
         const x = inUnits(doorEdgeInset) + half
         return ["M", onLeft ? x : w - x, 3 + half, "V", l - 3 - half].join(" ")
     }
-    // The opening an open door leaves in the flank: where the closed door was, short of
-    // the seams at its two ends, and of the window by doorwayGap pixels of paint, so that
-    // a closed window beside it stays a shape of its own.
-    // It starts behind the leaf's slanted front edge: ahead of that it would be a dark
-    // nick between the hinge and the seam.
+    // The opening an open door leaves in the flank: the closed door's area, short of the
+    // seams at both ends and doorwayGap pixels short of the window. It starts behind the
+    // leaf's slanted front edge.
     readonly property real doorwayGap: 2
     function doorwayPath(onLeft, from, to) {
         const left = snap(doorOuter)
@@ -229,37 +209,35 @@ Item {
         const front = from + 2 + (right - left) * swingTan
         return box(reflect(onLeft, onLeft ? left : right), Math.min(front, to - 2), reflect(onLeft, onLeft ? right : left), to - 2, 2, 0)
     }
-    // A mirror grows out of the body. Its outline, from the plan, starts and ends on the
-    // flank and is not closed, so its line leaves the body's own line whole.
+    // A mirror's outline starts and ends on the flank and isn't closed, so its stroke
+    // doesn't cross the body's outline.
     function mirrorPath(onLeft, w) {
         return Models.mirrorPath(plan.mirror, snap(doorOuter) - flank - inUnits(bodyLineWidth / 2), w, onLeft)
     }
-    // Lights follow the corners of the car between its outline and the hood or the trunk:
-    // a lens, and a line of light inside it.
+    // Each light is a lens with a line of light in it.
     readonly property string headlightPath: plan.headlightPath
     readonly property string headlightLine: plan.headlightLine
     readonly property string taillightPath: plan.taillightPath
     readonly property string taillightLine: plan.taillightLine
-    // Where one door ends and the next begins, across the shoulder from the flank to the
-    // glass. The edges of a door that lifts like a wing run on across the roof.
+    // The seams between doors, from the flank to the glass. A wing door's seams continue
+    // across the roof.
     readonly property string seamPath: [plan.frontDoor[0], (plan.frontDoor[1] + plan.rearDoor[0]) / 2,
                                         plan.rearDoor[1]].map((y, i) => {
         const at = crisp(y, lineWidth)
         const to = falcon && i > 0 ? falcon.seam : belt
         return ["M", flank, at, "H", to, "M", boxWidth - flank, at, "H", boxWidth - to].join(" ")
     }).join(" ")
-    // The charge port is on the left rear. It keeps a size that can be seen when the car
-    // gets small, and then moves back to stay clear of the rear wheel.
+    // The charge port, left rear. It has a minimum size on screen, and moves back when that
+    // would touch the rear wheel.
     readonly property real portRadius: Math.max(5.5, inUnits(Kirigami.Units.smallSpacing * 0.75))
     readonly property real portX: plan.port[0]
     readonly property real portY: Math.max(plan.port[1], rearAxle + plan.tire + inUnits(1) + portRadius)
     readonly property string portPath: circle(portX, portY, portRadius)
-    // From the port out to the side
+    // The cable, from the port out to the side.
     readonly property string cablePath: ["M", portX - 6, portY, "C", portX - 14, portY + 1,
                                          portX - 20, portY + 10, portX - 22, portY + 28].join(" ")
 
-    // The signs on the glass, on a grid of 20 × 20: a padlock, the same with its shackle
-    // lifted out, and a camera's lens for Sentry.
+    // Glyphs on a 20 × 20 grid: a padlock, an open padlock, and a camera lens for Sentry.
     readonly property string padlockBody: "M 6 9 H 14 A 2 2 0 0 1 16 11 V 16 A 2 2 0 0 1 14 18 H 6 A 2 2 0 0 1 4 16 V 11 A 2 2 0 0 1 6 9 Z M 9 13 A 1 1 0 0 1 11 13 V 14 A 1 1 0 0 1 9 14 Z"
     readonly property string lockPath: "M 6 9 V 6 A 4 4 0 0 1 14 6 V 9 H 12 V 6 A 2 2 0 0 0 8 6 V 9 Z " + padlockBody
     readonly property string unlockPath: "M 6 9 V 4 A 4 4 0 0 1 14 4 V 6 H 12 V 4 A 2 2 0 0 0 8 4 V 9 Z " + padlockBody
@@ -267,31 +245,29 @@ Item {
 
     // ---------- scale and orientation ----------
 
-    // The item's size in whole pixels: what the car and its readings have to fit in.
+    // The item's size in whole pixels.
     readonly property int wholeWidth: Math.floor(width)
     readonly property int wholeHeight: Math.floor(height)
-    // A line is drawn half outside its shape, and a part can be a pixel off once it's on
-    // whole pixels. This keeps what is on the edge of the drawing inside the item.
+    // Margin for strokes, which extend half outside their shape, and for pixel snapping.
     readonly property real pad: 2
-    // The space between a wheel and the reading beside it. A reading above or below its
-    // wheel is closer, since a line of text brings space of its own, and stays that far
-    // from an open door too.
+    // The space between a wheel and the reading beside it. lineGap is the smaller space for
+    // a reading above or below its wheel, where the text's line height adds its own.
     readonly property real gap: Kirigami.Units.smallSpacing * 2
     readonly property real lineGap: Kirigami.Units.smallSpacing
     readonly property real readingWidth: Math.max(flReading.width, frReading.width,
                                                   rlReading.width, rrReading.width)
     readonly property real readingHeight: flReading.height
 
-    // Pixels per unit with the nose up and on its side. Both leave room for the readings and
-    // for an open front door, so the car keeps its size when a door opens. They depend on
-    // nothing but the item's size and the size of the readings, so choosing between them
-    // can't loop.
+    // Pixels per unit with the nose up, and lying sideways. Both leave room for the
+    // readings and an open front door, so the car doesn't resize when a door opens. They
+    // depend only on the item's and the readings' sizes, so choosing between them can't
+    // loop.
     readonly property real unitUp: Math.min((wholeHeight - 2 * pad) / boxHeight,
                                             (wholeWidth - 2 * pad) / (boxWidth + 2 * doorReach),
                                             (wholeWidth - 2 * (pad + readingWidth + gap))
                                             / (boxWidth - 2 * wheelInset))
-    // The last term keeps room beyond the wheels for a reading that had to move away from
-    // the doors: see Reading.
+    // The last term leaves room past the wheels for a reading pushed away from the doors
+    // (see Reading).
     readonly property real unitSide: Math.min((wholeWidth - 2 * pad) / boxHeight,
                                               (wholeHeight - 2 * pad) / (boxWidth + 2 * doorReach),
                                               (wholeHeight - 2 * (readingHeight + lineGap))
@@ -299,37 +275,35 @@ Item {
                                               (wholeWidth / 2 - pad - readingWidth - lineGap)
                                               / (boxHeight / 2 - frontAxle - readingReach))
     readonly property bool sideways: unitSide > unitUp
-    // The least height at which the car lies on its side, in an item that is wider than
-    // high. In less, the readings above and below the wheels leave the car less room than
-    // it has standing nose up: this is where (h - readings) / the car's width passes
-    // (h - pad) / the car's length.
+    // The smallest height at which the car lies sideways in a wide item. Below it the car
+    // is larger standing nose up. This solves (h − readings) / car width = (h − pad) / car
+    // length for h.
     readonly property real sidewaysHeight: {
         const across = boxWidth - 2 * wheelInset
         return Math.floor((2 * (readingHeight + lineGap) * boxHeight - 2 * pad * across)
                           / (boxHeight - across)) + 1
     }
-    // Rounded down to a car that is a whole number of pixels wide. It sits on whole pixels,
-    // so its two sides fall on the pixel grid alike and are drawn alike.
+    // Rounded down so the car is a whole number of pixels wide, which keeps its two sides
+    // symmetric on the pixel grid.
     readonly property real unit: Math.max(0, Math.floor((sideways ? unitSide : unitUp) * boxWidth) / boxWidth)
     readonly property size pathScale: Qt.size(unit, unit)
     function u(v) { return v * unit }
-    // Pixels in units, for what keeps its size on screen.
+    // Converts pixels to units, for things with a fixed size on screen.
     function inUnits(px) { return unit > 0 ? px / unit : 0 }
-    // v moved to a whole number of pixels from the car's corner, and to where the middle of
-    // a straight line of some width has to be for the line to start on a whole pixel.
+    // snap() moves v to a whole pixel. crisp() moves it to where a line of the given width
+    // must be centered to cover whole pixels.
     function snap(v) { return inUnits(Math.round(u(v))) }
     function crisp(v, line) { return inUnits(Math.round(u(v) - line / 2) + line / 2) }
 
-    // Where a point of the car is in this item, on a whole pixel. Everything that stays
-    // upright while the car turns is placed with it.
+    // A point on the car, in this item's pixels. Used to place what stays upright when the
+    // car turns.
     function at(x, y) {
         return sideways ? Qt.point(Math.round(drawing.x - u(y)), Math.round(drawing.y + u(x)))
                         : Qt.point(Math.round(drawing.x + u(x)), Math.round(drawing.y + u(y)))
     }
 
-    // The signs are as large as a small icon. They grow with a car that is larger than the
-    // popup's, in even sizes so that they stay centered on a pixel, up to 32 pixels, and
-    // they are never larger than the windshield is long.
+    // A small icon's size, growing with a large car in even steps up to 32 px, and never
+    // longer than the windshield.
     readonly property real glyphSize: Math.min(Math.floor(u(plan.windshieldLength)), Math.max(20, Math.min(32, 2 * Math.floor(u(15)))))
 
     // ---------- tooltip text ----------
@@ -366,7 +340,7 @@ Item {
 
     // ---------- parts ----------
 
-    // One piece of the car: an outline in units that is filled, stroked or both.
+    // One piece of the car: a path in units, filled, stroked or both.
     component Part: ShapePath {
         id: part
         property string path
@@ -386,8 +360,7 @@ Item {
         fillColor: low ? colors.lowColor : colors.tireColor
     }
 
-    // Filled when this window is open. When TeslaMate only reports that some window is open,
-    // all four get an orange outline but no fill.
+    // Filled when open. If TeslaMate only reports the total, all four get an outline.
     component SideWindow: Part {
         property bool onLeft
         property var points
@@ -397,19 +370,16 @@ Item {
         strokeColor: colors.openLine(open, colors.glassLine, colors.faintGlassColor)
     }
 
-    // Hinged at its front edge. Swings out and fills only when TeslaMate says which door is
-    // open; when it only reports that some door is open, all four get an orange line along
-    // their outer edge, just inside the body's own line. A door's whole outline there would
-    // be a second capsule beside each outlined window, and the least certain state would be
-    // the busiest. It sits on whole pixels, like the parts that don't move.
+    // A door, hinged at its front edge. It swings out, filled, when TeslaMate says this
+    // door is open. If only the total is known, all four get a line along their outer edge
+    // instead: outlining every door would be busier than the known states.
     component Door: Shape {
         id: door
         property bool onLeft
         property real from
         property real to
         property var open
-        // Whether the door lifts like a wing. Then a Wing draws it while it is open, and
-        // it has no leaf to swing and leaves no doorway.
+        // A wing door is drawn by Wing when open: it has no leaf and leaves no doorway.
         property bool wing: false
         readonly property var across: root.side(onLeft, root.doorOuter, root.doorOuter + root.doorWidth)
         property real swing: open === true && !wing ? root.doorSwing : 0
@@ -423,12 +393,11 @@ Item {
         transform: Rotation {
             origin.x: door.onLeft ? 0 : door.width
             origin.y: 0
-            // The line that stands for a door of which only the total is known lies on
-            // the flank at once, also where a door was open before.
+            // The total-only line never swings, even where a door was open before.
             angle: door.open === "some" ? 0 : door.onLeft ? door.swing : -door.swing
         }
 
-        // A closed door is not drawn: the seams on the body show where it is.
+        // A closed door isn't drawn: the body's seams show it.
         Part {
             readonly property real w: root.inUnits(door.width)
             readonly property real l: root.inUnits(door.height)
@@ -441,22 +410,20 @@ Item {
         }
     }
 
-    // A rear door that is hinged along the middle of the roof and lifts like a wing, in
-    // two leaves, as a Model X's do. Seen from above an open one hides its half of the
-    // roof and its side window, and reaches out over the body's side, where it slides
-    // out as it opens. On it are the line where its two leaves meet and the glass in
-    // each: the roof's pane, which stands too steeply to show much, and the side window.
+    // A Model X rear door: hinged along the middle of the roof, lifting in two leaves. From
+    // above, an open one covers its half of the roof and its side window and reaches out
+    // past the body's side. It shows the fold between its leaves and the glass in each.
     component Wing: Shape {
         id: wing
         property bool onLeft
         property var open
-        // How far it has opened, from 0 to 1.
+        // How far it has opened, 0 to 1.
         property real lift: open === true ? 1 : 0
         Behavior on lift {
             NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
         }
         readonly property bool shown: root.falcon !== null && open === true
-        // For Models.reached(): nothing on the left side, the car's width on the right.
+        // For Models.reached(): undefined on the left, the car's width on the right.
         readonly property var mirrorWidth: onLeft ? undefined : root.boxWidth
         width: root.u(root.boxWidth)
         height: root.u(root.boxHeight)
@@ -479,7 +446,7 @@ Item {
         }
     }
 
-    // The mirrors sit on the front doors and swing with them.
+    // A front door carries its mirror, which swings with it.
     component FrontDoor: Door {
         id: frontDoor
         from: root.plan.frontDoor[0]
@@ -492,8 +459,7 @@ Item {
         }
     }
 
-    // A filled sign that stays upright whichever way the car lies, centered on a point of
-    // the car.
+    // A filled glyph centered on a point of the car. It stays upright when the car turns.
     component Glyph: Shape {
         id: glyph
         property real centerX
@@ -514,21 +480,21 @@ Item {
         }
     }
 
-    // A pressure with its unit beside it as a note. It never turns with the car: with the
-    // nose up it is beside its wheel, and on the car's side it is above or below it.
+    // A tire's pressure and unit. It stays upright: beside its wheel when the car is nose
+    // up, above or below it when the car lies sideways.
     component Reading: Item {
         id: reading
         property var tire
         property bool onLeft
         property bool front
-        // Without a unit there is no pressure either, only the dash that stands for it.
+        // No unit means the pressure is unknown and value is a dash.
         readonly property bool known: tire.unit !== ""
         readonly property real axle: front ? root.frontAxle : root.rearAxle
         // The middle of the wheel's outer face.
         readonly property point wheel: root.at(onLeft ? root.wheelInset : root.boxWidth - root.wheelInset, axle)
-        // Above or below its wheel, a reading is centered on it unless that brings it too
-        // close to where an open rear door ends. Then it moves towards the end of the car,
-        // at the front as far as at the rear so that both ends look alike.
+        // Above or below its wheel, a reading is centered on it, unless that is too close
+        // to where an open rear door ends. Then it moves towards the end of the car, by the
+        // same amount front and rear.
         readonly property real centered: wheel.x - Math.round(width / 2)
         readonly property real limit: root.at(0, axle + (front ? root.readingReach : -root.readingReach)).x
 
@@ -550,8 +516,7 @@ Item {
                 top = onLeft ? wheel.y - root.lineGap - height : wheel.y + root.lineGap
             return Math.max(0, Math.min(root.wholeHeight - height, top))
         }
-        // Text is as wide as its letters, which is rarely a whole number of pixels. The
-        // unit starts on a whole pixel all the same, and so does what is beside the reading.
+        // Text widths are rarely whole pixels, so the unit's position is rounded.
         readonly property real unitX: Math.round(valueLabel.implicitWidth + Kirigami.Units.smallSpacing / 2)
         width: known ? unitX + Math.ceil(unitLabel.implicitWidth) : Math.ceil(valueLabel.implicitWidth)
         height: Math.ceil(valueLabel.implicitHeight)
@@ -563,7 +528,7 @@ Item {
             opacity: reading.known ? 1 : look.faint
             font.weight: reading.tire.warn && reading.known ? Font.DemiBold : Font.Normal
             font.features: { "tnum": 1 }
-            // A screen reader gets the pressure and its unit as one text.
+            // For screen readers: pressure and unit as one text.
             Accessible.name: reading.tire.text
         }
         PlasmaComponents3.Label {
@@ -577,7 +542,7 @@ Item {
         }
     }
 
-    // The tooltip covers the whole row: the readings and any swung-open door, not just the car.
+    // The tooltip covers the whole item, including the readings and any open door.
     HoverHandler { id: hover }
 
     PlasmaComponents3.ToolTip {
@@ -590,9 +555,9 @@ Item {
     PixelLayer {
         target: root
 
-        // Drawn nose up and turned as a whole. From bottom to top: tires, body, frunk and
-        // trunk, door seams, the glass over the cabin with its beams, lights, side windows,
-        // doors with their mirrors, charge port and cable.
+        // Drawn nose up and rotated as a whole. Bottom to top: tires, body, frunk and
+        // trunk, door seams, cabin glass and beams, lights, side windows, doors and
+        // mirrors, charge port and cable.
         Item {
             id: drawing
             x: Math.round(root.sideways ? (root.wholeWidth + height) / 2 : (root.wholeWidth - width) / 2)
@@ -611,15 +576,15 @@ Item {
                 Tire { onLeft: true; axle: root.rearAxle; low: root.rl.warn }
                 Tire { onLeft: false; axle: root.rearAxle; low: root.rr.warn }
 
-                // What is black on the car outside its body, such as fender flares.
+                // Black parts outside the body, such as fender flares.
                 Part {
                     path: root.plan.trimPath
                     fillColor: colors.trimColor
                 }
 
-                // The body, shaded across the car. A gradient is laid out in the Shape's own
-                // pixels, whatever the path's scale. A path with a gradient keeps a fill
-                // color that is not transparent, or it would not be filled at all.
+                // The body, shaded across the car. A gradient is in the Shape's own pixels,
+                // whatever the path's scale, and needs a non-transparent fillColor to be
+                // drawn at all.
                 Part {
                     path: colors.painted ? root.bodyPath : root.openBodyPath
                     fillColor: colors.bodySide
@@ -641,7 +606,7 @@ Item {
                         GradientStop { position: 1; color: colors.bodyEdge }
                     }
                 }
-                // The same along the car, over the paint, and the line around the body.
+                // Shading along the car, over the paint, and the body's outline.
                 LinearGradient {
                     id: endShading
                     x1: 0
@@ -657,14 +622,15 @@ Item {
                 }
                 Part {
                     path: root.bodyPath
-                    // Always filled, with a shade of nothing in theme colors: a fill that
-                    // only comes with the paint is drawn over the lights instead of under them.
+                    // Always filled (with a transparent gradient in theme colors). A fill
+                    // that only appeared with paint would be drawn over the lights instead
+                    // of under them.
                     fillColor: "black"
                     fillGradient: endShading
                     strokeColor: colors.outlineColor
                     strokeWidth: root.bodyLineWidth
                 }
-                // Hood and trunk lid: a soft light on the closed panel, solid when open.
+                // Hood and trunk lid: a soft highlight when closed, solid when open.
                 LinearGradient {
                     id: hoodSheen
                     x1: 0
@@ -697,7 +663,7 @@ Item {
                     fillGradient: colors.painted && root.trunkOpen !== true ? trunkSheen : null
                     strokeColor: colors.openLine(root.trunkOpen, colors.seamColor, colors.faintSeamColor)
                 }
-                // Lines pressed into the hood, and the slats of a bed's cover.
+                // Creases in the hood, and the slats of a bed cover.
                 Part {
                     path: root.plan.creasePath
                     strokeColor: colors.faintSeamColor
@@ -713,7 +679,7 @@ Item {
                     strokeColor: colors.seamColor
                     capStyle: ShapePath.FlatCap
                 }
-                // Behind an open door the flank is open: dark like the cabin's glass.
+                // The flank behind an open door, dark like the cabin glass.
                 Part {
                     path: root.doorwaysPath
                     fillColor: colors.glassColor
@@ -739,7 +705,7 @@ Item {
                     fillGradient: glassShade
                     strokeColor: colors.glassLine
                 }
-                // A hatchback's rear window opens with its trunk lid.
+                // A hatchback's rear window opens with the trunk lid.
                 Part {
                     readonly property var open: root.plan.hatch ? root.trunkOpen : false
                     path: root.rearGlassPath
@@ -768,7 +734,7 @@ Item {
                     capStyle: ShapePath.RoundCap
                 }
 
-                // The side glass that doesn't open.
+                // The fixed side glass.
                 Part {
                     path: root.plan.quarterPath
                     fillColor: colors.glassColor
@@ -787,7 +753,7 @@ Item {
             Wing { onLeft: true; open: leftRearDoor.open }
             Wing { onLeft: false; open: rightRearDoor.open }
 
-            // An open port is expected while plugged in.
+            // The charge port and cable.
             Shape {
                 width: drawing.width
                 height: drawing.height
@@ -806,7 +772,7 @@ Item {
             }
         }
 
-        // Sentry watches through the windshield, and the lock is on the roof.
+        // Sentry on the windshield, the lock on the roof.
         Glyph {
             visible: root.sentry
             centerX: root.boxWidth / 2
