@@ -96,16 +96,18 @@ function pressure(bar, unit) {
     return bar;
 }
 
-// The units to show, from the Display settings (0 is Automatic) and Qt's measurement
-// system for the locale (0 metric, 1 US, 2 UK). The UK drives in miles and fills tires in
-// psi but gives temperatures in °C.
-function resolveUnits(d, t, p, measurementSystem) {
+// The units to show, from the three Display settings and Qt's measurement system for the
+// locale (0 metric, 1 US, 2 UK). The UK drives in miles and fills tires in psi but gives
+// temperatures in °C.
+function resolveUnits(distanceSetting, temperatureSetting, pressureSetting, measurementSystem) {
     const us = measurementSystem === 1;
     const miles = us || measurementSystem === 2;
+    // A setting is an index into its combo box, where 0 is Automatic: the locale's unit.
+    const choose = (setting, units) => units[setting] || units[0];
     return {
-        distance: d === 1 ? "km" : d === 2 ? "mi" : miles ? "mi" : "km",
-        temperature: t === 1 ? "C" : t === 2 ? "F" : us ? "F" : "C",
-        pressure: p === 1 ? "bar" : p === 2 ? "psi" : p === 3 ? "kPa" : miles ? "psi" : "bar"
+        distance: choose(distanceSetting, [miles ? "mi" : "km", "km", "mi"]),
+        temperature: choose(temperatureSetting, [us ? "F" : "C", "C", "F"]),
+        pressure: choose(pressureSetting, [miles ? "psi" : "bar", "bar", "psi", "kPa"])
     };
 }
 
