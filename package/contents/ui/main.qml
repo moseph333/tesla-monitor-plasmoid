@@ -72,7 +72,9 @@ PlasmoidItem {
     // Only when turned on, since it names where the car is going, and only while driving, so
     // a route still retained from an earlier drive doesn't show on a parked car.
     readonly property var route: cfg.showNavigation && driving ? Logic.activeRoute(car) : null
-    readonly property var rangeKm: Logic.num(car, ["rated_battery_range_km", "est_battery_range_km", "ideal_battery_range_km"][cfg.rangeType] || "rated_battery_range_km")
+    // In the order of the Range setting's choices.
+    readonly property var rangeTopics: ["rated_battery_range_km", "est_battery_range_km", "ideal_battery_range_km"]
+    readonly property var rangeKm: Logic.num(car, rangeTopics[cfg.rangeType] || rangeTopics[0])
     readonly property var okGeofences: Logic.geofenceList(cfg.unlockedOkGeofences)
     readonly property var attentionItems: Logic.attention(car, okGeofences)
     readonly property var attentionLines: texts.attentionLines(attentionItems)
