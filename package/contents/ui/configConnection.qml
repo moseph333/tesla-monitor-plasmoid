@@ -202,11 +202,7 @@ KCM.SimpleKCM {
             }
         }
 
-        QQC2.Label {
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            wrapMode: Text.Wrap
-            font: Kirigami.Theme.smallFont
-            opacity: 0.7
+        Hint {
             text: i18n("Leave the CA file empty to use the system's certificates (needs mosquitto 2.0 or newer). TLS brokers usually listen on port 8883; with mosquitto 2.0, port 8883 always uses TLS. Host must match the name on the broker's certificate.")
         }
 
@@ -223,11 +219,7 @@ KCM.SimpleKCM {
             onTextChanged: page.formEdited()
         }
 
-        QQC2.Label {
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            wrapMode: Text.Wrap
-            font: Kirigami.Theme.smallFont
-            opacity: 0.7
+        Hint {
             text: i18n("If TeslaMate sets MQTT_NAMESPACE, use teslamate/<namespace>/cars/1.")
         }
 
@@ -320,11 +312,7 @@ KCM.SimpleKCM {
             }
         }
 
-        QQC2.Label {
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            wrapMode: Text.Wrap
-            font: Kirigami.Theme.smallFont
-            opacity: 0.7
+        Hint {
             text: i18n("Used while the car is asleep or offline and the popup is closed, and always for a widget on the desktop. Opening the popup or pressing Refresh updates right away.")
         }
     }

@@ -41,11 +41,7 @@ KCM.SimpleKCM {
             ]
         }
 
-        QQC2.Label {
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            wrapMode: Text.Wrap
-            font: Kirigami.Theme.smallFont
-            opacity: 0.7
+        Hint {
             text: i18n("Speed uses the same unit.")
         }
 
@@ -95,11 +91,7 @@ KCM.SimpleKCM {
             ]
         }
 
-        QQC2.Label {
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            wrapMode: Text.Wrap
-            font: Kirigami.Theme.smallFont
-            opacity: 0.7
+        Hint {
             text: i18n("The shape of the panel icon and of the car in the card. Automatic draws the model TeslaMate reports, and a Model 3 when it reports none.")
         }
 
@@ -137,11 +129,7 @@ KCM.SimpleKCM {
             text: i18n("Right-hand drive")
         }
 
-        QQC2.Label {
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            wrapMode: Text.Wrap
-            font: Kirigami.Theme.smallFont
-            opacity: 0.7
+        Hint {
             text: i18n("TeslaMate reports doors and windows by driver and passenger side. This puts the driver on the car's right-hand side.")
         }
 
@@ -151,11 +139,7 @@ KCM.SimpleKCM {
             model: [i18n("The car's paint"), i18n("Theme colors")]
         }
 
-        QQC2.Label {
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            wrapMode: Text.Wrap
-            font: Kirigami.Theme.smallFont
-            opacity: 0.7
+        Hint {
             text: i18n("The paint comes from TeslaMate. When it's missing or unknown, the car is drawn in theme colors.")
         }
 
@@ -165,11 +149,7 @@ KCM.SimpleKCM {
             text: i18n("Show the destination and arrival while driving")
         }
 
-        QQC2.Label {
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            wrapMode: Text.Wrap
-            font: Kirigami.Theme.smallFont
-            opacity: 0.7
+        Hint {
             text: i18n("Uses TeslaMate's active_route topic (TeslaMate 1.29 or newer), which includes the destination's name and location.")
         }
 
@@ -182,11 +162,7 @@ KCM.SimpleKCM {
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
         }
 
-        QQC2.Label {
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            wrapMode: Text.Wrap
-            font: Kirigami.Theme.smallFont
-            opacity: 0.7
+        Hint {
             text: i18n("TeslaMate geofence names, separated by commas. There, an unlocked car isn't shown as a warning or notified.")
         }
 
@@ -201,11 +177,7 @@ KCM.SimpleKCM {
             onEditingFinished: text = Logic.normalizeUrl(text)
         }
 
-        QQC2.Label {
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            wrapMode: Text.Wrap
-            font: Kirigami.Theme.smallFont
-            opacity: 0.7
+        Hint {
             text: i18n("Click the car's name in the popup, or use the widget's context menu, to open it.")
         }
     }

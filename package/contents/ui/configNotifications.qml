@@ -66,11 +66,7 @@ KCM.SimpleKCM {
             text: i18n("A software update is available")
         }
 
-        QQC2.Label {
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            wrapMode: Text.Wrap
-            font: Kirigami.Theme.smallFont
-            opacity: 0.7
+        Hint {
             text: i18n("Plasma shows these as System Notifications. Copies of the widget that show the same car send each notification once. Nothing is sent for what's already the case when the widget starts.")
         }
     }
