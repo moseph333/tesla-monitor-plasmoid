@@ -4,22 +4,20 @@ import org.kde.plasma.plasmoid
 import org.kde.plasma.components as PlasmaComponents3
 import org.kde.kirigami as Kirigami
 
-// The card's footer: the car's software version, an update's status, and when the data
-// arrived. An update's status moves to a line of its own when one line can't hold
-// everything, as on a narrow card or during a download. The version and the status are as
-// wide as their texts, to the next whole pixel, and give way when even that is too much,
-// so a long version elides rather than widen the card.
+// The card's footer: the software version, an update's status, and when the data arrived.
+// The update's status moves to its own line when one line can't hold everything. The
+// version and status are as wide as their text and shrink when there isn't room, so a long
+// version elides instead of widening the card.
 GridLayout {
     id: footer
 
-    // main.qml's root item, which knows the car, and the card's Look.
+    // main.qml's root item, which has the car's state, and the card's Look.
     required property PlasmoidItem widget
     required property Look look
 
-    // Moving the status to the other line resizes the car, which mustn't
-    // happen each time a poll fails or the hour gains a digit. So the warning
-    // icon keeps its place while it's hidden, and the time counts as wide as
-    // it gets.
+    // Whether everything fits on one line. Switching lines resizes the car, so this must
+    // not flip when a poll fails or the hour gains a digit: the warning icon keeps its
+    // space when hidden, and the time is measured at its widest.
     readonly property bool oneLine: softwareVersion.implicitWidth + updateStatus.implicitWidth
                                     + freshness.implicitWidth
                                     + Math.max(0, widestUpdated.advanceWidth - updated.implicitWidth)
@@ -29,7 +27,7 @@ GridLayout {
     columnSpacing: Kirigami.Units.largeSpacing
     rowSpacing: Kirigami.Units.smallSpacing * 1.5
 
-    // The update's status in the footer.
+    // The update's status.
     function updateText() {
         const v = widget.car.update_version || ""
         switch (widget.softwareUpdate.phase) {
@@ -44,14 +42,12 @@ GridLayout {
         }
     }
 
-    // When the data on the card arrived, for the footer: "Updated 2:30 PM", or "Updated Mon
-    // 2:30 PM" once that was not today.
+    // "Updated 2:30 PM", or "Updated Mon 2:30 PM" if that wasn't today.
     function updatedText(time) {
         return i18n("Updated %1", widget.clock(time.getTime()))
     }
 
-    // An hour of two digits, on a 12 hour clock and on a 24 hour clock, and
-    // today, so no weekday comes with it.
+    // The widest the time gets: a two-digit hour, today (so no weekday).
     TextMetrics {
         id: widestUpdated
         font: updated.font
@@ -77,9 +73,9 @@ GridLayout {
         textFormat: Text.PlainText
     }
 
-    // The update's status on a tint of the highlight color, which fills from
-    // the start as the download or the installation goes on. The tint is a
-    // little taller than the line of text, without making the footer taller.
+    // The update's status on a tinted pill, which fills from the start as the download or
+    // installation progresses. The pill is slightly taller than the text without making the
+    // footer taller.
     Item {
         id: updateStatus
 
@@ -141,15 +137,14 @@ GridLayout {
         Layout.row: 0
         Layout.column: 2
         Layout.fillWidth: true
-        // The filler before the icon would count a spacing as width the row
-        // needs, so the time keeps its distance from the icon by a margin.
+        // The filler would count a spacing as required width, so the time uses a margin
+        // instead.
         spacing: 0
 
         Item { Layout.fillWidth: true }
 
-        // The icon is a pixel taller than the line of text. It hangs over the
-        // line rather than stretch it, so the rows above don't move each time
-        // a poll fails or works again.
+        // The icon is a pixel taller than the text. It overhangs rather than stretch the
+        // line, so the rows above don't move when a poll fails or recovers.
         Item {
             implicitWidth: warning.width
             implicitHeight: updated.implicitHeight
@@ -169,9 +164,8 @@ GridLayout {
             }
         }
 
-        // At full strength while the data is old, since this time then says how
-        // old. It stays in the text color: the icon before it carries the
-        // warning's color, which some themes make too pale to read as text.
+        // Full opacity while stale, since this is what says how old the data is. It stays
+        // in the text color: the warning color is too pale to read in some themes.
         PlasmaComponents3.Label {
             id: updated
             Layout.leftMargin: Kirigami.Units.smallSpacing
