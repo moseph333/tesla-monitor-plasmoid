@@ -72,9 +72,7 @@ function symmetric(w, points, top, bottom) {
 
 // A chain drawn on the left side of the car and again, mirrored, on the right.
 function onBothSides(w, points, closed) {
-    const other = points.map(function (p) {
-        return p.length === 2 ? [w - p[0], p[1]] : [w - p[0], p[1], w - p[2], p[3], w - p[4], p[5]];
-    });
+    const other = points.map(p => p.length === 2 ? [w - p[0], p[1]] : [w - p[0], p[1], w - p[2], p[3], w - p[4], p[5]]);
     return chain(points) + (closed ? " Z " : " ") + chain(other) + (closed ? " Z" : "");
 }
 
@@ -88,7 +86,7 @@ function edgeAt(points, y) {
         if (y < from[1] || y > to[1]) continue;
         if (p.length === 2)
             return to[1] === from[1] ? from[0] : from[0] + (to[0] - from[0]) * (y - from[1]) / (to[1] - from[1]);
-        const along = function (axis, t) {
+        const along = (axis, t) => {
             const s = 1 - t;
             return s * s * s * from[axis] + 3 * s * s * t * p[axis] + 3 * s * t * t * p[2 + axis] + t * t * t * to[axis];
         };
@@ -139,17 +137,15 @@ function profile(s) {
     const xf = s.wheels[1];
     const dy = s.fillY - s.wheelY;
     const dx = Math.sqrt(s.fillArch * s.fillArch - dy * dy);
-    const arch = function (x) {
-        return "L " + r2(x + dx) + " " + s.fillY + " A " + s.fillArch + " " + s.fillArch + " 0 1 0 " + r2(x - dx) + " " + s.fillY;
-    };
+    const arch = x => "L " + r2(x + dx) + " " + s.fillY + " A " + s.fillArch + " " + s.fillArch + " 0 1 0 " + r2(x - dx) + " " + s.fillY;
     const hubs = " " + circlePath(xr, s.wheelY, s.hub) + " " + circlePath(xf, s.wheelY, s.hub);
     const from = s.belt[0];
     const to = s.belt[1];
 
     // The bolt, drawn around (240, 73), moved and scaled.
-    const place = function (x, y) { return [s.bolt[0] + (x - 240) * s.bolt[2], s.bolt[1] + (y - 73) * s.bolt[2]]; };
+    const place = (x, y) => [s.bolt[0] + (x - 240) * s.bolt[2], s.bolt[1] + (y - 73) * s.bolt[2]];
     const bolt = [[254, 28], [218, 80], [236, 80], [226, 118], [262, 64], [244, 64]]
-        .map(function (p) { return pt(place(p[0], p[1])); });
+        .map(p => pt(place(p[0], p[1])));
     // The gap around it: on its left the bolt's own edges moved out, on its right one line.
     const floor = [[0, s.fillY], [1, s.fillY]];
     const a = place(202.7, 88);
@@ -247,7 +243,7 @@ function sideProfile(key) {
 // A closed chain moved dx across the car, for the left side, or its mirror image on the
 // right side of a car that is w wide.
 function placed(points, dx, w) {
-    const moved = points.map(function (p) {
+    const moved = points.map(p => {
         const q = p.slice();
         for (let i = 0; i < q.length; i += 2) q[i] = w === undefined ? q[i] + dx : w - (q[i] + dx);
         return q;
@@ -259,7 +255,7 @@ function placed(points, dx, w) {
 // leaves it on the flank and 1 where the chain has it. For the left side, or mirrored on
 // the right side of a car that is w wide.
 function reached(points, flank, share, w, closed) {
-    const moved = points.map(function (p) {
+    const moved = points.map(p => {
         const q = p.slice();
         for (let i = 0; i < q.length; i += 2) {
             const x = q[i] < flank ? flank - (flank - q[i]) * share : q[i];
@@ -274,7 +270,7 @@ function reached(points, flank, share, w, closed) {
 // it. points gives [out, along]: how far out from the body's flank, and how far behind the
 // door's front edge. base is how far the flank is outside the door's own outer edge.
 function mirrorPath(points, base, w, onLeft) {
-    const moved = points.map(function (p) {
+    const moved = points.map(p => {
         const q = p.slice();
         for (let i = 0; i < q.length; i += 2) q[i] = onLeft ? -(base + q[i]) : w + base + q[i];
         return q;
@@ -313,24 +309,20 @@ function mirrorPath(points, base, w, onLeft) {
 //   slats           lines across the trunk lid
 function makePlan(s) {
     const w = s.w;
-    const sym = function (o) { return symmetric(w, o.points, o.top, o.bottom); };
-    const each = function (list, closed) {
-        return (list || []).map(function (c) { return onBothSides(w, c, closed); }).join(" ");
-    };
+    const sym = o => symmetric(w, o.points, o.top, o.bottom);
+    const each = (list, closed) => (list || []).map(c => onBothSides(w, c, closed)).join(" ");
     const base = s.panes[0];
     // All the glass over the cabin and the beams in it, as one outline: the left edges of
     // the pieces that reach the cabin's side, one after the other from the windshield's
     // foot. A body that is not opaque has this cut out of it in one piece, since the edges
     // of holes that touch would show as hairlines.
-    const sides = (s.sidePanes || []).map(function (c) {
-        return c.filter(function (q, i) { return i === 0 || endOf(q)[0] < w / 4; });
-    });
+    const sides = (s.sidePanes || []).map(c => c.filter((q, i) => i === 0 || endOf(q)[0] < w / 4));
     const edge = [];
-    s.panes.concat(s.beams, [s.rear]).map(function (o) { return o.points; }).concat(sides)
-        .filter(function (c) { return c[0][0] < w / 4; })
-        .sort(function (a, b) { return a[0][1] - b[0][1]; })
-        .forEach(function (c) {
-            c.forEach(function (q, i) {
+    s.panes.concat(s.beams, [s.rear]).map(o => o.points).concat(sides)
+        .filter(c => c[0][0] < w / 4)
+        .sort((a, b) => a[0][1] - b[0][1])
+        .forEach(c => {
+            c.forEach((q, i) => {
                 const last = edge.length ? endOf(edge[edge.length - 1]) : null;
                 if (i === 0 && last && last[0] === q[0] && last[1] === q[1]) return;
                 edge.push(q);
@@ -364,7 +356,7 @@ function makePlan(s) {
         trunkSpan: [s.trunk.points[0][1], endOf(s.trunk.points[s.trunk.points.length - 1])[1]],
         glassSpan: [base.points[0][1], endOf(s.rear.points[s.rear.points.length - 1])[1]],
         bodyLeft: s.body,
-        bodyPath: function (flank) { return symmetric(w, s.body(flank)); },
+        bodyPath: flank => symmetric(w, s.body(flank)),
         frunkPath: sym(s.hood),
         trunkPath: sym(s.trunk),
         creasePath: each(s.creases, false),
@@ -390,14 +382,12 @@ const PLANS = {};
 PLANS["3"] = function () {
     return makePlan({
         w: 209, length: 469.4, flank: 14.25, belt: 27, frontAxle: 84, rearAxle: 371.5, tire: 33,
-        body: function (f) {
-            return [[104.5, 0],
+        body: f => [[104.5, 0],
                     [88, 0, 56, 10.5, 33, 24], [23, 31.5, 15.5, 44, 12.8, 60], [11.9, 72, 12.3, 84, 12.3, 98],
                     [12.3, 120], [12.3, 132, f, 138, f, 150],
                     [f, 333], [f, 343, 12.9, 346, 12.9, 356], [12.9, 392],
                     [12.9, 402, 14.6, 412, 17.5, 420], [20.3, 428, 25.5, 440, 32.5, 450],
-                    [39, 459, 52, 463.5, 68, 466], [80, 468, 92, 469.4, 104.5, 469.4]];
-        },
+                    [39, 459, 52, 463.5, 68, 466], [80, 468, 92, 469.4, 104.5, 469.4]],
         hood: { points: [[104.5, 9], [88, 9, 66, 12, 54, 21], [48, 32, 40.5, 62, 35.5, 92], [31.5, 123]], bottom: [62, 99] },
         creases: [[[57, 104], [59, 80, 66, 48, 76, 22]]],
         panes: [
@@ -430,13 +420,11 @@ PLANS["3"] = function () {
 PLANS["y"] = function () {
     return makePlan({
         w: 216.1, length: 475, flank: 13.9, belt: 25.5, frontAxle: 87.4, rearAxle: 376.4, tire: 35,
-        body: function (f) {
-            return [[108.05, 0],
+        body: f => [[108.05, 0],
                     [86, 0, 60, 5.5, 40, 16.8], [30, 22, 20.5, 27.5, 16.8, 36.2], [15.2, 42.5, f, 51, f, 62],
                     [f, 322], [f, 334, 12.2, 338, 12.2, 350], [12.2, 398],
                     [12.2, 408, 14.2, 418, 17.6, 426], [20.5, 433.5, 23.5, 441.5, 28.2, 448],
-                    [33, 454, 40, 456.5, 48.2, 459.5], [56, 462.5, 64, 468, 73.4, 471.2], [84, 474.3, 96, 475, 108.05, 475]];
-        },
+                    [33, 454, 40, 456.5, 48.2, 459.5], [56, 462.5, 64, 468, 73.4, 471.2], [84, 474.3, 96, 475, 108.05, 475]],
         hood: { points: [[108.05, 10], [90, 10, 70, 13, 58, 21], [48, 31, 40, 56, 36.5, 84], [33, 124]], bottom: [62, 94.7] },
         creases: [[[58, 102], [60, 78, 67, 48, 77, 23]]],
         panes: [
@@ -470,14 +458,12 @@ PLANS["y"] = function () {
 PLANS["s"] = function () {
     return makePlan({
         w: 222.7, length: 502.1, flank: 15.6, belt: 22.5, frontAxle: 96.1, rearAxle: 392.1, tire: 35,
-        body: function (f) {
-            return [[111.35, 0],
+        body: f => [[111.35, 0],
                     [98, 0, 86, 0.8, 76, 3], [50, 9, 29.7, 22.4, 20.9, 40], [18, 46, 14.8, 52, 13.8, 60],
                     [13.4, 66, 13.6, 70, 13.6, 76], [13.6, 118], [13.6, 130, f, 134, f, 146],
                     [f, 332], [f, 344, 12.2, 350, 12.2, 362], [12.2, 418],
                     [12.4, 425, 15.5, 430, 17.9, 436], [19.2, 443.5, 23.8, 464.9, 29.4, 469.5],
-                    [34.4, 473.6, 40.7, 475.7, 46.4, 478.5], [53, 481.8, 61, 489.3, 68.1, 492.8], [80, 498.6, 95, 502.1, 111.35, 502.1]];
-        },
+                    [34.4, 473.6, 40.7, 475.7, 46.4, 478.5], [53, 481.8, 61, 489.3, 68.1, 492.8], [80, 498.6, 95, 502.1, 111.35, 502.1]],
         hood: { points: [[111.35, 9.5], [92, 9.5, 72, 12, 60, 17], [47, 24, 36, 38, 33.5, 58], [31.5, 80, 31, 110, 31.5, 138]], bottom: [62, 105.3] },
         creases: [[[66, 112], [70, 80, 82, 40, 96, 18]]],
         panes: [
@@ -512,15 +498,13 @@ PLANS["s"] = function () {
 PLANS["x"] = function () {
     return makePlan({
         w: 223.9, length: 505.7, flank: 16, belt: 22.5, frontAxle: 98.8, rearAxle: 395.3, tire: 37,
-        body: function (f) {
-            return [[111.95, 0],
+        body: f => [[111.95, 0],
                     [98, 0, 92, 0.6, 87.5, 1.5], [75.5, 3.5, 64.5, 7, 53.5, 12.5], [44, 17.5, 33, 23, 28, 29],
                     [23.8, 34.2, 21.9, 40.2, 19, 46], [16.3, 51.3, 14.3, 57.1, 13.3, 63], [12.4, 68, 12, 74, 12, 82],
                     [12, 112], [12, 124, f, 128, f, 140],
                     [f, 338], [f, 348, 11.6, 352, 11.6, 362], [11.6, 424],
                     [11.8, 432, 15.5, 438, 18.6, 446.3], [20.3, 456.1, 23.5, 475.3, 31.3, 481.7],
-                    [36.8, 486.2, 44.2, 489, 50.5, 492.2], [56.3, 495.1, 62.9, 499.1, 69.5, 500.2], [79, 501.8, 92, 505.7, 111.95, 505.7]];
-        },
+                    [36.8, 486.2, 44.2, 489, 50.5, 492.2], [56.3, 495.1, 62.9, 499.1, 69.5, 500.2], [79, 501.8, 92, 505.7, 111.95, 505.7]],
         hood: { points: [[111.95, 10], [92, 10, 72, 12.5, 60, 18], [46, 25, 33, 38, 29.5, 58], [27.5, 78, 27.5, 100, 29, 119]], bottom: [62, 99] },
         creases: [[[64, 100], [68, 74, 80, 40, 94, 19]]],
         panes: [
@@ -574,9 +558,7 @@ PLANS["cybertruck"] = function () {
     for (let y = 403; y < 550; y += 13) slats.push("M 51 " + y + " H 190.3");
     return makePlan({
         w: 241.3, length: 568.3, flank: 22.5, belt: 33.5, frontAxle: 87.8, rearAxle: 451.3, tire: 44, wheelInset: 16,
-        body: function (f) {
-            return [[120.65, 0.5], [84, 2.5], [54, 10], [35, 22], [24.5, 35], [f, 46], [f, 557], [26, 568.3], [120.65, 568.3]];
-        },
+        body: f => [[120.65, 0.5], [84, 2.5], [54, 10], [35, 22], [24.5, 35], [f, 46], [f, 557], [26, 568.3], [120.65, 568.3]],
         hood: { points: [[120.65, 7.5], [85, 9], [57, 16], [40, 27], [31, 38.5], [31, 71]], bottom: [70, 58.3] },
         panes: [
             { points: [[31.5, 75], [50, 236]], top: [70, 61] },
