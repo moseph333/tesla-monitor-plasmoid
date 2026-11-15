@@ -183,12 +183,12 @@ PlasmoidItem {
     toolTipSubText: {
         if (!configured) return i18n("Not configured")
         if (!hasData) return errorText || i18n("Connecting…")
-        let s = stateLabel()
-        if (level >= 0) s += " · " + level + "% · " + fmtDistance(rangeKm)
+        const summary = [stateLabel()]
+        if (level >= 0) summary.push(level + "%", fmtDistance(rangeKm))
         const remaining = chargeRemainingText()
-        if (charging && remaining) s += " · " + remaining
+        if (charging && remaining) summary.push(remaining)
         // Every attention line, since the panel icon has no other way to show them.
-        const lines = [s].concat(attentionLines)
+        const lines = [summary.join(" · ")].concat(attentionLines)
         if (stale)
             lines.push(i18n("Not updated since %1. %2", lastUpdated.toLocaleString(Qt.locale(), Locale.ShortFormat), errorText))
         return lines.join("\n")
@@ -243,9 +243,9 @@ PlasmoidItem {
         } else {
             // TeslaMate 2.1 and newer don't retain healthy, so it's only in the polls that
             // happen to catch it. Its last value stays for 10 minutes.
-            const h = Logic.carryHealthy(parsed.healthy, car.healthy, healthySeenAt, now, 10 * 60 * 1000)
-            if (h.value !== undefined) parsed.healthy = h.value
-            healthySeenAt = h.seenAt
+            const healthy = Logic.carryHealthy(parsed.healthy, car.healthy, healthySeenAt, now, 10 * 60 * 1000)
+            if (healthy.value !== undefined) parsed.healthy = healthy.value
+            healthySeenAt = healthy.seenAt
             car = parsed
             hasData = true
             errorText = ""
@@ -337,8 +337,8 @@ PlasmoidItem {
         connectionSeen = connectionNow()
         // 1.5 replaced the imperial checkbox with a setting for each unit. This keeps what an
         // existing widget showed, once; libplasma saves the new values a moment later.
-        const m = Logic.unitMigration(cfg.unitsMigrated, cfg.brokerHost, cfg.imperial)
-        if (m) for (const k in m) Plasmoid.configuration[k] = m[k]
+        const migrated = Logic.unitMigration(cfg.unitsMigrated, cfg.brokerHost, cfg.imperial)
+        for (const key in migrated) Plasmoid.configuration[key] = migrated[key]
     }
 
     compactRepresentation: CompactRepresentation {
