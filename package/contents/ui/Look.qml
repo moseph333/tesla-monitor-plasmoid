@@ -5,7 +5,8 @@ import org.kde.kirigami as Kirigami
 // Each part creates its own inside itself, as `Look { id: look }`. It is an item, though it
 // draws nothing, because Kirigami.Theme's colors follow the tree of items: created inside a
 // part, it has the colors of the popup or desktop that part is shown in, which can differ
-// from the panel's, where the widget's root item lives.
+// from the panel's, where the widget's root item lives. The card's own rows are handed
+// the card's instead: most are layouts, where an item of their own would take a place.
 // It has no size, and it stays visible: in a panel's popup, Kirigami gives an item that is
 // not visible black for every theme color.
 Item {
