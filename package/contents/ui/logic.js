@@ -73,10 +73,15 @@ function parts(car, kind) {
     return out;
 }
 
+const MILES_PER_KM = 0.621371;
+const KM_PER_MILE = 1.609344;
+const PSI_PER_BAR = 14.5038;
+const KPA_PER_BAR = 100;
+
 // TeslaMate reports metric values. These convert them to a unit from resolveUnits().
 function distance(km, unit) {
     if (km === null) return null;
-    return unit === "mi" ? km * 0.621371 : km;
+    return unit === "mi" ? km * MILES_PER_KM : km;
 }
 
 function temperature(c, unit) {
@@ -86,8 +91,8 @@ function temperature(c, unit) {
 
 function pressure(bar, unit) {
     if (bar === null) return null;
-    if (unit === "psi") return bar * 14.5038;
-    if (unit === "kPa") return bar * 100;
+    if (unit === "psi") return bar * PSI_PER_BAR;
+    if (unit === "kPa") return bar * KPA_PER_BAR;
     return bar;
 }
 
@@ -240,7 +245,7 @@ function activeRoute(car) {
         minutes: number(r.minutes_to_arrival),
         trafficMinutes: number(r.traffic_minutes_delay),
         energyAtArrival: number(r.energy_at_arrival),
-        km: miles === null ? null : miles * 1.609344
+        km: miles === null ? null : miles * KM_PER_MILE
     };
 }
 
