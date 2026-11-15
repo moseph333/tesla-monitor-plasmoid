@@ -179,27 +179,6 @@ PlasmoidItem {
         return limit >= 0 ? i18n("%1 to %2%", t, limit) : i18nc("how long a charge still takes", "%1 left", t)
     }
 
-    // The update's status in the footer.
-    function updateText() {
-        const v = car.update_version || ""
-        switch (softwareUpdate.phase) {
-        case "downloading": {
-            const p = softwareUpdate.percent !== null ? Math.round(softwareUpdate.percent) : 0
-            return v ? i18n("Downloading %1 · %2%", v, p) : i18n("Downloading update · %1%", p)
-        }
-        case "installing":
-            return v ? i18n("Installing %1", v) : i18n("Installing update")
-        default:
-            return v ? i18n("%1 available", v) : i18n("Update available")
-        }
-    }
-
-    // When the data on the card arrived, for the footer: "Updated 2:30 PM", or "Updated Mon
-    // 2:30 PM" once that was not today.
-    function updatedText(time) {
-        return i18n("Updated %1", clock(time.getTime()))
-    }
-
     // The keys that press a button.
     function isActivationKey(key) {
         return [Qt.Key_Space, Qt.Key_Enter, Qt.Key_Return, Qt.Key_Select].includes(key)

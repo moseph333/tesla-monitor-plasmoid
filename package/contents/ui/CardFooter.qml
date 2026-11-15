@@ -29,6 +29,27 @@ GridLayout {
     columnSpacing: Kirigami.Units.largeSpacing
     rowSpacing: Kirigami.Units.smallSpacing * 1.5
 
+    // The update's status in the footer.
+    function updateText() {
+        const v = widget.car.update_version || ""
+        switch (widget.softwareUpdate.phase) {
+        case "downloading": {
+            const p = widget.softwareUpdate.percent !== null ? Math.round(widget.softwareUpdate.percent) : 0
+            return v ? i18n("Downloading %1 · %2%", v, p) : i18n("Downloading update · %1%", p)
+        }
+        case "installing":
+            return v ? i18n("Installing %1", v) : i18n("Installing update")
+        default:
+            return v ? i18n("%1 available", v) : i18n("Update available")
+        }
+    }
+
+    // When the data on the card arrived, for the footer: "Updated 2:30 PM", or "Updated Mon
+    // 2:30 PM" once that was not today.
+    function updatedText(time) {
+        return i18n("Updated %1", widget.clock(time.getTime()))
+    }
+
     // An hour of two digits, on a 12 hour clock and on a 24 hour clock, and
     // today, so no weekday comes with it.
     TextMetrics {
@@ -37,7 +58,7 @@ GridLayout {
         text: {
             const late = new Date()
             late.setHours(22, 0, 0, 0)
-            return widget.updatedText(late)
+            return footer.updatedText(late)
         }
     }
 
@@ -111,7 +132,7 @@ GridLayout {
             elide: Text.ElideRight
             font.pointSize: Kirigami.Theme.smallFont.pointSize
             font.features: { "tnum": 1 }
-            text: widget.updateText()
+            text: footer.updateText()
         }
     }
 
@@ -160,7 +181,7 @@ GridLayout {
             color: Kirigami.Theme.textColor
             text: {
                 widget.now // re-evaluate on tick: at midnight the time gets its weekday
-                return widget.lastUpdated ? widget.updatedText(widget.lastUpdated) : ""
+                return widget.lastUpdated ? footer.updatedText(widget.lastUpdated) : ""
             }
         }
     }
