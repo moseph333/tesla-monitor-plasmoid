@@ -304,6 +304,11 @@ PlasmoidItem {
         return i18n("Updated %1", clock(time.getTime()))
     }
 
+    // The keys that press a button.
+    function isActivationKey(key) {
+        return [Qt.Key_Space, Qt.Key_Enter, Qt.Key_Return, Qt.Key_Select].includes(key)
+    }
+
     // The browser takes over, so the popup closes rather than stay open behind it.
     function openTeslaMate() {
         if (!teslamateUrl) return
@@ -618,16 +623,10 @@ PlasmoidItem {
         onClicked: root.expanded = !wasExpanded
 
         Keys.onPressed: (event) => {
-            switch (event.key) {
-            case Qt.Key_Space:
-            case Qt.Key_Enter:
-            case Qt.Key_Return:
-            case Qt.Key_Select:
-                Plasmoid.activated()
-                // Taken here, so a system tray holding the widget doesn't act on it as well.
-                event.accepted = true
-                break
-            }
+            if (!root.isActivationKey(event.key)) return
+            Plasmoid.activated()
+            // Taken here, so a system tray holding the widget doesn't act on it as well.
+            event.accepted = true
         }
 
         Accessible.role: Accessible.Button
@@ -796,15 +795,9 @@ PlasmoidItem {
                             activeFocusOnTab: root.teslamateUrl !== ""
 
                             Keys.onPressed: (event) => {
-                                switch (event.key) {
-                                case Qt.Key_Space:
-                                case Qt.Key_Enter:
-                                case Qt.Key_Return:
-                                case Qt.Key_Select:
-                                    root.openTeslaMate()
-                                    event.accepted = true
-                                    break
-                                }
+                                if (!root.isActivationKey(event.key)) return
+                                root.openTeslaMate()
+                                event.accepted = true
                             }
 
                             Accessible.role: Accessible.Link
