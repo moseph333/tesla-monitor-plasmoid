@@ -557,7 +557,7 @@ function claimEvent(event, claim) {
 // Breeze battery icon name for a level (0..100).
 function batteryIcon(level, charging) {
     const step = level === null ? 50 : Math.max(0, Math.min(100, Math.round(level / 10) * 10));
-    const name = "battery-" + (step < 10 ? "00" : step < 100 ? "0" : "") + step;
+    const name = "battery-" + String(step).padStart(3, "0");
     return charging ? name + "-charging" : name;
 }
 
@@ -744,11 +744,11 @@ function parseCars(out) {
         const match = re.exec(topic);
         if (match) found.push({ prefix: match[1], name: all[topic], ns: match[2] || "", id: match[3] });
     }
-    found.sort(function (a, b) {
+    const numeric = id => /^\d+$/.test(id);
+    found.sort((a, b) => {
         if (a.ns !== b.ns) return a.ns < b.ns ? -1 : 1;
-        const an = /^\d+$/.test(a.id), bn = /^\d+$/.test(b.id);
-        if (an !== bn) return an ? -1 : 1;
-        if (an && Number(a.id) !== Number(b.id)) return Number(a.id) - Number(b.id);
+        if (numeric(a.id) !== numeric(b.id)) return numeric(a.id) ? -1 : 1;
+        if (numeric(a.id) && Number(a.id) !== Number(b.id)) return Number(a.id) - Number(b.id);
         return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
     });
     return found.map(car => ({ prefix: car.prefix, name: car.name }));
