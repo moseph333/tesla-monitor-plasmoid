@@ -41,6 +41,12 @@ Item {
     readonly property real cy: height / 2
     // One pixel in from the edge, so the smoothed outer edge stays inside the item as well.
     readonly property real radius: (diameter - thickness) / 2 - 1
+    // The arc starts at the lower left and runs over the top to the lower right, in degrees
+    // as PathAngleArc counts them: clockwise from three o'clock.
+    readonly property real arcStart: 135
+    readonly property real arcSweep: 270
+    // Where on the arc a share of the battery, from 0 to 1, is.
+    function angleOf(share) { return arcStart + arcSweep * share }
 
     // The card writes a value it doesn't have as a dash, and draws it faint and in regular
     // weight. Without a level there is no arc, and nothing to measure the way to the limit
@@ -76,12 +82,12 @@ Item {
     }
 
     readonly property real limit: Math.min(1, marker)
-    readonly property real limitRadians: (135 + 270 * limit) * Math.PI / 180
+    readonly property real limitRadians: angleOf(limit) * Math.PI / 180
     // What is left to the limit, along the middle of the stroke. Beside a notch the arc
     // to the limit is left out while that is less than a stroke width: half of it lies
     // under the level's round end, and the rest would be a speck beside it. Before a gap
     // it stays at any length, since the track's round end shows there anyway.
-    readonly property real toLimit: (limit - shown) * 270 * Math.PI / 180 * radius
+    readonly property real toLimit: (limit - shown) * arcSweep * Math.PI / 180 * radius
     readonly property bool targetShown: marker >= 0 && levelKnown && (split ? toLimit > 0 : toLimit >= thickness)
 
     // The charge limit is a gap in the track: the track ends round at the limit, as the
@@ -119,7 +125,7 @@ Item {
                 PathAngleArc {
                     centerX: ring.cx; centerY: ring.cy
                     radiusX: ring.radius; radiusY: ring.radius
-                    startAngle: 135; sweepAngle: ring.split ? 270 * ring.limit : 270
+                    startAngle: ring.arcStart; sweepAngle: ring.arcSweep * (ring.split ? ring.limit : 1)
                 }
             }
 
@@ -127,7 +133,7 @@ Item {
             // stroke of no length would still be drawn as a dot by some renderers.
             ShapePath {
                 id: beyond
-                readonly property real start: 135 + 270 * ring.limit + 2 * ring.capDegrees + ring.gapDegrees
+                readonly property real start: ring.angleOf(ring.limit) + 2 * ring.capDegrees + ring.gapDegrees
 
                 fillColor: "transparent"
                 strokeColor: ring.split ? look.hairline : "transparent"
@@ -136,7 +142,7 @@ Item {
                 PathAngleArc {
                     centerX: ring.cx; centerY: ring.cy
                     radiusX: ring.radius; radiusY: ring.radius
-                    startAngle: ring.split ? beyond.start : 404; sweepAngle: 405 - startAngle
+                    startAngle: ring.split ? beyond.start : ring.angleOf(1) - 1; sweepAngle: ring.angleOf(1) - startAngle
                 }
             }
 
@@ -217,7 +223,7 @@ Item {
                 PathAngleArc {
                     centerX: ring.cx; centerY: ring.cy
                     radiusX: ring.radius; radiusY: ring.radius
-                    startAngle: 135 + 270 * ring.shown; sweepAngle: 270 * (ring.limit - ring.shown)
+                    startAngle: ring.angleOf(ring.shown); sweepAngle: ring.arcSweep * (ring.limit - ring.shown)
                 }
             }
         }
@@ -236,7 +242,7 @@ Item {
                 PathAngleArc {
                     centerX: ring.cx; centerY: ring.cy
                     radiusX: ring.radius; radiusY: ring.radius
-                    startAngle: 135; sweepAngle: 270 * Math.max(ring.shown, 0.001)
+                    startAngle: ring.arcStart; sweepAngle: ring.arcSweep * Math.max(ring.shown, 0.001)
                 }
             }
         }
