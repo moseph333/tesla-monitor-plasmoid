@@ -307,13 +307,18 @@ function attention(car, okGeofences) {
     return items;
 }
 
+// An id from attention() or "update:<version>" as its {type, part}: "door:driver_front" is
+// the driver_front door, and "frunk" has no part.
+function splitId(id) {
+    const colon = id.indexOf(":");
+    return colon < 0 ? { type: id, part: "" } : { type: id.slice(0, colon), part: id.slice(colon + 1) };
+}
+
 // Whether an id from attention(), or "update:<version>", is now explicitly fine. A topic
 // that went empty doesn't count, so a value TeslaMate stops sending can't end a warning
 // that would then start over when it comes back.
 function isResolved(car, id, okGeofences) {
-    const colon = id.indexOf(":");
-    const type = colon < 0 ? id : id.slice(0, colon);
-    const part = colon < 0 ? "" : id.slice(colon + 1);
+    const { type, part } = splitId(id);
     switch (type) {
     case "door":
     case "window": {
@@ -523,9 +528,7 @@ function eventKey(e) {
 
 // The claim key, as eventKey() names it, for an id that notifyStep() tracks.
 function itemKey(id) {
-    const colon = id.indexOf(":");
-    const type = colon < 0 ? id : id.slice(0, colon);
-    const part = colon < 0 ? "" : id.slice(colon + 1);
+    const { type, part } = splitId(id);
     if (type === "unlocked") return eventKey({ type: "unlocked" });
     if (type === "tire") return eventKey({ type: "tires", items: [part] });
     if (type === "update") return eventKey({ type: "update", version: part });
