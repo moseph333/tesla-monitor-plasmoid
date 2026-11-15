@@ -38,7 +38,9 @@ function chain(points) {
     return out.join(" ");
 }
 
+// Where a piece of a chain ends, and where the whole chain does.
 function endOf(segment) { return [segment[segment.length - 2], segment[segment.length - 1]]; }
+function chainEnd(points) { return endOf(points[points.length - 1]); }
 
 // The same chain on the other side of a car that is w wide, run backwards.
 function mirrored(w, points) {
@@ -57,7 +59,7 @@ function mirrored(w, points) {
 // top and bottom give the control point, on the left, of the curve that crosses over.
 function symmetric(w, points, top, bottom) {
     const first = points[0];
-    const last = endOf(points[points.length - 1]);
+    const last = chainEnd(points);
     const out = [chain(points)];
     if (Math.abs(last[0] - w / 2) > 0.001) {
         if (bottom) out.push("C", r2(bottom[0]), r2(bottom[1]), r2(w - bottom[0]), r2(bottom[1]), r2(w - last[0]), r2(last[1]));
@@ -99,7 +101,7 @@ function edgeAt(points, y) {
         }
         return along(0, (before + after) / 2);
     }
-    return endOf(points[points.length - 1])[0];
+    return chainEnd(points)[0];
 }
 
 function circlePath(cx, cy, r) {
@@ -323,7 +325,7 @@ function makePlan(s) {
         .sort((a, b) => a[0][1] - b[0][1])
         .forEach(c => {
             c.forEach((q, i) => {
-                const last = edge.length ? endOf(edge[edge.length - 1]) : null;
+                const last = edge.length ? chainEnd(edge) : null;
                 if (i === 0 && last && last[0] === q[0] && last[1] === q[1]) return;
                 edge.push(q);
             });
@@ -349,12 +351,12 @@ function makePlan(s) {
         frontWindow: s.frontWindow,
         rearWindow: s.rearWindow,
         // How long the windshield is, which is all the room a sign on it has.
-        windshieldLength: endOf(base.points[base.points.length - 1])[1] - base.points[0][1],
+        windshieldLength: chainEnd(base.points)[1] - base.points[0][1],
         // From where to where, along the car, the light on the hood, on the trunk lid and
         // on the glass is spread.
-        hoodSpan: [s.hood.points[0][1], endOf(s.hood.points[s.hood.points.length - 1])[1]],
-        trunkSpan: [s.trunk.points[0][1], endOf(s.trunk.points[s.trunk.points.length - 1])[1]],
-        glassSpan: [base.points[0][1], endOf(s.rear.points[s.rear.points.length - 1])[1]],
+        hoodSpan: [s.hood.points[0][1], chainEnd(s.hood.points)[1]],
+        trunkSpan: [s.trunk.points[0][1], chainEnd(s.trunk.points)[1]],
+        glassSpan: [base.points[0][1], chainEnd(s.rear.points)[1]],
         bodyLeft: s.body,
         bodyPath: flank => symmetric(w, s.body(flank)),
         frunkPath: sym(s.hood),
