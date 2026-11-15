@@ -14,12 +14,12 @@ const KEYS = ["s", "3", "x", "y", "cybertruck"];
 // its model topic ("S", "3", "X" or "Y"), and 1 to 5 name a model from KEYS. A missing or
 // unknown report gives the Model 3, which is what the widget drew before it knew others.
 function modelKey(setting, reported) {
-    const i = Math.round(Number(setting));
-    if (i >= 1 && i <= KEYS.length) return KEYS[i - 1];
-    const s = String(reported === undefined || reported === null ? "" : reported)
+    const choice = Math.round(Number(setting));
+    if (choice >= 1 && choice <= KEYS.length) return KEYS[choice - 1];
+    const name = String(reported === undefined || reported === null ? "" : reported)
         .toLowerCase().replace(/[^a-z0-9]/g, "").replace(/^tesla/, "").replace(/^model/, "");
-    if (s === "s" || s === "x" || s === "y" || s === "3") return s;
-    if (s === "c" || s === "ct" || s.indexOf("cyber") === 0) return "cybertruck";
+    if (["s", "3", "x", "y"].includes(name)) return name;
+    if (name === "c" || name === "ct" || name.startsWith("cyber")) return "cybertruck";
     return "3";
 }
 
