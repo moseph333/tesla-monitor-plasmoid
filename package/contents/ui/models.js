@@ -72,9 +72,15 @@ function symmetric(w, points, top, bottom) {
     return out.join(" ");
 }
 
+// A chain with every x, across the car, put through moveX. A point or a curve lists x and
+// y in turn.
+function mapX(points, moveX) {
+    return points.map(p => p.map((value, i) => i % 2 === 0 ? moveX(value) : value));
+}
+
 // A chain drawn on the left side of the car and again, mirrored, on the right.
 function onBothSides(w, points, closed) {
-    const other = points.map(p => p.length === 2 ? [w - p[0], p[1]] : [w - p[0], p[1], w - p[2], p[3], w - p[4], p[5]]);
+    const other = mapX(points, x => w - x);
     return chain(points) + (closed ? " Z " : " ") + chain(other) + (closed ? " Z" : "");
 }
 
@@ -245,25 +251,16 @@ function sideProfile(key) {
 // A closed chain moved dx across the car, for the left side, or its mirror image on the
 // right side of a car that is w wide.
 function placed(points, dx, w) {
-    const moved = points.map(p => {
-        const q = p.slice();
-        for (let i = 0; i < q.length; i += 2) q[i] = w === undefined ? q[i] + dx : w - (q[i] + dx);
-        return q;
-    });
-    return chain(moved) + " Z";
+    return chain(mapX(points, x => w === undefined ? x + dx : w - (x + dx))) + " Z";
 }
 
 // A chain of which the part outside the flank is drawn only share of the way out: 0
 // leaves it on the flank and 1 where the chain has it. For the left side, or mirrored on
 // the right side of a car that is w wide.
 function reached(points, flank, share, w, closed) {
-    const moved = points.map(p => {
-        const q = p.slice();
-        for (let i = 0; i < q.length; i += 2) {
-            const x = q[i] < flank ? flank - (flank - q[i]) * share : q[i];
-            q[i] = w === undefined ? x : w - x;
-        }
-        return q;
+    const moved = mapX(points, x => {
+        const out = x < flank ? flank - (flank - x) * share : x;
+        return w === undefined ? out : w - out;
     });
     return chain(moved) + (closed ? " Z" : "");
 }
@@ -272,12 +269,7 @@ function reached(points, flank, share, w, closed) {
 // it. points gives [out, along]: how far out from the body's flank, and how far behind the
 // door's front edge. base is how far the flank is outside the door's own outer edge.
 function mirrorPath(points, base, w, onLeft) {
-    const moved = points.map(p => {
-        const q = p.slice();
-        for (let i = 0; i < q.length; i += 2) q[i] = onLeft ? -(base + q[i]) : w + base + q[i];
-        return q;
-    });
-    return chain(moved);
+    return chain(mapX(points, out => onLeft ? -(base + out) : w + base + out));
 }
 
 // The plan of a car, nose up, in a box that ends at the mirror tips. Across the car x
