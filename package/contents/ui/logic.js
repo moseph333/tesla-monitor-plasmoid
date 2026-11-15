@@ -7,9 +7,8 @@ function parseMqtt(out, prefix) {
     const map = {};
     const base = String(prefix || "").replace(/\/+$/, "");
     const pre = base ? base + "/" : "";
-    const lines = String(out || "").split("\n");
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].replace(/\r$/, "");
+    for (const rawLine of String(out || "").split("\n")) {
+        const line = rawLine.replace(/\r$/, "");
         if (!line) continue;
         const sp = line.indexOf(" ");
         const topic = sp < 0 ? line : line.slice(0, sp);
@@ -55,19 +54,18 @@ const TIRES = ["fl", "fr", "rl", "rr"];
 const LEFT = { door: 1, window: 1, frunk: 1, trunk: 1, sunroof: 1, port: 1 };
 // Every id attention() can give for something left open, the unlocked car or a tire, so a
 // snapshot can say which of them are fine whether or not this copy was tracking them.
-const TRACKABLE = (function () {
-    const out = ["frunk", "trunk", "sunroof", "port", "unlocked", "door:some", "window:some"];
-    for (let i = 0; i < PARTS.length; i++) out.push("door:" + PARTS[i], "window:" + PARTS[i]);
-    for (let t = 0; t < TIRES.length; t++) out.push("tire:" + TIRES[t]);
-    return out;
+const TRACKABLE = (() => {
+    const ids = ["frunk", "trunk", "sunroof", "port", "unlocked", "door:some", "window:some"];
+    for (const part of PARTS) ids.push("door:" + part, "window:" + part);
+    for (const tire of TIRES) ids.push("tire:" + tire);
+    return ids;
 })();
 
 // Every door or window (kind "door" or "window") by its TeslaMate name, as partOpen() reads
 // it, e.g. {driver_front: true, driver_rear: false, ...}.
 function parts(car, kind) {
     const out = {};
-    for (let i = 0; i < PARTS.length; i++)
-        out[PARTS[i]] = partOpen(car, PARTS[i] + "_" + kind + "_open", kind + "s_open");
+    for (const part of PARTS) out[part] = partOpen(car, part + "_" + kind + "_open", kind + "s_open");
     return out;
 }
 
@@ -256,13 +254,7 @@ function carryHealthy(fresh, prevValue, prevSeenAt, nowMs, maxAgeMs) {
 // "Home, Work" -> ["home", "work"], so geofence names compare without regard to case or
 // spacing.
 function geofenceList(text) {
-    const out = [];
-    const names = String(text || "").split(",");
-    for (let i = 0; i < names.length; i++) {
-        const name = names[i].trim().toLowerCase();
-        if (name) out.push(name);
-    }
-    return out;
+    return String(text || "").split(",").map(name => name.trim().toLowerCase()).filter(name => name !== "");
 }
 
 // Shared by attention() and isResolved(), so the two agree on where unlocked is fine.
@@ -281,28 +273,19 @@ function attention(car, okGeofences) {
     }
     if (car && car.healthy === "false") add("unhealthy", "unhealthy");
     if (bool(car, "service_mode")) add("service", "service");
-    for (let t = 0; t < TIRES.length; t++)
-        if (bool(car, "tpms_soft_warning_" + TIRES[t])) add("tire:" + TIRES[t], "tire", TIRES[t]);
+    for (const tire of TIRES)
+        if (bool(car, "tpms_soft_warning_" + tire)) add("tire:" + tire, "tire", tire);
     // Only when the car says nobody is inside, so someone sitting in an unlocked car, or a
     // TeslaMate that doesn't report presence, doesn't count.
     if (triState(car, "locked") === false && !isDriving(car)
         && triState(car, "is_user_present") === false && !atOkGeofence(car, okGeofences))
         add("unlocked", "unlocked");
-    const kinds = ["door", "window"];
-    for (let k = 0; k < kinds.length; k++) {
-        const states = parts(car, kinds[k]);
-        let named = false;
-        let some = false;
-        for (let p = 0; p < PARTS.length; p++) {
-            if (states[PARTS[p]] === true) {
-                add(kinds[k] + ":" + PARTS[p], kinds[k], PARTS[p]);
-                named = true;
-            } else if (states[PARTS[p]] === "some") {
-                some = true;
-            }
-        }
+    for (const kind of ["door", "window"]) {
+        const states = parts(car, kind);
+        const open = PARTS.filter(part => states[part] === true);
+        for (const part of open) add(kind + ":" + part, kind, part);
         // Older TeslaMate only reports that some door or window is open.
-        if (!named && some) add(kinds[k] + ":some", kinds[k], "some");
+        if (open.length === 0 && PARTS.some(part => states[part] === "some")) add(kind + ":some", kind, "some");
     }
     if (bool(car, "frunk_open")) add("frunk", "frunk");
     if (bool(car, "trunk_open")) add("trunk", "trunk");
@@ -325,9 +308,7 @@ function isResolved(car, id, okGeofences) {
     case "window": {
         const states = parts(car, type);
         if (part !== "some") return states[part] === false;
-        for (let i = 0; i < PARTS.length; i++)
-            if (states[PARTS[i]] !== false) return false;
-        return true;
+        return PARTS.every(p => states[p] === false);
     }
     case "frunk": return triState(car, "frunk_open") === false;
     case "trunk": return triState(car, "trunk_open") === false;
@@ -372,12 +353,8 @@ function notifyStep(prev, car, nowMs, opts) {
     // Things left open and the unlocked car, with a timer that only runs while nobody is in
     // the car; tires and updates, which notify on the next snapshot.
     const unattended = !isDriving(car) && triState(car, "is_user_present") !== true;
-    const candidates = [];
-    const items = attention(car, ok);
-    for (let i = 0; i < items.length; i++) {
-        const type = items[i].type;
-        if (LEFT[type] || type === "unlocked" || type === "tire") candidates.push(items[i]);
-    }
+    const candidates = attention(car, ok)
+        .filter(item => LEFT[item.type] || item.type === "unlocked" || item.type === "tire");
     if (bool(car, "update_available"))
         candidates.push({ id: "update:" + (car.update_version || ""), type: "update", part: "" });
 
@@ -386,8 +363,7 @@ function notifyStep(prev, car, nowMs, opts) {
     let unlockedDue = false;
     const tiresDue = [];
     let updateDue = null;
-    for (let c = 0; c < candidates.length; c++) {
-        const item = candidates[c];
+    for (const item of candidates) {
         const was = old[item.id];
         const entry = was ? { since: was.since, done: was.done } : { since: nowMs, done: first };
         if (LEFT[item.type] || item.type === "unlocked") {
@@ -418,8 +394,8 @@ function notifyStep(prev, car, nowMs, opts) {
     }
     // Whatever is fine ends its claim even when this copy wasn't tracking it, such as right
     // after it started over, since another copy, or this one before the gap, may hold it.
-    for (let r = 0; r < TRACKABLE.length; r++) {
-        if (isResolved(car, TRACKABLE[r], ok)) release(itemKey(TRACKABLE[r]));
+    for (const id of TRACKABLE) {
+        if (isResolved(car, id, ok)) release(itemKey(id));
     }
 
     const s = chargeStatus(car);
@@ -527,10 +503,7 @@ function eventKey(e) {
     case "unlocked": return "unlocked";
     case "tires":
     case "leftOpen": {
-        const keys = [];
-        for (let i = 0; i < e.items.length; i++)
-            keys.push(e.type === "tires" ? e.items[i] : e.items[i].id);
-        keys.sort();
+        const keys = e.items.map(item => e.type === "tires" ? item : item.id).sort();
         return e.type + "|" + keys.join(",");
     }
     default: return e.type;
@@ -562,15 +535,9 @@ function itemKey(id) {
 function claimEvent(e, claim) {
     const windowMs = 7200000;
     if (!e.items) return claim(eventKey(e), windowMs) ? e : null;
-    const items = [];
-    for (let i = 0; i < e.items.length; i++) {
-        if (claim(eventKey({ type: e.type, items: [e.items[i]] }), windowMs)) items.push(e.items[i]);
-    }
+    const items = e.items.filter(item => claim(eventKey({ type: e.type, items: [item] }), windowMs));
     if (items.length === 0) return null;
-    const mine = {};
-    for (const k in e) mine[k] = e[k];
-    mine.items = items;
-    return mine;
+    return Object.assign({}, e, { items: items });
 }
 
 // Breeze battery icon name for a level (0..100).
@@ -613,8 +580,8 @@ const PAINTS = [
 // reports the same paint as "RedMulticoat" or "Red" depending on its age.
 function paintColor(name) {
     const s = String(name || "").toLowerCase().replace(/[^a-z]/g, "");
-    for (let i = 0; i < PAINTS.length; i++) {
-        if (s.indexOf(PAINTS[i][0]) >= 0) return PAINTS[i][1];
+    for (const [word, color] of PAINTS) {
+        if (s.includes(word)) return color;
     }
     return "";
 }
@@ -700,7 +667,7 @@ function mosquittoCommand(o) {
     const port = b.port || (given >= 1 && given <= 65535 ? given : 1883);
     let cmd = "timeout " + (wait + 10) + " mosquitto_sub -h " + shellQuote(b.host) + " -p " + port;
     const topics = o.topics || [];
-    for (let i = 0; i < topics.length; i++) cmd += " -t " + shellQuote(topics[i]);
+    for (const topic of topics) cmd += " -t " + shellQuote(topic);
     cmd += " -v -W " + wait;
     if (o.tls || b.tls === true) {
         const ca = String(o.caFile || "").trim();
@@ -771,9 +738,7 @@ function parseCars(out) {
         if (an && Number(a.id) !== Number(b.id)) return Number(a.id) - Number(b.id);
         return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
     });
-    const cars = [];
-    for (let i = 0; i < found.length; i++) cars.push({ prefix: found[i].prefix, name: found[i].name });
-    return cars;
+    return found.map(car => ({ prefix: car.prefix, name: car.name }));
 }
 
 // Plasma reads a notification's body as markup, so text with & or < in it, such as a
