@@ -4,20 +4,28 @@ import org.kde.plasma.core as PlasmaCore
 
 import "logic.js" as Logic
 import "models.js" as Models
+import "teslaapi.js" as Api
 
 PlasmoidItem {
     id: root
 
     readonly property var cfg: Plasmoid.configuration
-    // Uses the command builder's own test, so a host like "mqtt://" counts as not configured.
-    readonly property bool configured: Logic.parseBrokerHost(cfg.brokerHost).host !== ""
+    // 0 TeslaMate over MQTT, 1 the Tesla Fleet API.
+    readonly property bool useApi: cfg.dataSource === 1
+    // For MQTT, uses the command builder's own test, so a host like "mqtt://" counts as not
+    // configured.
+    readonly property bool configured: useApi
+        ? Api.baseUrl(cfg.apiRegion, cfg.apiBaseUrl) !== "" && cfg.apiAccessToken.trim() !== ""
+          && Api.cleanVin(cfg.apiVin) !== ""
+        : Logic.parseBrokerHost(cfg.brokerHost).host !== ""
     // Used for both subscribing and stripping topics.
     readonly property string prefix: Logic.topicPrefix(cfg.topicPrefix)
     // Automatic follows the locale's measurement system.
     readonly property var units: Logic.resolveUnits(cfg.distanceUnit, cfg.temperatureUnit, cfg.pressureUnit,
                                                     Qt.locale().measurementSystem)
 
-    // Raw TeslaMate values, keyed by topic suffix.
+    // Raw TeslaMate values, keyed by topic suffix. The Tesla API's replies are converted to
+    // the same values.
     property var car: ({})
     property bool hasData: false
     property string errorText: ""
@@ -32,8 +40,12 @@ PlasmoidItem {
     readonly property bool onDesktop: Plasmoid.formFactor === PlasmaCore.Types.Planar
     // A desktop card counts as closed, so it polls at the idle rate while the car sleeps.
     readonly property bool popupOpen: expanded && !onDesktop
-    readonly property int pollMs: Logic.pollIntervalMs(cfg.refreshSeconds, cfg.idleRefreshSeconds, carState,
-                                                       hasData, popupOpen)
+    // The API bills each request, so it has its own, slower rates, and never polls more
+    // than once a minute.
+    readonly property int pollMs: useApi
+        ? Logic.pollIntervalMs(Math.max(60, cfg.apiRefreshSeconds), Math.max(60, cfg.apiIdleRefreshSeconds),
+                               carState, hasData, popupOpen)
+        : Logic.pollIntervalMs(cfg.refreshSeconds, cfg.idleRefreshSeconds, carState, hasData, popupOpen)
     // The last poll failed and the data is over a minute old (or two intervals, when polling
     // slowly), so one missed poll doesn't count.
     readonly property bool stale: hasData && errorText !== "" && lastUpdated !== null
@@ -200,9 +212,10 @@ PlasmoidItem {
         }
     ]
 
-    // ---------- MQTT via mosquitto_sub ----------
-    // TeslaMate retains every value except healthy, so a short-lived subscriber gets a full
-    // snapshot at once and exits after -W seconds.
+    // ---------- fetching ----------
+    // TeslaMate retains every value except healthy, so a short-lived MQTT subscriber gets a
+    // full snapshot at once and exits after -W seconds. The Tesla API is asked according to
+    // Api.pollPlan(), which lets the car fall asleep.
 
     function connectionOptions(topics, wait) {
         return {
@@ -217,37 +230,106 @@ PlasmoidItem {
         }
     }
 
+    // The API settings for TeslaApiFetch.run(), asking for request.
+    function apiOptions(request) {
+        return {
+            region: cfg.apiRegion,
+            customUrl: cfg.apiBaseUrl,
+            accessToken: cfg.apiAccessToken,
+            refreshToken: cfg.apiRefreshToken,
+            clientId: cfg.apiClientId,
+            authUrl: cfg.apiAuthUrl,
+            tokenExpiry: cfg.apiTokenExpiry,
+            vin: cfg.apiVin,
+            // Only for navigation, which is opt-in: asking for it shows an icon in the car.
+            withLocation: cfg.showNavigation,
+            request: request
+        }
+    }
+
+    // Api.pollPlan()'s state between polls, and whether the running request is a summary
+    // asked for to let the car sleep.
+    property var apiPlan: null
+    property bool apiSuspended: false
+
     // manual shows a spinner until the result arrives. If a poll is already running, its
     // result is used.
     function refresh(manual) {
         if (!configured) return
         if (manual) userRefreshing = true
+        if (useApi) {
+            if (apiFetch.busy) return
+            const plan = Api.pollPlan(apiPlan, car, Date.now(), { forced: manual })
+            apiPlan = plan.state
+            apiSuspended = plan.suspended
+            if (!apiFetch.run(apiOptions(plan.request))) userRefreshing = false
+            return
+        }
         if (fetch.busy) return
         if (!fetch.run(connectionOptions([prefix + "/#"], 2))) userRefreshing = false
     }
 
     function applyResult(out, err) {
+        const parsed = Logic.parseMqtt(out, prefix)
+        if (Object.keys(parsed).length === 0)
+            applyFailure(err || i18n("No TeslaMate data on %1/#. Check the topic prefix and that MQTT is enabled in TeslaMate.", prefix))
+        else
+            applyValues(parsed)
+    }
+
+    function applyApiResult(result, err) {
+        if (!result) {
+            applyFailure(err)
+            return
+        }
+        const time = Date.now()
+        // A summary only has the name and state, so it is laid over the last values.
+        const values = result.kind === "data" ? result.values
+            : Api.mergeSummary(car, result.values, apiSuspended)
+        values.since = Api.trackSince(car, values, time)
+        applyValues(values)
+    }
+
+    function applyFailure(err) {
         userRefreshing = false
         now = Date.now()
-        const parsed = Logic.parseMqtt(out, prefix)
-        if (Object.keys(parsed).length === 0) {
-            errorText = err || i18n("No TeslaMate data on %1/#. Check the topic prefix and that MQTT is enabled in TeslaMate.", prefix)
-        } else {
-            // TeslaMate 2.1+ doesn't retain healthy, so its last value is kept for 10 minutes.
-            const healthy = Logic.carryHealthy(parsed.healthy, car.healthy, healthySeenAt, now, 10 * 60 * 1000)
-            if (healthy.value !== undefined) parsed.healthy = healthy.value
-            healthySeenAt = healthy.seenAt
-            car = parsed
-            hasData = true
-            errorText = ""
-            lastUpdated = new Date()
-            notifier.process()
-        }
+        errorText = err
+    }
+
+    function applyValues(parsed) {
+        userRefreshing = false
+        now = Date.now()
+        // TeslaMate 2.1+ doesn't retain healthy, so its last value is kept for 10 minutes.
+        const healthy = Logic.carryHealthy(parsed.healthy, car.healthy, healthySeenAt, now, 10 * 60 * 1000)
+        if (healthy.value !== undefined) parsed.healthy = healthy.value
+        healthySeenAt = healthy.seenAt
+        car = parsed
+        hasData = true
+        errorText = ""
+        lastUpdated = new Date()
+        notifier.process()
     }
 
     MqttFetch {
         id: fetch
         onFinished: (out, err) => root.applyResult(out, err)
+    }
+
+    TeslaApiFetch {
+        id: apiFetch
+        onFinished: (result, err) => root.applyApiResult(result, err)
+        // Renewing invalidates the old tokens, so the new ones are saved at once, without
+        // counting as a change of settings that discards the data.
+        onTokensRenewed: (access, refresh, expiresAt) => {
+            root.savingTokens = true
+            Plasmoid.configuration.apiAccessToken = access
+            Plasmoid.configuration.apiRefreshToken = refresh
+            Plasmoid.configuration.apiTokenExpiry = expiresAt
+            // Saved now rather than when Plasma next saves, if this Plasma can.
+            if (typeof Plasmoid.configuration.writeConfig === "function") Plasmoid.configuration.writeConfig()
+            root.savingTokens = false
+            root.connectionSeen = root.connectionNow()
+        }
     }
 
     Texts { id: texts }
@@ -266,11 +348,12 @@ PlasmoidItem {
         onTriggered: root.refresh(false)
     }
 
-    // Refresh when the popup opens. Bindings on expanded (such as popupOpen) may not have
-    // updated yet inside this handler, so it uses the signal's argument.
+    // Refresh when the popup opens: for the API, which bills each request, at most once a
+    // minute. Bindings on expanded (such as popupOpen) may not have updated yet inside this
+    // handler, so it uses the signal's argument.
     onExpandedChanged: (expanded) => {
         if (expanded && !onDesktop && configured
-            && (!lastUpdated || Date.now() - lastUpdated.getTime() > 5000))
+            && (!lastUpdated || Date.now() - lastUpdated.getTime() > (useApi ? 60 * 1000 : 5000)))
             refresh(false)
     }
 
@@ -283,9 +366,13 @@ PlasmoidItem {
     }
 
     // The settings that decide where data comes from, and their values at the last request.
-    readonly property var connectionKeys: ["brokerHost", "brokerPort", "brokerUser", "brokerPassword",
-                                           "topicPrefix", "useTls", "caFile"]
+    readonly property var connectionKeys: ["dataSource", "brokerHost", "brokerPort", "brokerUser", "brokerPassword",
+                                           "topicPrefix", "useTls", "caFile", "apiRegion", "apiBaseUrl",
+                                           "apiVin", "apiAccessToken", "apiRefreshToken", "apiClientId",
+                                           "apiAuthUrl"]
     property string connectionSeen: ""
+    // True while the widget saves tokens it renewed, which isn't a change of settings.
+    property bool savingTokens: false
     function connectionNow() {
         return JSON.stringify(connectionKeys.map(key => cfg[key]))
     }
@@ -298,6 +385,10 @@ PlasmoidItem {
         function onValueChanged(key) {
             if (!root.connectionKeys.includes(key)) return
             const now = root.connectionNow()
+            if (root.savingTokens) {
+                root.connectionSeen = now
+                return
+            }
             if (now === root.connectionSeen) return
             root.connectionSeen = now
             configSettle.restart()
@@ -313,8 +404,10 @@ PlasmoidItem {
             root.errorText = ""
             root.healthySeenAt = null
             root.userRefreshing = false
+            root.apiPlan = null
             notifier.startOver()
             fetch.cancel()
+            apiFetch.cancel()
             root.refresh(false)
         }
     }
