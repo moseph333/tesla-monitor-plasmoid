@@ -1,0 +1,745 @@
+[
+  {
+    "entity_id": "binary_sensor.blue_thunder_status",
+    "state": "on",
+    "attributes": {
+      "device_class": "connectivity",
+      "friendly_name": "Blue Thunder Status"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.blue_thunder_battery_level",
+    "state": "72",
+    "attributes": {
+      "device_class": "battery",
+      "unit_of_measurement": "%",
+      "friendly_name": "Blue Thunder Battery level"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.blue_thunder_usable_battery_level",
+    "state": "70",
+    "attributes": {
+      "unit_of_measurement": "%",
+      "friendly_name": "Blue Thunder Usable battery level"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.blue_thunder_battery_range",
+    "state": "214.8",
+    "attributes": {
+      "device_class": "distance",
+      "unit_of_measurement": "mi",
+      "friendly_name": "Blue Thunder Battery range"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.blue_thunder_estimate_battery_range",
+    "state": "187.2",
+    "attributes": {
+      "device_class": "distance",
+      "unit_of_measurement": "mi",
+      "friendly_name": "Blue Thunder Estimate battery range"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.blue_thunder_ideal_battery_range",
+    "state": "unavailable",
+    "attributes": {
+      "unit_of_measurement": "mi",
+      "friendly_name": "Blue Thunder Ideal battery range"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "number.blue_thunder_charge_limit",
+    "state": "80",
+    "attributes": {
+      "unit_of_measurement": "%",
+      "friendly_name": "Blue Thunder Charge limit"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.blue_thunder_charging",
+    "state": "charging",
+    "attributes": {
+      "device_class": "enum",
+      "options": [
+        "starting",
+        "charging",
+        "stopped",
+        "complete",
+        "disconnected",
+        "no_power"
+      ],
+      "friendly_name": "Blue Thunder Charging"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.blue_thunder_charger_power",
+    "state": "11",
+    "attributes": {
+      "unit_of_measurement": "kW",
+      "friendly_name": "Blue Thunder Charger power"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.blue_thunder_charger_voltage",
+    "state": "230",
+    "attributes": {
+      "unit_of_measurement": "V",
+      "friendly_name": "Blue Thunder Charger voltage"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.blue_thunder_charger_current",
+    "state": "16",
+    "attributes": {
+      "unit_of_measurement": "A",
+      "friendly_name": "Blue Thunder Charger current"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.blue_thunder_charge_energy_added",
+    "state": "12.5",
+    "attributes": {
+      "unit_of_measurement": "kWh",
+      "friendly_name": "Blue Thunder Charge energy added"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.blue_thunder_time_to_full_charge",
+    "state": "2026-11-16T09:30:00+00:00",
+    "attributes": {
+      "device_class": "timestamp",
+      "friendly_name": "Blue Thunder Time to full charge"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "cover.blue_thunder_charge_port_door",
+    "state": "open",
+    "attributes": {
+      "friendly_name": "Blue Thunder Charge port door"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "climate.blue_thunder_climate",
+    "state": "off",
+    "attributes": {
+      "current_temperature": 65.3,
+      "friendly_name": "Blue Thunder Climate"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.blue_thunder_inside_temperature",
+    "state": "65.3",
+    "attributes": {
+      "unit_of_measurement": "\u00b0F",
+      "friendly_name": "Blue Thunder Inside temperature"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.blue_thunder_outside_temperature",
+    "state": "27.5",
+    "attributes": {
+      "unit_of_measurement": "\u00b0F",
+      "friendly_name": "Blue Thunder Outside temperature"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.blue_thunder_shift_state",
+    "state": "unknown",
+    "attributes": {
+      "friendly_name": "Blue Thunder Shift state"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.blue_thunder_speed",
+    "state": "0",
+    "attributes": {
+      "unit_of_measurement": "mph",
+      "friendly_name": "Blue Thunder Speed"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.blue_thunder_power",
+    "state": "-11",
+    "attributes": {
+      "unit_of_measurement": "kW",
+      "friendly_name": "Blue Thunder Power"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.blue_thunder_odometer",
+    "state": "15441.3",
+    "attributes": {
+      "unit_of_measurement": "mi",
+      "friendly_name": "Blue Thunder Odometer"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "lock.blue_thunder_lock",
+    "state": "locked",
+    "attributes": {
+      "friendly_name": "Blue Thunder Lock"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "switch.blue_thunder_sentry_mode",
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Blue Thunder Sentry mode"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "binary_sensor.blue_thunder_user_present",
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Blue Thunder User present"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "cover.blue_thunder_frunk",
+    "state": "closed",
+    "attributes": {
+      "friendly_name": "Blue Thunder Frunk"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "cover.blue_thunder_trunk",
+    "state": "closed",
+    "attributes": {
+      "friendly_name": "Blue Thunder Trunk"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "binary_sensor.blue_thunder_front_driver_door",
+    "state": "on",
+    "attributes": {
+      "friendly_name": "Blue Thunder Front driver door"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "binary_sensor.blue_thunder_rear_driver_door",
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Blue Thunder Rear driver door"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "binary_sensor.blue_thunder_front_passenger_door",
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Blue Thunder Front passenger door"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "binary_sensor.blue_thunder_rear_passenger_door",
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Blue Thunder Rear passenger door"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "binary_sensor.blue_thunder_front_driver_window",
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Blue Thunder Front driver window"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "binary_sensor.blue_thunder_rear_driver_window",
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Blue Thunder Rear driver window"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "binary_sensor.blue_thunder_front_passenger_window",
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Blue Thunder Front passenger window"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "binary_sensor.blue_thunder_rear_passenger_window",
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Blue Thunder Rear passenger window"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.blue_thunder_tire_pressure_front_left",
+    "state": "42.1",
+    "attributes": {
+      "unit_of_measurement": "psi",
+      "friendly_name": "Blue Thunder Tire pressure front left"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.blue_thunder_tire_pressure_front_right",
+    "state": "42.0",
+    "attributes": {
+      "unit_of_measurement": "psi",
+      "friendly_name": "Blue Thunder Tire pressure front right"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.blue_thunder_tire_pressure_rear_left",
+    "state": "34.8",
+    "attributes": {
+      "unit_of_measurement": "psi",
+      "friendly_name": "Blue Thunder Tire pressure rear left"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.blue_thunder_tire_pressure_rear_right",
+    "state": "42.2",
+    "attributes": {
+      "unit_of_measurement": "psi",
+      "friendly_name": "Blue Thunder Tire pressure rear right"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "binary_sensor.blue_thunder_tire_pressure_warning_front_left",
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Blue Thunder Tire pressure warning front left"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "binary_sensor.blue_thunder_tire_pressure_warning_front_right",
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Blue Thunder Tire pressure warning front right"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "binary_sensor.blue_thunder_tire_pressure_warning_rear_left",
+    "state": "on",
+    "attributes": {
+      "friendly_name": "Blue Thunder Tire pressure warning rear left"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "binary_sensor.blue_thunder_tire_pressure_warning_rear_right",
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Blue Thunder Tire pressure warning rear right"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "update.blue_thunder_update",
+    "state": "on",
+    "attributes": {
+      "installed_version": "2026.38.4",
+      "latest_version": "2026.38.6",
+      "in_progress": false,
+      "update_percentage": null,
+      "friendly_name": "Blue Thunder Update"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.blue_thunder_destination",
+    "state": "unknown",
+    "attributes": {
+      "friendly_name": "Blue Thunder Destination"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "device_tracker.blue_thunder_location",
+    "state": "home",
+    "attributes": {
+      "source_type": "gps",
+      "latitude": 52.52,
+      "longitude": 13.405,
+      "friendly_name": "Blue Thunder Location"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.pixel_8_battery_level",
+    "state": "54",
+    "attributes": {
+      "unit_of_measurement": "%",
+      "friendly_name": "Pixel 8 Battery level"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.red_y_battery_level",
+    "state": "40",
+    "attributes": {
+      "unit_of_measurement": "%",
+      "friendly_name": "Red Y Battery level"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sensor.red_y_charging",
+    "state": "disconnected",
+    "attributes": {
+      "friendly_name": "Red Y Charging"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "binary_sensor.red_y_status",
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Red Y Status"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  },
+  {
+    "entity_id": "sun.sun",
+    "state": "above_horizon",
+    "attributes": {
+      "friendly_name": "Sun"
+    },
+    "last_changed": "2026-11-16T08:00:00+00:00",
+    "last_updated": "2026-11-16T08:00:00+00:00",
+    "context": {
+      "id": "x",
+      "parent_id": null,
+      "user_id": null
+    }
+  }
+]
