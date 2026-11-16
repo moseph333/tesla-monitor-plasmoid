@@ -24,6 +24,9 @@ KCM.SimpleKCM {
     property alias cfg_apiIdleRefreshSeconds: apiIdleRefreshSeconds.value
     // Not shown. Unknown (0) once a new access token is typed in; known after a renewal.
     property real cfg_apiTokenExpiry: 0
+    property alias cfg_teslamateApiUrl: teslamateApiUrl.text
+    property alias cfg_teslamateApiToken: teslamateApiToken.text
+    property alias cfg_teslamateApiCarId: teslamateApiCarId.value
     property alias cfg_brokerHost: brokerHost.text
     property alias cfg_brokerPort: brokerPort.value
     property alias cfg_brokerUser: brokerUser.text
@@ -37,15 +40,24 @@ KCM.SimpleKCM {
     readonly property var source: Sources.byId(dataSource.currentIndex)
     readonly property bool mqtt: source.kind === "mqtt"
     readonly property bool fleet: source.kind === "fleet"
-    // The cars the last Find Cars found, for the picker: [{prefix, name}] from MQTT, or
-    // [{vin, name, state}] from the API.
+    readonly property bool rest: source.kind === "rest"
+    // The cars the last Find Cars found, for the picker: [{prefix, name}] from MQTT,
+    // [{vin, name, state}] from the Fleet API, or [{id, name, vin}] from the TeslaMate API.
     property var cars: []
     // Which button started the running check: "test" or "find".
     property string pendingCheck: ""
-    readonly property bool checking: fetch.busy || apiFetch.busy
-    readonly property bool canCheck: !checking && (fleet
-        ? Api.baseUrl(apiRegion.currentIndex, apiBaseUrl.text) !== "" && apiAccessToken.text.trim() !== ""
-        : Logic.parseBrokerHost(brokerHost.text).host !== "")
+    readonly property bool checking: fetch.busy || apiFetch.busy || restFetch.busy
+    readonly property bool canCheck: {
+        if (checking) return false
+        switch (source.kind) {
+        case "fleet":
+            return Api.baseUrl(apiRegion.currentIndex, apiBaseUrl.text) !== "" && apiAccessToken.text.trim() !== ""
+        case "rest":
+            return restFetch.canRun(restOptions("cars"))
+        default:
+            return Logic.parseBrokerHost(brokerHost.text).host !== ""
+        }
+    }
     // True while tokens renewed by a check are put in their fields, which isn't an edit.
     property bool fillingTokens: false
 
@@ -57,6 +69,7 @@ KCM.SimpleKCM {
         result.visible = false
         fetch.cancel()
         apiFetch.cancel()
+        restFetch.cancel()
     }
 
     // Cars found on one broker don't apply to another.
@@ -84,6 +97,10 @@ KCM.SimpleKCM {
         pendingCheck = kind
         if (fleet) {
             runApiCheck(kind)
+            return
+        }
+        if (rest) {
+            runRestCheck(kind)
             return
         }
         const started = fetch.run({
@@ -122,6 +139,83 @@ KCM.SimpleKCM {
         if (!started) showResult(Kirigami.MessageType.Error, i18n("Choose a region or enter the API's URL, and paste an access token."))
     }
 
+    // The values on the page for RestFetch.run(), asking for request.
+    function restOptions(request) {
+        switch (source.key) {
+        case "teslamateApi":
+            return { source: source, url: teslamateApiUrl.text, token: teslamateApiToken.text,
+                     car: teslamateApiCarId.value, request: request }
+        }
+        return { source: source, url: "", token: "", car: "", request: request }
+    }
+
+    // Test Connection reads the car the settings name; Find Cars lists the cars.
+    function runRestCheck(kind) {
+        if (!restFetch.run(restOptions(kind === "find" ? "cars" : "test")))
+            showResult(Kirigami.MessageType.Error, i18n("Enter the service's address."))
+    }
+
+    function restCheckFinished(found, err) {
+        if (!found) {
+            showResult(Kirigami.MessageType.Error, err)
+            return
+        }
+        if (found.kind === "cars") {
+            restCarsFound(found.cars)
+            return
+        }
+        showResult(Kirigami.MessageType.Positive, foundText(found.values.display_name || "", found.values.state || ""))
+    }
+
+    function restCarsFound(found) {
+        cars = found
+        if (found.length === 1) {
+            // Set before showing the message, since editing the car hides it.
+            pickCar(found[0])
+            showResult(Kirigami.MessageType.Positive, found[0].name
+                ? i18n("Found %1. Car ID set to %2.", found[0].name, carKey(found[0]))
+                : i18n("Found a car. Car ID set to %1.", carKey(found[0])))
+        } else if (found.length > 1) {
+            carPicker.currentIndex = -1
+            showResult(Kirigami.MessageType.Information, i18np("Found %1 car. Choose one:", "Found %1 cars. Choose one:", found.length))
+        } else {
+            showResult(Kirigami.MessageType.Warning, i18n("TeslaMate has no cars yet."))
+        }
+    }
+
+    // "Found Blue Thunder. It's asleep.", for a car's name and TeslaMate state.
+    function foundText(name, state) {
+        if (!name) return i18n("Found the car.")
+        switch (state) {
+        case "": return i18n("Found %1.", name)
+        case "asleep": return i18n("Found %1. It's asleep.", name)
+        case "offline": return i18n("Found %1. It's offline.", name)
+        default: return i18n("Found %1. It's awake.", name)
+        }
+    }
+
+    // What the car picker shows to tell cars apart, and what choosing one sets.
+    function carKey(car) {
+        switch (source.key) {
+        case "fleet": return car.vin
+        case "teslamateApi": return String(car.id)
+        default: return car.prefix
+        }
+    }
+
+    function pickCar(car) {
+        switch (source.key) {
+        case "fleet":
+            apiVin.text = car.vin
+            break
+        case "teslamateApi":
+            teslamateApiCarId.value = car.id
+            break
+        default:
+            topicPrefix.text = car.prefix
+        }
+    }
+
     // Tokens a check renewed. The old ones no longer work, so they are replaced on the page.
     function tokensRenewed(access, refresh, expiresAt) {
         fillingTokens = true
@@ -140,12 +234,8 @@ KCM.SimpleKCM {
             apiCarsFound(found.vehicles)
             return
         }
-        const name = found.values.display_name || Api.cleanVin(apiVin.text)
-        const state = found.values.state || ""
-        showResult(Kirigami.MessageType.Positive, state === "online" ? i18n("Found %1. It's awake.", name)
-                   : state === "asleep" ? i18n("Found %1. It's asleep.", name)
-                   : state === "offline" ? i18n("Found %1. It's offline.", name)
-                   : i18n("Found %1.", name))
+        showResult(Kirigami.MessageType.Positive,
+                   foundText(found.values.display_name || Api.cleanVin(apiVin.text), found.values.state || ""))
     }
 
     function apiCarsFound(found) {
@@ -208,14 +298,60 @@ KCM.SimpleKCM {
             id: dataSource
             Kirigami.FormData.label: i18n("Data source:")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            model: [i18n("TeslaMate (MQTT)"), i18n("Tesla Fleet API")]
+            model: [i18n("TeslaMate (MQTT)"), i18n("Tesla Fleet API"), i18n("TeslaMate API")]
             onActivated: page.brokerEdited()
         }
 
         Hint {
-            text: page.fleet
-                ? i18n("Reads the car straight from Tesla, or from a service with the same API. Tesla bills each request, so the widget asks sparingly and lets the car sleep.")
-                : i18n("Reads the values TeslaMate publishes to an MQTT broker.")
+            text: {
+                switch (page.source.key) {
+                case "fleet": return i18n("Reads the car straight from Tesla, or from a service with the same API. Tesla bills each request, so the widget asks sparingly and lets the car sleep.")
+                case "teslamateApi": return i18n("Reads TeslaMate's values from TeslaMateApi, a small web service that runs next to TeslaMate, so this computer doesn't need mosquitto_sub or a way to the MQTT broker.")
+                default: return i18n("Reads the values TeslaMate publishes to an MQTT broker.")
+                }
+            }
+        }
+
+        Kirigami.Separator {
+            visible: page.source.key === "teslamateApi"
+            Kirigami.FormData.isSection: true
+            Kirigami.FormData.label: i18n("TeslaMate API")
+        }
+
+        QQC2.TextField {
+            id: teslamateApiUrl
+            visible: page.source.key === "teslamateApi"
+            Kirigami.FormData.label: i18n("Address:")
+            placeholderText: i18nc("example web address", "http://teslamate.local:8080")
+            inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoAutoUppercase
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            onTextChanged: page.brokerEdited()
+        }
+
+        Kirigami.PasswordField {
+            id: teslamateApiToken
+            visible: page.source.key === "teslamateApi"
+            Kirigami.FormData.label: i18n("Token:")
+            placeholderText: i18n("Optional")
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            onTextChanged: page.formEdited()
+        }
+
+        QQC2.SpinBox {
+            id: teslamateApiCarId
+            visible: page.source.key === "teslamateApi"
+            Kirigami.FormData.label: i18n("Car ID:")
+            from: 1
+            to: 999
+            editable: true
+            textFromValue: (value) => String(value)
+            valueFromText: (text) => parseInt(text)
+            onValueModified: page.formEdited()
+        }
+
+        Hint {
+            visible: page.source.key === "teslamateApi"
+            text: i18n("TeslaMateApi listens on port 8080 and needs MQTT enabled. Reading the car needs no token; the token is TeslaMateApi's API_TOKEN, for a server that asks for it. The car ID is TeslaMate's, 1 for the first car; Find Cars lists them. The token is stored unencrypted in Plasma's configuration.")
         }
 
         Kirigami.Separator {
@@ -467,6 +603,11 @@ KCM.SimpleKCM {
                 onFinished: (found, err) => page.apiCheckFinished(found, err)
                 onTokensRenewed: (access, refresh, expiresAt) => page.tokensRenewed(access, refresh, expiresAt)
             }
+
+            RestFetch {
+                id: restFetch
+                onFinished: (found, err) => page.restCheckFinished(found, err)
+            }
         }
 
         Kirigami.InlineMessage {
@@ -482,15 +623,11 @@ KCM.SimpleKCM {
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
             visible: page.cars.length > 1
             model: page.cars.map(c => {
-                const id = c.vin || c.prefix
-                return c.name ? i18nc("car name (topic prefix or VIN)", "%1 (%2)", c.name, id) : id
+                const id = page.carKey(c)
+                return c.name ? i18nc("car name (topic prefix, VIN or car ID)", "%1 (%2)", c.name, id) : id
             })
             displayText: currentIndex < 0 ? i18n("Choose a car…") : currentText
-            onActivated: (index) => {
-                const car = page.cars[index]
-                if (car.vin) apiVin.text = car.vin
-                else topicPrefix.text = car.prefix
-            }
+            onActivated: (index) => page.pickCar(page.cars[index])
         }
 
         Kirigami.Separator {
