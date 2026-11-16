@@ -398,6 +398,10 @@ test("apiError classifies HTTP results", () => {
     assert.deepEqual(Api.apiError(503, "<html>"), { kind: "server", detail: "503" });
     assert.deepEqual(Api.apiError(418, '{"error_description":"teapot"}'), { kind: "http", detail: "teapot" });
     assert.deepEqual(Api.apiError(418, ""), { kind: "http", detail: "418" });
+    // Only text is a detail: an object or a number isn't shown as "[object Object]".
+    assert.deepEqual(Api.apiError(418, '{"error":{"code":7}}'), { kind: "http", detail: "418" });
+    assert.deepEqual(Api.apiError(401, '{"error":7}'), { kind: "auth", detail: "" });
+    assert.deepEqual(Api.apiError(401, "null"), { kind: "auth", detail: "" });
 });
 
 test("tokenhub follows a chain of renewals and lets one copy renew at a time", () => {

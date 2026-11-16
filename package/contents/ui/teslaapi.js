@@ -359,7 +359,8 @@ function apiError(status, body) {
     let detail = "";
     try {
         const json = JSON.parse(body);
-        detail = String(json.error_description || json.error || "").trim();
+        const text = json && typeof json === "object" ? json.error_description || json.error || "" : "";
+        detail = typeof text === "string" ? text.trim() : "";
     } catch (e) {
         detail = "";
     }
