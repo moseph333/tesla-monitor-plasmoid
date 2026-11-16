@@ -14,8 +14,8 @@ help:
 	@echo "make install    build, then install or upgrade the widget"
 	@echo "make uninstall  remove the installed widget"
 	@echo "make reload     restart Plasma so new QML loads"
-	@echo "make test       run the unit tests (Node.js 18+)"
-	@echo "make lint       check QML syntax, the metadata, the config schema and the shell script"
+	@echo "make test       run the unit tests (Node.js 18+, Python 3.9+)"
+	@echo "make lint       check QML syntax, the metadata, the config schema and the tools"
 	@echo "make clean      remove dist/"
 
 build:
@@ -37,8 +37,10 @@ reload:
 clean:
 	rm -rf dist
 
+# -B keeps __pycache__ folders out of the tree.
 test:
 	@node --test tests/*.test.mjs
+	@python3 -B -m unittest discover -s tests -p 'test_*.py'
 
 lint:
 	@status=0; \
@@ -50,5 +52,8 @@ lint:
 	if command -v xmllint >/dev/null; then xmllint --noout package/contents/config/main.xml || status=1; \
 	else echo "skipping main.xml: xmllint not found"; fi; \
 	if command -v shellcheck >/dev/null; then shellcheck tools/*.sh || status=1; \
-	else echo "skipping tools/: shellcheck not found"; fi; \
+	else echo "skipping tools/*.sh: shellcheck not found"; fi; \
+	if command -v python3 >/dev/null; then \
+		python3 -c 'import ast, sys; [ast.parse(open(f).read(), f) for f in sys.argv[1:]]' tools/*.py || status=1; \
+	else echo "skipping tools/*.py: python3 not found"; fi; \
 	[ $$status -eq 0 ] && echo "Lint passed"; exit $$status
