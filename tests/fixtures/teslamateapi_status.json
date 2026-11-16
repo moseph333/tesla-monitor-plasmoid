@@ -1,0 +1,93 @@
+{
+  "data": {
+    "car": { "car_id": 1, "car_name": "Blue Thunder" },
+    "status": {
+      "display_name": "Blue Thunder",
+      "state": "online",
+      "state_since": "2026-11-16T09:30:00+01:00",
+      "odometer": 24850.6,
+      "car_status": {
+        "healthy": true,
+        "locked": true,
+        "sentry_mode": false,
+        "windows_open": false,
+        "doors_open": true,
+        "driver_front_door_open": true,
+        "driver_rear_door_open": false,
+        "passenger_front_door_open": false,
+        "passenger_rear_door_open": false,
+        "trunk_open": false,
+        "frunk_open": false,
+        "is_user_present": false,
+        "center_display_state": 0
+      },
+      "car_details": { "model": "3", "trim_badging": "74D" },
+      "car_exterior": { "exterior_color": "DeepBlue", "spoiler_type": "None", "wheel_type": "Pinwheel18" },
+      "car_geodata": {
+        "geofence": "Home",
+        "location": { "latitude": 52.52, "longitude": 13.405 },
+        "latitude": 52.52,
+        "longitude": 13.405
+      },
+      "car_versions": { "version": "2026.38.4", "update_available": true, "update_version": "2026.38.6" },
+      "driving_details": {
+        "active_route": {
+          "destination": "",
+          "energy_at_arrival": 0,
+          "distance_to_arrival": 0,
+          "minutes_to_arrival": 0,
+          "traffic_minutes_delay": 0,
+          "location": { "latitude": 0, "longitude": 0 }
+        },
+        "active_route_destination": "",
+        "active_route_latitude": 0,
+        "active_route_longitude": 0,
+        "shift_state": "P",
+        "power": 0,
+        "speed": 0,
+        "heading": 120,
+        "elevation": 34
+      },
+      "climate_details": {
+        "is_climate_on": false,
+        "inside_temp": 18.5,
+        "outside_temp": -2.5,
+        "is_preconditioning": false,
+        "climate_keeper_mode": "off"
+      },
+      "battery_details": {
+        "est_battery_range": 301.2,
+        "rated_battery_range": 345.6,
+        "ideal_battery_range": 352.1,
+        "battery_level": 72,
+        "usable_battery_level": 70
+      },
+      "charging_details": {
+        "plugged_in": true,
+        "charging_state": "charging",
+        "charge_energy_added": 12.5,
+        "charge_limit_soc": 80,
+        "charge_port_door_open": true,
+        "charger_actual_current": 16,
+        "charger_phases": 3,
+        "charger_power": 11,
+        "charger_voltage": 230,
+        "charge_current_request": 16,
+        "charge_current_request_max": 16,
+        "scheduled_charging_start_time": "0001-01-01T00:00:00Z",
+        "time_to_full_charge": 1.25
+      },
+      "tpms_details": {
+        "tpms_pressure_fl": 2.9,
+        "tpms_pressure_fr": 2.9,
+        "tpms_pressure_rl": 2.4,
+        "tpms_pressure_rr": 0,
+        "tpms_soft_warning_fl": false,
+        "tpms_soft_warning_fr": false,
+        "tpms_soft_warning_rl": true,
+        "tpms_soft_warning_rr": false
+      }
+    },
+    "units": { "unit_of_length": "km", "unit_of_pressure": "bar", "unit_of_temperature": "C" }
+  }
+}
