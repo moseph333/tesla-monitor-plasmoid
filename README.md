@@ -55,7 +55,7 @@ For TeslaMate:
   - TLS with the system's certificates needs mosquitto 2.0 or newer.
 - TeslaMate with MQTT enabled, and a broker this machine can reach
 
-For the Tesla Fleet API, nothing to install: an access token for it (see [Tesla Fleet API](#tesla-fleet-api)), or for a service that offers the same API.
+For the Tesla Fleet API, nothing to install: an access token for it (see [Tesla Fleet API](#tesla-fleet-api)), or for a service that offers the same API. `tools/tesla-login.py`, which gets the tokens, needs Python 3.9 or newer.
 
 ## Install
 
@@ -158,7 +158,39 @@ Turn on **Use TLS** for a broker that encrypts its connections. TLS brokers usua
 
 Tesla's [Fleet API](https://developer.tesla.com/docs/fleet-api) gives the car's data without TeslaMate. The widget reads it with pasted tokens. It has no Tesla login of its own.
 
-**Tokens.** Tesla only issues Fleet API tokens to a registered app. Either register your own at [developer.tesla.com](https://developer.tesla.com), with the `vehicle_device_data` scope, and get tokens through its OAuth flow, or use a service that offers the same API with its own token, and choose **Custom URL**. Tesla's access tokens last 8 hours. Paste the refresh token and your app's client ID too, and the widget renews the access token and saves the new tokens. Renewing invalidates the old refresh token, so don't use the same tokens in another program. Copies of the widget share renewals.
+**Tokens.** Tesla only issues Fleet API tokens to a registered app, so you register your own once, and `tools/tesla-login.py` does the rest. (Or use a service that offers the same API with its own token, and choose **Custom URL**.)
+
+1. At [developer.tesla.com](https://developer.tesla.com), create an app with:
+   - your domain as its allowed origin, such as `https://example.com`;
+   - `http://localhost:8585/callback` as a redirect URI;
+   - the vehicle information scope (`vehicle_device_data`).
+
+   Note its client ID and client secret.
+2. Tesla wants the app's public key on that domain before it answers any request. Make a key pair, keep `private-key.pem` to yourself, and publish the public key at `https://example.com/.well-known/appspecific/com.tesla.3p.public-key.pem`:
+
+   ```bash
+   openssl ecparam -name prime256v1 -genkey -noout -out private-key.pem
+   ```
+
+   ```bash
+   openssl ec -in private-key.pem -pubout -out com.tesla.3p.public-key.pem
+   ```
+
+3. Register the app with the Fleet API, once for each region you use (`--region eu` for Europe, Middle East and Africa, `--region cn` for China). It asks for the client secret, or reads `TESLA_CLIENT_SECRET`:
+
+   ```bash
+   tools/tesla-login.py register --client-id <client ID> --domain example.com
+   ```
+
+4. Sign in. This opens Tesla's sign-in page in your browser, catches the browser coming back, and prints what to paste into the widget's Connection settings: region, access token, refresh token, client ID and VIN.
+
+   ```bash
+   tools/tesla-login.py login --client-id <client ID>
+   ```
+
+   Your Tesla password only goes to Tesla's page, and the tokens are only printed, never saved. If Tesla won't take a `localhost` redirect URI, give the app another one, run `login` with `--redirect-uri <it> --manual`, and paste the address the browser ends up on. `--json` prints the result as JSON.
+
+Tesla's access tokens last 8 hours. With the refresh token and client ID, the widget renews the access token and saves the new tokens. Renewing invalidates the old refresh token, so don't use the same tokens in another program. Copies of the widget share renewals. A refresh token expires after 3 months unused, so a widget that has been off that long needs a new sign-in.
 
 **Cost.** Tesla bills each request, roughly $1 for every 500 data requests (the rate varies by region), with a $10 monthly credit for individual developers. Every request counts, including the replies for a sleeping car. With the default settings, a car that's awake 3 hours a day costs about 4,000 requests a month. Services that offer the same API have their own prices.
 
@@ -235,14 +267,14 @@ Edit the files in `package/`, then:
 make install   # build dist/tesla-monitor.plasmoid and install or upgrade it
 make reload    # restart Plasma so the new QML loads
 make test      # run the unit tests
-make lint      # check QML syntax, metadata.json, main.xml and the shell script
+make lint      # check QML syntax, metadata.json, main.xml and the tools
 ```
 
 `make reload` makes the panel and desktop blink, and it clears Plasma's notifications. `make help` lists every target. For each release, raise `Version` in `package/metadata.json`, describe the changes in [CHANGELOG.md](CHANGELOG.md), and push a matching tag such as `v1.7.0`. The release workflow then publishes the `.plasmoid` on GitHub. CI runs the tests and `make lint` on every pull request.
 
-`make lint` uses Qt 6's `qmlformat`, `jq`, `xmllint` and `shellcheck`, and skips any that aren't installed.
+`make lint` uses Qt 6's `qmlformat`, `jq`, `xmllint`, `shellcheck` and Python, and skips any that aren't installed.
 
-The tests in `tests/` cover `logic.js`, `models.js`, `notifyhub.js`, `teslaapi.js` and `tokenhub.js` and need only Node.js 18 or newer. `logic.js` holds the widget's decisions and never calls `Qt` or `i18n()`, so Node can run it; the QML turns its results into words. Qt 6's `qmllint` catches QML syntax errors:
+The tests in `tests/` cover `logic.js`, `models.js`, `notifyhub.js`, `teslaapi.js` and `tokenhub.js`, which need only Node.js 18 or newer, and `tools/tesla-login.py`, which needs Python 3.9 or newer and runs against the fake Fleet API below. `logic.js` holds the widget's decisions and never calls `Qt` or `i18n()`, so Node can run it; the QML turns its results into words. Qt 6's `qmllint` catches QML syntax errors:
 
 ```bash
 qmllint package/contents/ui/*.qml package/contents/config/*.qml
@@ -304,6 +336,16 @@ curl http://localhost:8765/_scenario/charging
 ```
 
 The scenarios are `parked`, `charging`, `complete`, `driving`, `open`, `unlocked`, `update`, `asleep` and `offline`.
+
+It also fakes Tesla's sign-in page, which signs in at once, and app registration, so `tools/tesla-login.py` can be tried against it. Its client secret is `fake-secret` (`--client-secret` changes it), and `--fail-register` makes registration fail. The URL options are hidden from `--help`, since only the fake server needs them:
+
+```bash
+export TESLA_CLIENT_ID=fake TESLA_CLIENT_SECRET=fake-secret
+```
+
+```bash
+tools/tesla-login.py login --api-url http://localhost:8765 --auth-url http://localhost:8765 --token-url http://localhost:8765/oauth2/v3/token
+```
 
 ## Contributing
 
