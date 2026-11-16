@@ -67,6 +67,24 @@ test("fleetOptions gives Teslemetry its URL and nothing to renew", () => {
 test("authUrl defaults to Tesla's token server", () => {
     assert.equal(Api.authUrl(""), "https://fleet-auth.prd.vn.cloud.tesla.com");
     assert.equal(Api.authUrl(" http://localhost:9/ "), "http://localhost:9");
+    assert.equal(Api.authUrl("auth.example.com/"), "https://auth.example.com");
+});
+
+test("isSecureUrl allows https, and plain http only to this machine", () => {
+    for (const url of ["https://api.example.com", "HTTPS://x", "http://localhost:8765", "http://LOCALHOST",
+                       "http://localhost./x", "http://127.0.0.1:1", "http://127.1.2.3", "http://[::1]:8080/x"])
+        assert.equal(Api.isSecureUrl(url), true, url);
+    for (const url of ["http://api.example.com", "http://192.168.1.5:8080", "http://localhost.evil.com",
+                       "http://127.0.0.1.evil.com", "http://localhost@evil.com", "http://[fd00::1]",
+                       "ftp://localhost", "file:///etc/passwd", "localhost", "", null, undefined])
+        assert.equal(Api.isSecureUrl(url), false, String(url));
+    // What the settings make of an address typed without a scheme is secure.
+    assert.equal(Api.isSecureUrl(Api.baseUrl(3, "api.example.com")), true);
+    assert.equal(Api.isSecureUrl(Api.authUrl("auth.example.com")), true);
+    assert.equal(Api.isSecureUrl(Api.authUrl("")), true);
+    for (const region of [0, 1, 2]) assert.equal(Api.isSecureUrl(Api.baseUrl(region, "")), true);
+    assert.equal(Api.isSecureUrl(Api.baseUrl(Api.fleetOptions("teslemetry", {}).region,
+                                             Api.fleetOptions("teslemetry", {}).customUrl)), true);
 });
 
 test("vehicle paths use the cleaned VIN and only ask for location when wanted", () => {

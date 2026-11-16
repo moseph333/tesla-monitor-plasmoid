@@ -562,7 +562,7 @@ KCM.SimpleKCM {
 
         Hint {
             visible: page.source.key === "fleet"
-            text: i18n("The region your Tesla account belongs to. Choose Custom URL for a service that offers the Fleet API's URLs with its own token.")
+            text: i18n("The region your Tesla account belongs to. Choose Custom URL for a service that offers the Fleet API's URLs with its own token. It must use HTTPS, unless it runs on this computer.")
         }
 
         Kirigami.PasswordField {
