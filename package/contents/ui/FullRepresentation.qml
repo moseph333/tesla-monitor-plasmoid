@@ -55,6 +55,8 @@ Item {
             ? i18n("Add your Tesla API access token and your car's VIN in the widget settings.")
             : widget.source.key === "tessie"
             ? i18n("Add your Tessie access token and your car's VIN in the widget settings.")
+            : widget.source.key === "homeAssistant"
+            ? i18n("Add your Home Assistant's address, an access token and the car in the widget settings.")
             : widget.source.key === "teslamateApi"
             ? i18n("Add the TeslaMate API's address in the widget settings.")
             : widget.cfg.brokerHost.trim() !== ""

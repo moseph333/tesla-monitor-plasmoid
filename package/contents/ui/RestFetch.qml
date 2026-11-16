@@ -3,6 +3,7 @@ import QtQuick
 import "rest.js" as Rest
 import "teslamateapi.js" as TeslaMateApi
 import "tessie.js" as Tessie
+import "homeassistant.js" as HomeAssistant
 import "teslaapi.js" as Api
 
 // Reads the car from a source with a simple JSON API over HTTP (kind "rest" in sources.js)
@@ -38,6 +39,12 @@ QtObject {
         case "tessie":
             if (!String(o.token || "").trim() || (o.request !== "cars" && !Tessie.cleanVin(o.car))) return null
             return { base: Tessie.baseUrl(), path: Tessie.requestPath(o.request, o.car) }
+        case "homeAssistant": {
+            const base = HomeAssistant.baseUrl(o.url)
+            if (!base || !String(o.token || "").trim() || (o.request !== "cars" && !HomeAssistant.cleanPrefix(o.car)))
+                return null
+            return { base: base, path: HomeAssistant.requestPath(o.request) }
+        }
         }
         return null
     }
@@ -80,6 +87,7 @@ QtObject {
         switch (options.source.key) {
         case "teslamateApi": return TeslaMateApi.convert(options.request, json)
         case "tessie": return Tessie.convert(options.request, json, Api.fromVehicleData)
+        case "homeAssistant": return HomeAssistant.convert(options.request, json, options.car, Date.now())
         }
         return { error: { kind: "badJson", detail: "" } }
     }
@@ -144,6 +152,7 @@ QtObject {
             ? i18n("This Tessie account has no car with VIN %1. Try Find Cars.", Tessie.cleanVin(options.car))
             : i18n("%1 doesn't answer like %2. Check the address.", host, name)
         case "noCar": return i18n("TeslaMate has no car with ID %1, or the TeslaMate API hasn't received its values over MQTT yet. Try Find Cars.", String(options.car))
+        case "noEntities": return i18n("Home Assistant has no entities for a car called %1. Try Find Cars, and check that the car's entities have Home Assistant's English names.", error.detail)
         case "rateLimited": return i18n("Too many requests to %1. The widget will try again later.", name)
         case "server": return error.detail
             ? i18n("%1 had a problem: %2", name, error.detail)

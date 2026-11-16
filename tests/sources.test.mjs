@@ -46,6 +46,14 @@ test("byId knows Tessie, an online service that lets the car sleep", () => {
     assert.equal(S.popupRefreshMs(S.byId(4)), 60000);
 });
 
+test("byId knows Home Assistant, read on the local network", () => {
+    assert.equal(S.byId(5).key, "homeAssistant");
+    assert.equal(S.byId(5).kind, "rest");
+    assert.equal(S.byId(5).cloud, false);
+    assert.equal(S.byId(5).geofences, true);
+    assert.deepEqual(S.refreshSeconds(S.byId(5), cfg), { active: 15, idle: 120 });
+});
+
 test("byId falls back to TeslaMate over MQTT", () => {
     assert.equal(S.byId(99).id, 0);
     assert.equal(S.byId(-1).id, 0);

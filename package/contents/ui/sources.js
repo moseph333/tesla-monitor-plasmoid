@@ -14,6 +14,7 @@ const FLEET = 1;
 const TESLAMATE_API = 2;
 const TESLEMETRY = 3;
 const TESSIE = 4;
+const HOME_ASSISTANT = 5;
 
 const SOURCES = [
     { id: MQTT, key: "mqtt", kind: "mqtt", name: "TeslaMate", cloud: false, sleepAware: false, geofences: true },
@@ -26,7 +27,10 @@ const SOURCES = [
     { id: TESLEMETRY, key: "teslemetry", kind: "fleet", name: "Teslemetry", cloud: true, sleepAware: true,
       geofences: false },
     // Answers from its own copy of the car's state, so polling doesn't keep the car awake.
-    { id: TESSIE, key: "tessie", kind: "rest", name: "Tessie", cloud: true, sleepAware: false, geofences: false }
+    { id: TESSIE, key: "tessie", kind: "rest", name: "Tessie", cloud: true, sleepAware: false, geofences: false },
+    // Reads what Home Assistant's own Tesla integration already fetched; zones are geofences.
+    { id: HOME_ASSISTANT, key: "homeAssistant", kind: "rest", name: "Home Assistant", cloud: false,
+      sleepAware: false, geofences: true }
 ];
 
 // The source for a dataSource value. An unknown value reads as TeslaMate over MQTT, the

@@ -251,6 +251,8 @@ PlasmoidItem {
                      car: cfg.teslamateApiCarId, request: request }
         case "tessie":
             return { source: source, url: "", token: cfg.tessieToken, car: cfg.tessieVin, request: request }
+        case "homeAssistant":
+            return { source: source, url: cfg.haUrl, token: cfg.haToken, car: cfg.haPrefix, request: request }
         }
         return { source: source, url: "", token: "", car: "", request: request }
     }
@@ -400,7 +402,7 @@ PlasmoidItem {
                                            "apiVin", "apiAccessToken", "apiRefreshToken", "apiClientId",
                                            "apiAuthUrl", "teslamateApiUrl", "teslamateApiToken",
                                            "teslamateApiCarId", "teslemetryToken", "teslemetryVin",
-                                           "tessieToken", "tessieVin"]
+                                           "tessieToken", "tessieVin", "haUrl", "haToken", "haPrefix"]
     property string connectionSeen: ""
     // True while the widget saves tokens it renewed, which isn't a change of settings.
     property bool savingTokens: false
