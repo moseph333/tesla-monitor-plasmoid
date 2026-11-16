@@ -327,7 +327,7 @@ make lint      # check QML syntax, metadata.json, main.xml and the tools
 
 `make lint` uses Qt 6's `qmlformat`, `jq`, `xmllint`, `shellcheck` and Python, and skips any that aren't installed.
 
-The tests in `tests/` cover `logic.js`, `models.js`, `notifyhub.js`, `sources.js`, `rest.js`, `teslaapi.js`, `tokenhub.js`, `teslamateapi.js`, `tessie.js` and `homeassistant.js`, which need only Node.js 18 or newer, and `tools/tesla-login.py`, which needs Python 3.9 or newer and runs against the fake Fleet API below. `logic.js` holds the widget's decisions and never calls `Qt` or `i18n()`, so Node can run it; the QML turns its results into words. Qt 6's `qmllint` catches QML syntax errors:
+The tests in `tests/` cover `logic.js`, `models.js`, `notifyhub.js`, `sources.js`, `rest.js`, `teslaapi.js`, `tokenhub.js`, `teslamateapi.js`, `tessie.js` and `homeassistant.js`, which need only Node.js 18 or newer, and `tools/tesla-login.py`, which needs Python 3.9 or newer and runs against the fake Fleet API below. Some of the `logic.js` tests run the wallet commands in `/bin/sh`, with stand-ins for `secret-tool` and `mosquitto_sub`, and are skipped where there's no `/bin/sh` or coreutils. `logic.js` holds the widget's decisions and never calls `Qt` or `i18n()`, so Node can run it; the QML turns its results into words. Qt 6's `qmllint` catches QML syntax errors:
 
 ```bash
 qmllint package/contents/ui/*.qml package/contents/config/*.qml

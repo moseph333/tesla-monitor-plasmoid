@@ -1,7 +1,10 @@
 // Unit tests for the widget's ".pragma library" scripts. Run with `make test`.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 // The scripts are plain functions behind a QML pragma, so the pragma is dropped and the
 // source runs in this realm, which keeps deepEqual's prototype checks meaningful.
@@ -1345,6 +1348,67 @@ test("mosquittoCommand returns nothing without a usable host", () => {
     assert.equal(L.mosquittoCommand(undefined), "");
 });
 
+test("mosquittoCommand reads the password from the wallet when there is a keyringId", () => {
+    const cmd = L.mosquittoCommand({
+        host: "h", user: "me", password: "typed", keyringId: "ab-1", topics: ["t/#"], wait: 2,
+    });
+    assert.ok(cmd.startsWith("pw=$(secret-tool lookup service 'net.moseph.teslamonitor' widget 'ab-1'); "));
+    assert.ok(cmd.includes(" timeout 12 mosquitto_sub -h 'h' -p 1883 -t 't/#' -v -W 2 -u 'me' \"$@\"; "));
+    assert.ok(!cmd.includes("typed"));
+});
+
+test("mosquittoCommand leaves the wallet alone without a username", () => {
+    assert.equal(L.mosquittoCommand({ host: "h", keyringId: "ab-1", topics: [], wait: 2 }),
+        "timeout 12 mosquitto_sub -h 'h' -p 1883 -v -W 2");
+});
+
+test("keyringLookupCommand finds a widget's entry, and nothing with an empty id", () => {
+    assert.equal(L.keyringLookupCommand("ab-1"),
+        "secret-tool lookup service 'net.moseph.teslamonitor' widget 'ab-1'");
+    assert.equal(L.keyringLookupCommand(""),
+        "secret-tool lookup service 'net.moseph.teslamonitor' widget ''");
+    assert.equal(L.keyringLookupCommand("it's"),
+        "secret-tool lookup service 'net.moseph.teslamonitor' widget 'it'\\''s'");
+});
+
+test("keyringStoreCommand pipes the password to secret-tool in a job the shell waits for", () => {
+    assert.equal(L.keyringStoreCommand("new", "Label", "it's", ""),
+        "(printf '%s' 'it'\\''s' | secret-tool store --label='Label'"
+        + " service 'net.moseph.teslamonitor' widget 'new') & wait $!");
+    assert.equal(L.keyringStoreCommand("new", "Label", "pw", "old"),
+        "(printf '%s' 'pw' | secret-tool store --label='Label'"
+        + " service 'net.moseph.teslamonitor' widget 'new'"
+        + " && { secret-tool clear service 'net.moseph.teslamonitor' widget 'old' || true; }) & wait $!");
+    // Saving again under the same id must not delete what it just saved.
+    assert.ok(!L.keyringStoreCommand("same", "Label", "pw", "same").includes("clear"));
+});
+
+test("keyringClearCommand deletes a widget's entry", () => {
+    assert.equal(L.keyringClearCommand("old"),
+        "(secret-tool clear service 'net.moseph.teslamonitor' widget 'old') & wait $!");
+});
+
+test("keyringResult sorts secret-tool's exits", () => {
+    assert.deepEqual(L.keyringResult(0, "pw", ""), { status: "ok", value: "pw", detail: "" });
+    assert.deepEqual(L.keyringResult(0, " p w ", ""), { status: "ok", value: " p w ", detail: "" });
+    assert.deepEqual(L.keyringResult(1, "", ""), { status: "notFound", value: "", detail: "" });
+    assert.deepEqual(L.keyringResult(1, "", " \n"), { status: "notFound", value: "", detail: "" });
+    assert.deepEqual(L.keyringResult(127, "", "sh: 1: secret-tool: not found"),
+        { status: "missing", value: "", detail: "" });
+    assert.deepEqual(L.keyringResult(1, "", "secret-tool: The name org.freedesktop.secrets was not provided\n"),
+        { status: "error", value: "", detail: "The name org.freedesktop.secrets was not provided" });
+    assert.deepEqual(L.keyringResult(2, "", ""), { status: "error", value: "", detail: "2" });
+});
+
+test("newKeyringId is short, plain and changes with the time and the random number", () => {
+    const id = L.newKeyringId(1763251200000, 0.5);
+    assert.match(id, /^[0-9a-z]+-[0-9a-z]+$/);
+    assert.equal(id, L.newKeyringId(1763251200000, 0.5));
+    assert.notEqual(id, L.newKeyringId(1763251200000, 0.25));
+    assert.notEqual(id, L.newKeyringId(1763251200001, 0.5));
+    assert.match(L.newKeyringId(0, 0), /^0-0$/);
+});
+
 test("mqttError treats a timed-out run as fine", () => {
     const ok = { kind: "", detail: "" };
     assert.deepEqual(L.mqttError(27, "Timed out\n", false), ok);
@@ -1398,6 +1462,181 @@ test("mqttError passes other failures through, or names the exit code", () => {
         { kind: "other", detail: "Out of memory." });
     assert.deepEqual(L.mqttError(3, "", false), { kind: "exit", detail: "3" });
     assert.deepEqual(L.mqttError(255, "Error: weird", false), { kind: "other", detail: "weird" });
+});
+
+test("mqttError recognizes a password the wallet didn't give", () => {
+    assert.deepEqual(L.mqttError(75, "", false), { kind: "keyring", detail: "" });
+    assert.deepEqual(L.mqttError(75, "secret-tool: Cannot autolaunch D-Bus without X11 $DISPLAY\n", false),
+        { kind: "keyring", detail: "Cannot autolaunch D-Bus without X11 $DISPLAY" });
+    assert.deepEqual(L.mqttError(76, "sh: 1: secret-tool: not found", false),
+        { kind: "keyringMissing", detail: "" });
+});
+
+// The wallet commands run in /bin/sh as the widget runs them, which is dash on Debian and
+// Ubuntu and bash elsewhere, with stand-ins for secret-tool and mosquitto_sub on a PATH of
+// their own.
+const SH_TOOLS = ["mktemp", "ln", "rm", "timeout", "sleep"].map(name =>
+    [name, spawnSync("/bin/sh", ["-c", "command -v " + name], { encoding: "utf8" }).stdout?.trim() || ""]);
+const SH_SKIP = process.platform === "win32" || SH_TOOLS.some(([, path]) => !path.startsWith("/"))
+    ? "needs /bin/sh and coreutils" : false;
+
+// Lookups print $STUB_PW; stores and clears note what they got in $STUB_LOG.
+const STUB_SECRET_TOOL = `#!/bin/sh
+case $1 in
+lookup) printf '%s\\n' "$*" >> "$STUB_LOG"; printf '%s' "$STUB_PW" ;;
+store) [ -z "$STUB_DELAY" ] || sleep "$STUB_DELAY"
+       pw=; IFS= read -r pw; printf '%s|%s\\n' "$*" "$pw" >> "$STUB_LOG" ;;
+clear) printf '%s\\n' "$*" >> "$STUB_LOG" ;;
+esac
+[ -z "$STUB_ERR" ] || printf 'secret-tool: %s\\n' "$STUB_ERR" >&2
+exit "\${STUB_EXIT:-0}"
+`;
+// Prints its arguments, the options file it would read, and that file's directory.
+const STUB_MOSQUITTO_SUB = `#!/bin/sh
+for a in "$@"; do printf 'arg:%s\\n' "$a"; done
+printf 'dir:%s\\n' "$XDG_CONFIG_HOME"
+while IFS= read -r line; do printf 'file:%s\\n' "$line"; done < "$XDG_CONFIG_HOME/mosquitto_sub"
+exit "\${STUB_MQTT_EXIT:-0}"
+`;
+
+// Calls fn with a way to run a command among the stand-ins, what they logged, and the
+// environment they run in. The directory goes once fn, or the promise it returns, is done.
+function withStubs(secretTool, fn) {
+    const dir = mkdtempSync(join(tmpdir(), "tesla-monitor-test-"));
+    const cleanup = () => rmSync(dir, { recursive: true, force: true });
+    const bin = join(dir, "bin");
+    const log = join(dir, "log");
+    mkdirSync(bin);
+    for (const [name, path] of SH_TOOLS) symlinkSync(path, join(bin, name));
+    const stubs = { mosquitto_sub: STUB_MOSQUITTO_SUB };
+    if (secretTool) stubs["secret-tool"] = STUB_SECRET_TOOL;
+    for (const name in stubs) {
+        writeFileSync(join(bin, name), stubs[name]);
+        chmodSync(join(bin, name), 0o755);
+    }
+    const env = extra => ({ PATH: bin, HOME: dir, STUB_LOG: log, LANG: "C", ...extra });
+    const run = (cmd, extra) => {
+        const r = spawnSync("/bin/sh", ["-c", cmd], { env: env(extra), encoding: "utf8" });
+        const lines = r.stdout.split("\n");
+        const pick = tag => lines.filter(l => l.startsWith(tag)).map(l => l.slice(tag.length));
+        return { code: r.status, out: r.stdout, err: r.stderr, args: pick("arg:"), file: pick("file:"), dir: pick("dir:")[0] };
+    };
+    const logged = () => existsSync(log) ? readFileSync(log, "utf8").split("\n").filter(Boolean) : [];
+    let result;
+    try {
+        result = fn({ run, logged, env });
+    } catch (e) {
+        cleanup();
+        throw e;
+    }
+    if (result instanceof Promise) return result.finally(cleanup);
+    cleanup();
+    return result;
+}
+
+const POLL = L.mosquittoCommand({ host: "h", user: "me", keyringId: "ab-1", topics: ["t/#"], wait: 1 });
+const POLL_ARGS = ["-h", "h", "-p", "1883", "-t", "t/#", "-v", "-W", "1", "-u", "me"];
+
+test("the poll hands the wallet's password to mosquitto_sub through its options file", { skip: SH_SKIP }, () => {
+    withStubs(true, ({ run, logged }) => {
+        const pw = `it's a "p@ss" $HOME \\ wörd`;
+        const r = run(POLL, { STUB_PW: pw });
+        assert.equal(r.code, 0);
+        assert.deepEqual(r.args, POLL_ARGS);
+        assert.deepEqual(r.file, ["-P " + pw]);
+        assert.deepEqual(logged(), ["lookup service net.moseph.teslamonitor widget ab-1"]);
+        assert.equal(existsSync(r.dir), false);
+    });
+});
+
+test("the poll puts a password over 1000 bytes on the command line instead", { skip: SH_SKIP }, () => {
+    withStubs(true, ({ run }) => {
+        const long = "x".repeat(1001);
+        let r = run(POLL, { STUB_PW: long });
+        assert.equal(r.code, 0);
+        assert.deepEqual(r.args, [...POLL_ARGS, "-P", long]);
+        assert.deepEqual(r.file, ["#"]);
+        r = run(POLL, { STUB_PW: "x".repeat(1000) });
+        assert.deepEqual(r.args, POLL_ARGS);
+        // Bytes count, not characters: 501 é are 1002 bytes.
+        r = run(POLL, { STUB_PW: "é".repeat(501), LANG: "C.UTF-8" });
+        assert.deepEqual(r.file, ["#"]);
+        r = run(POLL, { STUB_PW: "é".repeat(500), LANG: "C.UTF-8" });
+        assert.deepEqual(r.file, ["-P " + "é".repeat(500)]);
+    });
+});
+
+test("the poll stops before mosquitto_sub when the wallet doesn't give the password", { skip: SH_SKIP }, () => {
+    withStubs(true, ({ run }) => {
+        let r = run(POLL, { STUB_EXIT: "1" });
+        assert.equal(r.code, 75);
+        assert.deepEqual(r.args, []);
+        assert.deepEqual(L.mqttError(r.code, r.err, false), { kind: "keyring", detail: "" });
+        r = run(POLL, { STUB_EXIT: "1", STUB_ERR: "Cannot autolaunch D-Bus" });
+        assert.deepEqual(L.mqttError(r.code, r.err, false), { kind: "keyring", detail: "Cannot autolaunch D-Bus" });
+        r = run(POLL, { STUB_PW: "" });
+        assert.equal(r.code, 75);
+        assert.deepEqual(r.args, []);
+    });
+    withStubs(false, ({ run }) => {
+        const r = run(POLL, {});
+        assert.equal(r.code, 76);
+        assert.equal(L.mqttError(r.code, r.err, false).kind, "keyringMissing");
+    });
+});
+
+test("the poll passes on mosquitto_sub's exit and removes its directory", { skip: SH_SKIP }, () => {
+    withStubs(true, ({ run }) => {
+        const r = run(POLL, { STUB_PW: "pw", STUB_MQTT_EXIT: "5" });
+        assert.equal(r.code, 5);
+        assert.ok(r.dir);
+        assert.equal(existsSync(r.dir), false);
+    });
+});
+
+test("a lookup prints the password as it was saved", { skip: SH_SKIP }, () => {
+    withStubs(true, ({ run }) => {
+        const r = run(L.keyringLookupCommand("ab-1"), { STUB_PW: " p w " });
+        assert.deepEqual(L.keyringResult(r.code, r.out, r.err), { status: "ok", value: " p w ", detail: "" });
+    });
+});
+
+test("a store saves the password, then deletes the old entry", { skip: SH_SKIP }, () => {
+    withStubs(true, ({ run, logged }) => {
+        const pw = `it's "p@ss" $HOME`;
+        const r = run(L.keyringStoreCommand("new", "Tesla Monitor", pw, "old"), {});
+        assert.equal(r.code, 0);
+        assert.deepEqual(logged(), [
+            "store --label=Tesla Monitor service net.moseph.teslamonitor widget new|" + pw,
+            "clear service net.moseph.teslamonitor widget old",
+        ]);
+    });
+    withStubs(true, ({ run, logged }) => {
+        const r = run(L.keyringStoreCommand("new", "L", "pw", "old"), { STUB_EXIT: "1", STUB_ERR: "locked" });
+        assert.equal(r.code, 1);
+        assert.deepEqual(L.keyringResult(r.code, r.out, r.err), { status: "error", value: "", detail: "locked" });
+        // The old entry stays when the new one couldn't be saved.
+        assert.deepEqual(logged(), ["store --label=L service net.moseph.teslamonitor widget new|pw"]);
+    });
+    withStubs(true, ({ run, logged }) => {
+        assert.equal(run(L.keyringClearCommand("old"), {}).code, 0);
+        assert.deepEqual(logged(), ["clear service net.moseph.teslamonitor widget old"]);
+    });
+});
+
+test("a store finishes even when its shell is killed, as closing the settings does", { skip: SH_SKIP }, async () => {
+    await withStubs(true, async ({ logged, env }) => {
+        const child = spawn("/bin/sh", ["-c", L.keyringStoreCommand("new", "L", "pw", "old")],
+            { env: env({ STUB_DELAY: "0.3" }), stdio: "ignore" });
+        await new Promise(resolve => setTimeout(resolve, 50));
+        child.kill("SIGKILL");
+        for (let i = 0; i < 40 && logged().length < 2; i++)
+            await new Promise(resolve => setTimeout(resolve, 100));
+        assert.deepEqual(logged(), [
+            "store --label=L service net.moseph.teslamonitor widget new|pw",
+            "clear service net.moseph.teslamonitor widget old",
+        ]);
+    });
 });
 
 test("parseCars finds cars with and without a namespace", () => {

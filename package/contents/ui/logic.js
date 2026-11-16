@@ -653,7 +653,9 @@ function webUrl(text) {
 }
 
 // The mosquitto_sub command line, or "" without a host.
-// options = {host, port, user, password, tls, caFile, topics, wait}.
+// options = {host, port, user, password, keyringId, tls, caFile, topics, wait}. With a
+// keyringId, the password comes from the wallet (see keyringPipeline) and options.password
+// is ignored.
 // -W only counts once connected, so `timeout` bounds a host that drops packets (exit 124).
 // `timeout` itself exits 127 if mosquitto_sub is missing.
 function mosquittoCommand(options) {
@@ -678,8 +680,80 @@ function mosquittoCommand(options) {
     if (user) args.push("-u", shellQuote(user));
     // mosquitto_sub refuses a password without a username, so a password left over after
     // the username was cleared is dropped.
+    if (user && options.keyringId) return keyringPipeline(options.keyringId, args.join(" "));
     if (user && password) args.push("-P", shellQuote(password));
     return args.join(" ");
+}
+
+// The Secret Service attributes of one of a widget's secrets, as secret-tool arguments.
+// Each secret has an id of its own in the settings (keyringId, apiKeyringId).
+function keyringAttributes(id) {
+    return "service 'net.moseph.teslamonitor' widget " + shellQuote(id || "");
+}
+
+// A new id for a secret. It only names the entry, so it only has to be unlikely to repeat.
+// now and random are Date.now() and Math.random().
+function newKeyringId(now, random) {
+    return Math.floor(now).toString(36) + "-" + Math.floor(random * 2176782336).toString(36);
+}
+
+// Prints a secret with no newline after it. A search never asks to unlock the wallet, so
+// an empty id, which matches nothing, checks for secret-tool and a Secret Service quietly.
+function keyringLookupCommand(id) {
+    return "secret-tool lookup " + keyringAttributes(id);
+}
+
+// Saves a secret under id, then deletes the entry under oldId, if any. printf is a shell
+// builtin, so the secret reaches secret-tool through a pipe; it's on this shell's command
+// line only while the job runs. The job runs in the background and the shell waits for
+// it, because closing the settings kills the shell and the job must not die halfway. The
+// exit status is the store's: a failed delete only leaves an unused entry.
+function keyringStoreCommand(id, label, secret, oldId) {
+    let job = "printf '%s' " + shellQuote(secret) + " | secret-tool store --label="
+        + shellQuote(label) + " " + keyringAttributes(id);
+    if (oldId && oldId !== id)
+        job += " && { secret-tool clear " + keyringAttributes(oldId) + " || true; }";
+    return "(" + job + ") & wait $!";
+}
+
+// Deletes a secret, in the background for the same reason as the store.
+function keyringClearCommand(id) {
+    return "(secret-tool clear " + keyringAttributes(id) + ") & wait $!";
+}
+
+// A secret-tool result as {status, value, detail}. status is "ok" (value is the secret, for
+// a lookup), "notFound" (no match, or the wallet stayed locked: secret-tool can't tell
+// them apart), "missing" (no secret-tool) or "error" (detail says why, such as no Secret
+// Service running).
+function keyringResult(code, stdout, stderr) {
+    const message = String(stderr || "").trim().replace(/^secret-tool:\s*/, "");
+    function result(status, value, detail) {
+        return { status: status, value: value || "", detail: detail || "" };
+    }
+    if (code === 0) return result("ok", String(stdout || ""));
+    if (code === 127) return result("missing");
+    if (code === 1 && !message) return result("notFound");
+    return result("error", "", message || String(code));
+}
+
+// Runs a mosquitto_sub command with the password from the wallet, off every command line:
+// the shell reads it into a variable, and printf pipes it into mosquitto_sub's default
+// options file ($XDG_CONFIG_HOME/mosquitto_sub, read since mosquitto 1.4), which is a link
+// to stdin in a directory of its own. So a ~/.config/mosquitto_sub of the user's isn't
+// read. That file takes lines of up to 1023 bytes, and the rest of a longer line reads as
+// an option, so a password over 1000 bytes goes on the command line after all, where -P
+// beats the file. If the wallet doesn't give the password, the command exits 75 (76
+// without secret-tool) before mosquitto_sub runs.
+function keyringPipeline(id, mosquitto) {
+    return "pw=$(" + keyringLookupCommand(id) + "); s=$?; "
+        + "case $s in 0) ;; 127) exit 76 ;; *) exit 75 ;; esac; "
+        + "[ -n \"$pw\" ] || exit 75; "
+        + "opt=\"-P $pw\"; set --; "
+        + "if [ \"$(LC_ALL=C; echo ${#pw})\" -gt 1000 ]; then opt=\"#\"; set -- -P \"$pw\"; fi; "
+        + "d=$(mktemp -d) || exit 1; "
+        + "ln -s /dev/stdin \"$d/mosquitto_sub\" && "
+        + "printf '%s\\n' \"$opt\" | XDG_CONFIG_HOME=\"$d\" " + mosquitto + " \"$@\"; "
+        + "s=$?; rm -r \"$d\"; exit $s";
 }
 
 // Classifies a mosquitto_sub result as {kind, detail} for QML to word. kind "" means
@@ -692,6 +766,9 @@ function mqttError(code, stderr, hasOutput) {
     }
     if (code === 127) return result("notInstalled");
     if (code === 124) return result("noAnswer");
+    // keyringPipeline's own codes, with secret-tool's complaint, if any, as the detail.
+    if (code === 75) return result("keyring", message.replace(/^secret-tool:\s*/, ""));
+    if (code === 76) return result("keyringMissing");
     if (/Unknown option '--tls-use-os-certs'/.test(message)) return result("oldClient");
     if (/Problem setting TLS options/.test(message)) return result("caFile");
     if (code === 4 || code === 5 || /not authori[sz]ed|bad user name or password/i.test(message))
