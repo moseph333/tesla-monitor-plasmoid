@@ -22,6 +22,7 @@ import html
 import http.server
 import json
 import os
+import re
 import secrets
 import sys
 import time
@@ -51,6 +52,11 @@ class LoginError(Exception):
 
 # ---------- pure helpers ----------
 
+def printable(text):
+    """Text from a server, safe to print to a terminal: control characters, which could
+    move the cursor or rewrite what was printed before, become spaces."""
+    return re.sub(r"[\x00-\x1f\x7f-\x9f]+", " ", str(text)).strip()
+
 def authorize_url(auth_url, client_id, redirect_uri, state, nonce):
     """The address of Tesla's sign-in page for this app."""
     query = urllib.parse.urlencode({
@@ -75,7 +81,7 @@ def parse_callback(text, state):
     one = {key: values[0] for key, values in params.items()}
     if "error" in one:
         detail = one.get("error_description") or one["error"]
-        raise LoginError("Tesla didn't sign you in: %s" % detail)
+        raise LoginError("Tesla didn't sign you in: %s" % printable(detail))
     if one.get("state") != state:
         raise LoginError("The sign-in reply doesn't belong to this sign-in (its state doesn't match). "
                          "Start again, and use the newest sign-in address.")
@@ -104,9 +110,9 @@ def describe_error(status, body):
     code = ""
     if isinstance(body, dict):
         code = str(body.get("error") or "")
-        detail = str(body.get("error_description") or code)
+        detail = printable(body.get("error_description") or code)[:500]
     elif body:
-        detail = str(body).strip()[:200]
+        detail = printable(body)[:200]
     if status == 0:
         return "Couldn't reach Tesla: %s" % (detail or "no reply")
     if code == "invalid_client" or (status == 401 and "secret" in detail.lower()):
@@ -140,7 +146,7 @@ def vehicles_from(reply):
     listing = reply.get("response") if isinstance(reply, dict) else None
     if not isinstance(listing, list):
         return []
-    return [{"vin": v["vin"], "name": v.get("display_name") or ""}
+    return [{"vin": printable(v["vin"]), "name": printable(v.get("display_name") or "")}
             for v in listing if isinstance(v, dict) and v.get("vin")]
 
 

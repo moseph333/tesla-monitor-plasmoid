@@ -69,6 +69,17 @@ class PureTests(unittest.TestCase):
         with self.assertRaisesRegex(login.LoginError, "no sign-in code"):
             login.parse_callback("?state=st", "st")
 
+    def test_printable_drops_terminal_control_characters(self):
+        self.assertEqual(login.printable("bad\x1b[2J\x1b]0;title\x07thing\r\n"), "bad [2J ]0;title thing")
+        self.assertEqual(login.printable("Blue Thunder"), "Blue Thunder")
+        self.assertNotIn("\x1b", login.describe_error(400, {"error": "x", "error_description": "a\x1b[31mb"}))
+        self.assertNotIn("\x1b", login.describe_error(500, "page\x1b[2J"))
+        cars = login.vehicles_from({"response": [{"vin": "V1", "display_name": "Car\x1b[2J"}]})
+        self.assertEqual(cars, [{"vin": "V1", "name": "Car [2J"}])
+        with self.assertRaises(login.LoginError) as refused:
+            login.parse_callback("?error=x&error_description=no%1B%5B2J&state=st", "st")
+        self.assertNotIn("\x1b", str(refused.exception))
+
     def test_check_redirect(self):
         self.assertEqual(login.check_redirect("http://localhost:8585/callback"), (8585, "/callback"))
         self.assertEqual(login.check_redirect("http://127.0.0.1/"), (80, "/"))
