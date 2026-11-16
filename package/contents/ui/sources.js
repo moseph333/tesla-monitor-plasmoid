@@ -3,17 +3,22 @@
 // The data sources the widget can read the car from, in the order of the dataSource
 // setting's values. main.qml and the settings page ask this table what a source is like
 // instead of testing for each source by number.
-//   kind        "mqtt" (MqttFetch) or "fleet" (TeslaApiFetch)
+//   key         a name for the source in code
+//   kind        "mqtt" (MqttFetch), "fleet" (TeslaApiFetch) or "rest" (RestFetch)
 //   cloud       billed or rate-limited online service: polled in minutes, never under 1
 //   sleepAware  reaching the car keeps it awake, so polls follow teslaapi.js pollPlan()
 //   geofences   reports TeslaMate's geofence, which "Unlocked is OK at" needs
 
 const MQTT = 0;
 const FLEET = 1;
+const TESLAMATE_API = 2;
 
 const SOURCES = [
-    { id: MQTT, kind: "mqtt", name: "TeslaMate", cloud: false, sleepAware: false, geofences: true },
-    { id: FLEET, kind: "fleet", name: "Tesla Fleet API", cloud: true, sleepAware: true, geofences: false }
+    { id: MQTT, key: "mqtt", kind: "mqtt", name: "TeslaMate", cloud: false, sleepAware: false, geofences: true },
+    { id: FLEET, key: "fleet", kind: "fleet", name: "Tesla Fleet API", cloud: true, sleepAware: true,
+      geofences: false },
+    { id: TESLAMATE_API, key: "teslamateApi", kind: "rest", name: "TeslaMate API", cloud: false, sleepAware: false,
+      geofences: true }
 ];
 
 // The source for a dataSource value. An unknown value reads as TeslaMate over MQTT, the

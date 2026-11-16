@@ -53,6 +53,8 @@ Item {
         text: widget.source.kind === "fleet" ? i18n("Connect to Tesla") : i18n("Connect to TeslaMate")
         explanation: widget.source.kind === "fleet"
             ? i18n("Add your Tesla API access token and your car's VIN in the widget settings.")
+            : widget.source.key === "teslamateApi"
+            ? i18n("Add the TeslaMate API's address in the widget settings.")
             : widget.cfg.brokerHost.trim() !== ""
             ? i18n("The broker host isn't valid. Check it in the widget settings.")
             : i18n("Add your MQTT broker in the widget settings.")

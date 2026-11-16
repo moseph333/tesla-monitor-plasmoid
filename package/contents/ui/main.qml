@@ -20,6 +20,8 @@ PlasmoidItem {
         case "fleet":
             return Api.baseUrl(cfg.apiRegion, cfg.apiBaseUrl) !== "" && cfg.apiAccessToken.trim() !== ""
                 && Api.cleanVin(cfg.apiVin) !== ""
+        case "rest":
+            return restFetch.canRun(restOptions("data"))
         default:
             return Logic.parseBrokerHost(cfg.brokerHost).host !== ""
         }
@@ -250,6 +252,16 @@ PlasmoidItem {
         }
     }
 
+    // The settings for RestFetch.run(), asking for request.
+    function restOptions(request) {
+        switch (source.key) {
+        case "teslamateApi":
+            return { source: source, url: cfg.teslamateApiUrl, token: cfg.teslamateApiToken,
+                     car: cfg.teslamateApiCarId, request: request }
+        }
+        return { source: source, url: "", token: "", car: "", request: request }
+    }
+
     // Api.pollPlan()'s state between polls, and whether the running request is a summary
     // asked for to let the car sleep.
     property var apiPlan: null
@@ -266,6 +278,11 @@ PlasmoidItem {
             apiPlan = plan.state
             apiSuspended = plan.suspended
             if (!apiFetch.run(apiOptions(plan.request))) userRefreshing = false
+            return
+        }
+        if (source.kind === "rest") {
+            if (restFetch.busy) return
+            if (!restFetch.run(restOptions("data"))) userRefreshing = false
             return
         }
         if (fetch.busy) return
@@ -290,6 +307,17 @@ PlasmoidItem {
         const values = result.kind === "data" ? result.values
             : Api.mergeSummary(car, result.values, apiSuspended)
         values.since = Api.trackSince(car, values, time)
+        applyValues(values)
+    }
+
+    // A source that doesn't say when the state began gets the time this widget saw it change.
+    function applyRestResult(result, err) {
+        if (!result) {
+            applyFailure(err)
+            return
+        }
+        const values = result.values
+        if (!values.since) values.since = Api.trackSince(car, values, Date.now())
         applyValues(values)
     }
 
@@ -335,6 +363,11 @@ PlasmoidItem {
         }
     }
 
+    RestFetch {
+        id: restFetch
+        onFinished: (result, err) => root.applyRestResult(result, err)
+    }
+
     Texts { id: texts }
 
     Notifier {
@@ -372,7 +405,8 @@ PlasmoidItem {
     readonly property var connectionKeys: ["dataSource", "brokerHost", "brokerPort", "brokerUser", "brokerPassword",
                                            "topicPrefix", "useTls", "caFile", "apiRegion", "apiBaseUrl",
                                            "apiVin", "apiAccessToken", "apiRefreshToken", "apiClientId",
-                                           "apiAuthUrl"]
+                                           "apiAuthUrl", "teslamateApiUrl", "teslamateApiToken",
+                                           "teslamateApiCarId"]
     property string connectionSeen: ""
     // True while the widget saves tokens it renewed, which isn't a change of settings.
     property bool savingTokens: false
@@ -411,6 +445,7 @@ PlasmoidItem {
             notifier.startOver()
             fetch.cancel()
             apiFetch.cancel()
+            restFetch.cancel()
             root.refresh(false)
         }
     }

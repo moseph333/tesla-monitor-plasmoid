@@ -23,6 +23,14 @@ test("byId knows TeslaMate over MQTT and the Fleet API", () => {
     assert.equal(S.byId(1).geofences, false);
 });
 
+test("byId knows the TeslaMate API", () => {
+    assert.equal(S.byId(2).key, "teslamateApi");
+    assert.equal(S.byId(2).kind, "rest");
+    assert.equal(S.byId(2).cloud, false);
+    assert.equal(S.byId(2).geofences, true);
+    assert.deepEqual(S.refreshSeconds(S.byId(2), cfg), { active: 15, idle: 120 });
+});
+
 test("byId falls back to TeslaMate over MQTT", () => {
     assert.equal(S.byId(99).id, 0);
     assert.equal(S.byId(-1).id, 0);
