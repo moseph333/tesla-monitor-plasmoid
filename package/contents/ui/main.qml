@@ -42,6 +42,12 @@ PlasmoidItem {
     property var healthySeenAt: null
     // A spinner only shows for a refresh someone asked for, not for regular polls.
     property bool userRefreshing: false
+    // The wallet didn't give a secret, so polls wait until someone asks for one: while the
+    // wallet is closed, every poll would ask to open it again.
+    property bool keyringPaused: false
+    // Right after the settings change, a secret Apply just sent to the wallet may not be
+    // there yet, so the first miss is tried again once.
+    property bool keyringRetry: false
 
     // On the desktop the widget is always the card, with no panel icon or popup.
     readonly property bool onDesktop: Plasmoid.formFactor === PlasmaCore.Types.Planar
@@ -230,6 +236,7 @@ PlasmoidItem {
             port: cfg.brokerPort,
             user: cfg.brokerUser,
             password: cfg.brokerPassword,
+            keyringId: cfg.keyringId,
             tls: cfg.useTls,
             caFile: cfg.caFile,
             topics: topics,
@@ -269,7 +276,10 @@ PlasmoidItem {
     // result is used.
     function refresh(manual) {
         if (!configured) return
-        if (manual) userRefreshing = true
+        if (manual) {
+            userRefreshing = true
+            keyringPaused = false
+        }
         if (source.kind === "fleet") {
             if (apiFetch.busy) return
             const plan = Api.pollPlan(apiPlan, car, Date.now(), { forced: manual })
@@ -287,12 +297,26 @@ PlasmoidItem {
         if (!fetch.run(connectionOptions([prefix + "/#"], 2))) userRefreshing = false
     }
 
-    function applyResult(out, err) {
+    function applyResult(out, err, kind) {
+        if (kind === "keyring") {
+            keyringFailed(err)
+            return
+        }
+        keyringRetry = false
         const parsed = Logic.parseMqtt(out, prefix)
         if (Object.keys(parsed).length === 0)
             applyFailure(err || i18n("No TeslaMate data on %1/#. Check the topic prefix and that MQTT is enabled in TeslaMate.", prefix))
         else
             applyValues(parsed)
+    }
+
+    // The wallet didn't give a secret: try again once right after a settings change, and
+    // otherwise wait until someone asks.
+    function keyringFailed(err) {
+        applyFailure(err)
+        if (keyringRetry) keyringRetryTimer.start()
+        else keyringPaused = true
+        keyringRetry = false
     }
 
     function applyApiResult(result, err) {
@@ -341,7 +365,7 @@ PlasmoidItem {
 
     MqttFetch {
         id: fetch
-        onFinished: (out, err) => root.applyResult(out, err)
+        onFinished: (out, err, kind) => root.applyResult(out, err, kind)
     }
 
     TeslaApiFetch {
@@ -376,19 +400,28 @@ PlasmoidItem {
     // Changing the interval restarts the timer, so a new rate applies at once.
     Timer {
         interval: root.pollMs
-        running: root.configured
+        running: root.configured && !root.keyringPaused
         repeat: true
         triggeredOnStart: true
         onTriggered: root.refresh(false)
     }
 
+    Timer {
+        id: keyringRetryTimer
+        interval: 3000
+        onTriggered: root.refresh(false)
+    }
+
     // Refresh when the popup opens: for an online service, which may bill each request, at
-    // most once a minute. Bindings on expanded (such as popupOpen) may not have updated yet
-    // inside this handler, so it uses the signal's argument.
+    // most once a minute. Opening it counts as asking, so the wallet is tried again.
+    // Bindings on expanded (such as popupOpen) may not have updated yet inside this
+    // handler, so it uses the signal's argument.
     onExpandedChanged: (expanded) => {
         if (expanded && !onDesktop && configured
-            && (!lastUpdated || Date.now() - lastUpdated.getTime() > Sources.popupRefreshMs(source)))
+            && (!lastUpdated || Date.now() - lastUpdated.getTime() > Sources.popupRefreshMs(source))) {
+            keyringPaused = false
             refresh(false)
+        }
     }
 
     // Keeps "asleep for 3h" ticking between polls.
@@ -401,7 +434,7 @@ PlasmoidItem {
 
     // The settings that decide where data comes from, and their values at the last request.
     readonly property var connectionKeys: ["dataSource", "brokerHost", "brokerPort", "brokerUser", "brokerPassword",
-                                           "topicPrefix", "useTls", "caFile", "apiRegion", "apiBaseUrl",
+                                           "keyringId", "topicPrefix", "useTls", "caFile", "apiRegion", "apiBaseUrl",
                                            "apiVin", "apiAccessToken", "apiRefreshToken", "apiClientId",
                                            "apiAuthUrl", "teslamateApiUrl", "teslamateApiToken",
                                            "teslamateApiCarId", "teslemetryToken", "teslemetryVin",
@@ -441,6 +474,9 @@ PlasmoidItem {
             root.healthySeenAt = null
             root.userRefreshing = false
             root.apiPlan = null
+            root.keyringPaused = false
+            root.keyringRetry = true
+            keyringRetryTimer.stop()
             notifier.startOver()
             fetch.cancel()
             apiFetch.cancel()

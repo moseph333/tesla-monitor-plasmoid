@@ -14,10 +14,11 @@ QtObject {
     // What the last run() was given, so messages can name the host, port and topics.
     property var options: ({})
 
-    signal finished(string stdout, string errorText)
+    // errorKind is Logic.mqttError()'s kind, "" on success.
+    signal finished(string stdout, string errorText, string errorKind)
 
-    // connection = {host, port, user, password, tls, caFile, topics, wait}. Returns false
-    // and runs nothing if the host is unusable.
+    // connection = {host, port, user, password, keyringId, tls, caFile, topics, wait}.
+    // Returns false and runs nothing if the host is unusable.
     function run(connection) {
         const command = Logic.mosquittoCommand(connection)
         if (!command) return false
@@ -48,6 +49,10 @@ QtObject {
         case "refused": return i18n("%1 refused the connection on port %2. Check the port.", broker.host, port)
         case "unreachable": return i18n("Can't reach %1: %2", broker.host, error.detail)
         case "auth": return i18n("The broker rejected the username or password.")
+        case "keyring": return error.detail
+            ? i18n("Couldn't get the broker password from the wallet: %1", error.detail)
+            : i18n("Couldn't get the broker password from the wallet. Open the wallet and refresh, or enter the password again in the settings.")
+        case "keyringMissing": return i18n("secret-tool isn't installed, so the broker password can't be read from the wallet. Install libsecret-tools on Debian and Ubuntu, or libsecret on Fedora and Arch.")
         case "tls": return i18n("The TLS connection failed. Check Use TLS, the port and the CA file, and that Host is the name on the broker's certificate rather than its IP address.")
         case "handshake": return i18n("The broker accepted the connection but didn't answer. If it uses TLS, turn on Use TLS; otherwise check the port.")
         case "oldClient": return i18n("This mosquitto_sub is too old to use the system's certificates (that needs mosquitto 2.0). Choose a CA file instead.")
@@ -70,7 +75,7 @@ QtObject {
             fetch.pending = ""
             const out = String(data["stdout"] || "")
             const error = Logic.mqttError(data["exit code"], String(data["stderr"] || ""), out.trim() !== "")
-            fetch.finished(out, fetch.message(error))
+            fetch.finished(out, fetch.message(error), error.kind)
         }
     }
 }

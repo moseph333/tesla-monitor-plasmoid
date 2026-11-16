@@ -38,7 +38,10 @@ KCM.SimpleKCM {
     property alias cfg_brokerHost: brokerHost.text
     property alias cfg_brokerPort: brokerPort.value
     property alias cfg_brokerUser: brokerUser.text
-    property alias cfg_brokerPassword: brokerPassword.text
+    // Not aliases: where Apply saves the password depends on the wallet, so
+    // updatePassword() works these out from the field.
+    property string cfg_brokerPassword
+    property string cfg_keyringId
     property alias cfg_useTls: useTls.checked
     property alias cfg_caFile: caFile.text
     property alias cfg_topicPrefix: topicPrefix.text
@@ -72,6 +75,57 @@ KCM.SimpleKCM {
     // True while tokens renewed by a check are put in their fields, which isn't an edit.
     property bool fillingTokens: false
 
+    readonly property Keyring keyring: Keyring {
+        onAvailabilityChanged: page.updatePassword()
+    }
+    readonly property KeyringSecret passwordSecret: KeyringSecret {
+        keyring: page.keyring
+        label: i18nc("@label name of the entry in the wallet", "Tesla Monitor MQTT password")
+        onReverted: page.updatePassword()
+    }
+
+    Component.onCompleted: {
+        passwordSecret.load(cfg_keyringId, cfg_brokerPassword, value => brokerPassword.text = value)
+        brokerPassword.text = cfg_keyringId ? "" : cfg_brokerPassword
+        if (!cfg_keyringId) keyring.probe()
+    }
+
+    // Sets the cfg_ values to what Apply would save, so Plasma enables Apply when there's
+    // something to save.
+    function updatePassword() {
+        const where = passwordSecret.target(brokerPassword.text)
+        cfg_keyringId = where.id
+        cfg_brokerPassword = where.plain ? brokerPassword.text : ""
+    }
+
+    // Plasma calls this on Apply, before it saves the cfg_ values.
+    function saveConfig() {
+        passwordSecret.save(brokerPassword.text)
+    }
+
+    // What the page says about where the password goes, or "".
+    function passwordMessage() {
+        if (passwordSecret.storeFailed)
+            return passwordSecret.storeError
+                ? i18n("Couldn't save the password in the wallet: %1. Press Apply to try again.", passwordSecret.storeError)
+                : i18n("Couldn't save the password in the wallet. Press Apply to try again.")
+        const install = i18n("Install libsecret-tools on Debian and Ubuntu, or libsecret on Fedora and Arch.")
+        // Once something is typed, where it goes matters more than what couldn't be read.
+        if (passwordSecret.unread && brokerPassword.text === "") {
+            if (keyring.availability === "missing")
+                return i18n("secret-tool isn't installed, so the password saved in the wallet can't be read.") + " " + install
+            if (keyring.availability === "unavailable")
+                return i18n("There's no wallet, so the saved password can't be read: %1", keyring.detail)
+            return i18n("The saved password couldn't be read from the wallet, which may be closed. Type it again to replace it, or leave the field empty to keep it.")
+        }
+        if (cfg_brokerPassword === "") return ""
+        if (keyring.availability === "missing")
+            return i18n("secret-tool isn't installed, so the password is saved in plain text in the widget's settings.") + " " + install
+        if (keyring.availability === "unavailable")
+            return i18n("There's no wallet, so the password is saved in plain text in the widget's settings: %1", keyring.detail)
+        return ""
+    }
+
     // A result describes the values it ran with, so editing any of them hides it and drops
     // a running check. result.visible is assigned, never bound, because the message's close
     // button assigns it too.
@@ -104,7 +158,8 @@ KCM.SimpleKCM {
         result.visible = true
     }
 
-    // Both buttons test the values on the page, before they are applied.
+    // Both buttons test the values on the page, before they are applied. A saved password
+    // comes from the wallet; one typed since goes on the command line while the check runs.
     function runCheck(kind) {
         result.visible = false
         pendingCheck = kind
@@ -121,6 +176,7 @@ KCM.SimpleKCM {
             port: brokerPort.value,
             user: brokerUser.text,
             password: brokerPassword.text,
+            keyringId: brokerPassword.text === passwordSecret.savedValue ? passwordSecret.savedId : "",
             tls: useTls.checked,
             caFile: caFile.text,
             topics: kind === "find"
@@ -675,9 +731,28 @@ KCM.SimpleKCM {
             id: brokerPassword
             visible: page.mqtt
             Kirigami.FormData.label: i18n("Password:")
-            placeholderText: i18n("Optional")
+            // Typing waits for the wallet, so what it returns can't overwrite what's typed.
+            enabled: !page.passwordSecret.reading
+            placeholderText: enabled ? i18n("Optional") : i18n("Reading the wallet…")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            onTextChanged: page.brokerEdited()
+            onTextChanged: {
+                page.brokerEdited()
+                page.updatePassword()
+            }
+        }
+
+        Hint {
+            visible: page.mqtt && page.cfg_keyringId !== "" && brokerPassword.text !== ""
+                     && !passwordNote.visible
+            text: i18n("The password is kept in the wallet, not in the widget's settings.")
+        }
+
+        Kirigami.InlineMessage {
+            id: passwordNote
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            visible: page.mqtt && text !== ""
+            type: page.passwordSecret.storeFailed ? Kirigami.MessageType.Error : Kirigami.MessageType.Warning
+            text: page.passwordMessage()
         }
 
         QQC2.CheckBox {

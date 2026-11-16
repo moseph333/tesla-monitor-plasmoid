@@ -92,7 +92,13 @@
         <entry name="brokerUser" type="String">
             <default></default>
         </entry>
+        <!-- In plain text, only without a wallet. -->
         <entry name="brokerPassword" type="String">
+            <default></default>
+        </entry>
+        <!-- The broker password's id in the wallet, or empty. A new password gets a new id,
+             so the widget sees the change. -->
+        <entry name="keyringId" type="String">
             <default></default>
         </entry>
         <entry name="useTls" type="Bool">
