@@ -279,6 +279,7 @@ PlasmoidItem {
     property bool tokensLoading: false
 
     readonly property Keyring keyring: Keyring {}
+    readonly property string passwordLabel: i18nc("@label name of the entry in the wallet", "Tesla Monitor MQTT password")
     readonly property string tokensLabel: i18nc("@label name of the entry in the wallet", "Tesla Monitor tokens")
 
     // cfg as a plain object, with the tokens in place of the settings' own. Until the wallet
@@ -457,6 +458,45 @@ PlasmoidItem {
         connectionSeen = connectionNow()
     }
 
+    // Before 1.12 the password and tokens were in the settings in plain text. This offers
+    // them to the wallet, once there is one. If the wallet refuses them (it stayed locked),
+    // they stay where they are, the widget doesn't ask again at every start, and the
+    // settings page offers to move them.
+    function migrateSecrets() {
+        const password = () => cfg.keyringId ? "" : cfg.brokerPassword
+        const tokens = () => {
+            if (cfg.tokensKeyringId) return ""
+            const plain = {}
+            for (const key of Logic.tokenSettings()) plain[key] = cfg[key]
+            return Logic.packSecrets(plain, Logic.tokenSettings())
+        }
+        if (cfg.secretsMigrated || (!password() && !tokens())) return
+        keyring.probe(() => {
+            // Without a wallet, try again at the next start.
+            if (!keyring.ready) return
+            const moves = []
+            if (password()) moves.push({ value: password, label: passwordLabel, idKey: "keyringId", plainKeys: ["brokerPassword"] })
+            if (tokens()) moves.push({ value: tokens, label: tokensLabel, idKey: "tokensKeyringId", plainKeys: Logic.tokenSettings() })
+            let left = moves.length
+            for (const move of moves) {
+                const id = Logic.newKeyringId(Date.now(), Math.random())
+                const value = move.value()
+                keyring.store(id, move.label, value, "", result => {
+                    // Only if the settings still hold what was moved.
+                    if (result.status === "ok" && move.value() === value) {
+                        const values = {}
+                        values[move.idKey] = id
+                        for (const key of move.plainKeys) values[key] = ""
+                        writeSecretSettings(values)
+                    } else if (result.status === "ok") {
+                        keyring.clear(id)
+                    }
+                    if (--left === 0) Plasmoid.configuration.secretsMigrated = true
+                })
+            }
+        })
+    }
+
     RestFetch {
         id: restFetch
         onFinished: (result, err) => root.applyRestResult(result, err)
@@ -566,6 +606,7 @@ PlasmoidItem {
         // choice over, once.
         const migrated = Logic.unitMigration(cfg.unitsMigrated, cfg.brokerHost, cfg.imperial)
         for (const key in migrated) Plasmoid.configuration[key] = migrated[key]
+        migrateSecrets()
     }
 
     compactRepresentation: CompactRepresentation {

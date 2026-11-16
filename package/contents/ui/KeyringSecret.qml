@@ -53,9 +53,16 @@ QtObject {
         })
     }
 
+    // Whether value is the one saved in plain text, which Apply would move into the wallet.
+    function moving(value) {
+        return value === savedValue && savedPlain && keyring.ready
+    }
+
     // Where Apply would save value: {id, plain}, plain being true for the settings. A value
-    // as it was stays where it is; an emptied one is removed.
+    // as it was stays where it is, unless it can move from the settings into the wallet; an
+    // emptied one is removed.
     function target(value) {
+        if (moving(value)) return { id: nextId, plain: false }
         if (value === savedValue) return { id: savedId, plain: savedPlain }
         if (value === "") return { id: "", plain: false }
         if (keyring.ready) return { id: nextId, plain: false }

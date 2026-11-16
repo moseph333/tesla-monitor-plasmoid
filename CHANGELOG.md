@@ -13,6 +13,7 @@ All notable changes to Tesla Monitor are listed here. The format follows
 
 ### Added
 
+- A password and tokens that earlier versions saved in plain text move into the wallet the first time the widget starts with one. If the wallet stays locked, they stay where they are, and the Connection page offers to move them.
 - When the wallet doesn't give the password or the tokens, the widget stops polling until you press Refresh or open the popup, so a closed wallet doesn't ask to be opened at every poll. Right after the settings change it tries once more first.
 
 ### Changed

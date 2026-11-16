@@ -179,6 +179,8 @@ KCM.SimpleKCM {
                 return i18n("There's no wallet, so the saved tokens can't be read: %1", keyring.detail)
             return i18n("The saved tokens couldn't be read from the wallet, which may be closed. Enter them again to replace them, or leave the fields empty to keep them.")
         }
+        if (tokenSecret.moving(value))
+            return i18n("The tokens are saved in plain text in the widget's settings. Apply moves them into the wallet.")
         if (cfg_tokensKeyringId !== "" || value === "") return ""
         if (keyring.availability === "missing")
             return i18n("secret-tool isn't installed, so the tokens are saved in plain text in the widget's settings.") + " " + install
@@ -202,6 +204,8 @@ KCM.SimpleKCM {
                 return i18n("There's no wallet, so the saved password can't be read: %1", keyring.detail)
             return i18n("The saved password couldn't be read from the wallet, which may be closed. Type it again to replace it, or leave the field empty to keep it.")
         }
+        if (passwordSecret.moving(brokerPassword.text))
+            return i18n("The password is saved in plain text in the widget's settings. Apply moves it into the wallet.")
         if (cfg_brokerPassword === "") return ""
         if (keyring.availability === "missing")
             return i18n("secret-tool isn't installed, so the password is saved in plain text in the widget's settings.") + " " + install
@@ -857,7 +861,9 @@ KCM.SimpleKCM {
             id: passwordNote
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
             visible: page.mqtt && text !== ""
-            type: page.passwordSecret.storeFailed ? Kirigami.MessageType.Error : Kirigami.MessageType.Warning
+            type: page.passwordSecret.storeFailed ? Kirigami.MessageType.Error
+                : page.passwordSecret.moving(brokerPassword.text) ? Kirigami.MessageType.Information
+                : Kirigami.MessageType.Warning
             text: page.passwordMessage()
         }
 
@@ -938,7 +944,9 @@ KCM.SimpleKCM {
             id: tokensNote
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
             visible: !page.mqtt && text !== ""
-            type: page.tokenSecret.storeFailed ? Kirigami.MessageType.Error : Kirigami.MessageType.Warning
+            type: page.tokenSecret.storeFailed ? Kirigami.MessageType.Error
+                : page.tokenSecret.moving(page.tokenValue()) ? Kirigami.MessageType.Information
+                : Kirigami.MessageType.Warning
             text: page.tokensMessage()
         }
 
