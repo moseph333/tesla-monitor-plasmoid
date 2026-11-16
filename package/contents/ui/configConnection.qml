@@ -7,6 +7,8 @@ import org.kde.kcmutils as KCM
 
 import "logic.js" as Logic
 import "teslaapi.js" as Api
+import "sources.js" as Sources
+import "homeassistant.js" as HomeAssistant
 
 KCM.SimpleKCM {
     id: page
@@ -23,6 +25,16 @@ KCM.SimpleKCM {
     property alias cfg_apiIdleRefreshSeconds: apiIdleRefreshSeconds.value
     // Not shown. Unknown (0) once a new access token is typed in; known after a renewal.
     property real cfg_apiTokenExpiry: 0
+    property alias cfg_teslemetryToken: teslemetryToken.text
+    property alias cfg_teslemetryVin: teslemetryVin.text
+    property alias cfg_haUrl: haUrl.text
+    property alias cfg_haToken: haToken.text
+    property alias cfg_haPrefix: haPrefix.text
+    property alias cfg_tessieToken: tessieToken.text
+    property alias cfg_tessieVin: tessieVin.text
+    property alias cfg_teslamateApiUrl: teslamateApiUrl.text
+    property alias cfg_teslamateApiToken: teslamateApiToken.text
+    property alias cfg_teslamateApiCarId: teslamateApiCarId.value
     property alias cfg_brokerHost: brokerHost.text
     property alias cfg_brokerPort: brokerPort.value
     property alias cfg_brokerUser: brokerUser.text
@@ -33,16 +45,30 @@ KCM.SimpleKCM {
     property alias cfg_refreshSeconds: refreshSeconds.value
     property alias cfg_idleRefreshSeconds: idleRefreshSeconds.value
 
-    readonly property bool useApi: dataSource.currentIndex === 1
-    // The cars the last Find Cars found, for the picker: [{prefix, name}] from MQTT, or
-    // [{vin, name, state}] from the API.
+    readonly property var source: Sources.byId(dataSource.currentIndex)
+    readonly property bool mqtt: source.kind === "mqtt"
+    readonly property bool fleet: source.kind === "fleet"
+    readonly property bool rest: source.kind === "rest"
+    // The cars the last Find Cars found, for the picker: [{prefix, name}] from MQTT,
+    // [{vin, name, state}] from the Fleet API, Teslemetry or Tessie, [{id, name, vin}] from
+    // the TeslaMate API, or [{prefix, name}] from Home Assistant.
     property var cars: []
     // Which button started the running check: "test" or "find".
     property string pendingCheck: ""
-    readonly property bool checking: fetch.busy || apiFetch.busy
-    readonly property bool canCheck: !checking && (useApi
-        ? Api.baseUrl(apiRegion.currentIndex, apiBaseUrl.text) !== "" && apiAccessToken.text.trim() !== ""
-        : Logic.parseBrokerHost(brokerHost.text).host !== "")
+    readonly property bool checking: fetch.busy || apiFetch.busy || restFetch.busy
+    readonly property bool canCheck: {
+        if (checking) return false
+        switch (source.kind) {
+        case "fleet": {
+            const o = fleetOptions()
+            return Api.baseUrl(o.region, o.customUrl) !== "" && o.accessToken.trim() !== ""
+        }
+        case "rest":
+            return restFetch.canRun(restOptions("cars"))
+        default:
+            return Logic.parseBrokerHost(brokerHost.text).host !== ""
+        }
+    }
     // True while tokens renewed by a check are put in their fields, which isn't an edit.
     property bool fillingTokens: false
 
@@ -54,6 +80,7 @@ KCM.SimpleKCM {
         result.visible = false
         fetch.cancel()
         apiFetch.cancel()
+        restFetch.cancel()
     }
 
     // Cars found on one broker don't apply to another.
@@ -79,8 +106,12 @@ KCM.SimpleKCM {
     function runCheck(kind) {
         result.visible = false
         pendingCheck = kind
-        if (useApi) {
+        if (fleet) {
             runApiCheck(kind)
+            return
+        }
+        if (rest) {
+            runRestCheck(kind)
             return
         }
         const started = fetch.run({
@@ -101,22 +132,155 @@ KCM.SimpleKCM {
     // Test Connection asks for the car's summary, which never wakes it; Find Cars for the
     // account's cars.
     function runApiCheck(kind) {
-        if (kind === "test" && Api.cleanVin(apiVin.text) === "") {
+        const options = fleetOptions()
+        if (kind === "test" && Api.cleanVin(options.vin) === "") {
             showResult(Kirigami.MessageType.Error, i18n("Enter the car's VIN, or use Find Cars."))
             return
         }
-        const started = apiFetch.run({
-            region: apiRegion.currentIndex,
-            customUrl: apiBaseUrl.text,
-            accessToken: apiAccessToken.text,
-            refreshToken: apiRefreshToken.text,
-            clientId: apiClientId.text,
-            authUrl: apiAuthUrl.text,
-            tokenExpiry: page.cfg_apiTokenExpiry,
-            vin: apiVin.text,
-            request: kind === "find" ? "vehicles" : "summary"
+        const started = apiFetch.run(Object.assign(options, { request: kind === "find" ? "vehicles" : "summary" }))
+        if (!started) showResult(Kirigami.MessageType.Error, source.key === "teslemetry"
+            ? i18n("Paste your Teslemetry access token.")
+            : i18n("Choose a region or enter the API's URL, and paste an access token."))
+    }
+
+    // The values on the page for TeslaApiFetch.run(), for the Fleet API or Teslemetry.
+    function fleetOptions() {
+        return Api.fleetOptions(source.key, {
+            apiRegion: apiRegion.currentIndex,
+            apiBaseUrl: apiBaseUrl.text,
+            apiAccessToken: apiAccessToken.text,
+            apiRefreshToken: apiRefreshToken.text,
+            apiClientId: apiClientId.text,
+            apiAuthUrl: apiAuthUrl.text,
+            apiTokenExpiry: page.cfg_apiTokenExpiry,
+            apiVin: apiVin.text,
+            teslemetryToken: teslemetryToken.text,
+            teslemetryVin: teslemetryVin.text
         })
-        if (!started) showResult(Kirigami.MessageType.Error, i18n("Choose a region or enter the API's URL, and paste an access token."))
+    }
+
+    // The values on the page for RestFetch.run(), asking for request.
+    function restOptions(request) {
+        switch (source.key) {
+        case "teslamateApi":
+            return { source: source, url: teslamateApiUrl.text, token: teslamateApiToken.text,
+                     car: teslamateApiCarId.value, request: request }
+        case "tessie":
+            return { source: source, url: "", token: tessieToken.text, car: tessieVin.text, request: request }
+        case "homeAssistant":
+            return { source: source, url: haUrl.text, token: haToken.text, car: haPrefix.text, request: request }
+        }
+        return { source: source, url: "", token: "", car: "", request: request }
+    }
+
+    // Test Connection reads the car the settings name; Find Cars lists the cars.
+    function runRestCheck(kind) {
+        if (kind === "test" && source.key === "tessie" && Api.cleanVin(tessieVin.text) === "") {
+            showResult(Kirigami.MessageType.Error, i18n("Enter the car's VIN, or use Find Cars."))
+            return
+        }
+        if (kind === "test" && source.key === "homeAssistant" && HomeAssistant.cleanPrefix(haPrefix.text) === "") {
+            showResult(Kirigami.MessageType.Error, i18n("Enter the car, or use Find Cars."))
+            return
+        }
+        if (restFetch.run(restOptions(kind === "find" ? "cars" : "test"))) return
+        switch (source.key) {
+        case "tessie":
+            showResult(Kirigami.MessageType.Error, i18n("Paste your Tessie access token."))
+            break
+        case "homeAssistant":
+            showResult(Kirigami.MessageType.Error, i18n("Enter Home Assistant's address and paste an access token."))
+            break
+        default:
+            showResult(Kirigami.MessageType.Error, i18n("Enter the service's address."))
+        }
+    }
+
+    function restCheckFinished(found, err) {
+        if (!found) {
+            showResult(Kirigami.MessageType.Error, err)
+            return
+        }
+        if (found.kind === "cars") {
+            restCarsFound(found.cars)
+            return
+        }
+        const name = found.values.display_name || (source.key === "tessie" ? Api.cleanVin(tessieVin.text)
+            : source.key === "homeAssistant" ? HomeAssistant.cleanPrefix(haPrefix.text) : "")
+        showResult(Kirigami.MessageType.Positive, foundText(name, found.values.state || ""))
+    }
+
+    function restCarsFound(found) {
+        cars = found
+        if (found.length === 1) {
+            // Set before showing the message, since editing the car hides it.
+            pickCar(found[0])
+            showResult(Kirigami.MessageType.Positive, carSetText(found[0]))
+        } else if (found.length > 1) {
+            carPicker.currentIndex = -1
+            showResult(Kirigami.MessageType.Information, i18np("Found %1 car. Choose one:", "Found %1 cars. Choose one:", found.length))
+        } else {
+            showResult(Kirigami.MessageType.Warning, source.key === "teslamateApi"
+                ? i18n("TeslaMate has no cars yet.")
+                : source.key === "homeAssistant"
+                ? i18n("No cars found. Home Assistant's Tesla Fleet, Teslemetry or Tessie integration has to be set up, with the entities' English names.")
+                : i18n("This account has no cars, or the token may not list them."))
+        }
+    }
+
+    // What Find Cars says when it found one car and set it.
+    function carSetText(car) {
+        const key = carKey(car)
+        if (source.key === "teslamateApi")
+            return car.name ? i18n("Found %1. Car ID set to %2.", car.name, key) : i18n("Found a car. Car ID set to %1.", key)
+        if (source.key === "homeAssistant")
+            return car.name ? i18n("Found %1. Car set to %2.", car.name, key) : i18n("Found a car. Car set to %1.", key)
+        return car.name ? i18n("Found %1. VIN set to %2.", car.name, key) : i18n("Found a car. VIN set to %1.", key)
+    }
+
+    // "Found Blue Thunder. It's asleep.", for a car's name and TeslaMate state.
+    function foundText(name, state) {
+        if (!name) return i18n("Found the car.")
+        switch (state) {
+        case "": return i18n("Found %1.", name)
+        case "asleep": return i18n("Found %1. It's asleep.", name)
+        case "offline": return i18n("Found %1. It's offline.", name)
+        default: return i18n("Found %1. It's awake.", name)
+        }
+    }
+
+    // What the car picker shows to tell cars apart, and what choosing one sets.
+    function carKey(car) {
+        switch (source.key) {
+        case "fleet":
+        case "teslemetry":
+        case "tessie":
+            return car.vin
+        case "teslamateApi": return String(car.id)
+        default: return car.prefix
+        }
+    }
+
+    function pickCar(car) {
+        switch (source.key) {
+        case "fleet":
+            apiVin.text = car.vin
+            break
+        case "teslemetry":
+            teslemetryVin.text = car.vin
+            break
+        case "tessie":
+            tessieVin.text = car.vin
+            break
+        case "homeAssistant":
+            haPrefix.text = car.prefix
+            break
+        case "teslamateApi":
+            teslamateApiCarId.value = car.id
+            break
+        default:
+            topicPrefix.text = car.prefix
+        }
     }
 
     // Tokens a check renewed. The old ones no longer work, so they are replaced on the page.
@@ -137,19 +301,15 @@ KCM.SimpleKCM {
             apiCarsFound(found.vehicles)
             return
         }
-        const name = found.values.display_name || Api.cleanVin(apiVin.text)
-        const state = found.values.state || ""
-        showResult(Kirigami.MessageType.Positive, state === "online" ? i18n("Found %1. It's awake.", name)
-                   : state === "asleep" ? i18n("Found %1. It's asleep.", name)
-                   : state === "offline" ? i18n("Found %1. It's offline.", name)
-                   : i18n("Found %1.", name))
+        showResult(Kirigami.MessageType.Positive,
+                   foundText(found.values.display_name || Api.cleanVin(apiVin.text), found.values.state || ""))
     }
 
     function apiCarsFound(found) {
         cars = found
         if (found.length === 1) {
             // Set before showing the message, since editing the VIN hides it.
-            apiVin.text = found[0].vin
+            pickCar(found[0])
             showResult(Kirigami.MessageType.Positive, found[0].name
                 ? i18n("Found %1. VIN set to %2.", found[0].name, found[0].vin)
                 : i18n("Found a car. VIN set to %1.", found[0].vin))
@@ -205,18 +365,172 @@ KCM.SimpleKCM {
             id: dataSource
             Kirigami.FormData.label: i18n("Data source:")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            model: [i18n("TeslaMate (MQTT)"), i18n("Tesla Fleet API")]
+            model: [
+                i18n("TeslaMate (MQTT)"),
+                i18n("Tesla Fleet API"),
+                i18n("TeslaMate API"),
+                i18n("Teslemetry"),
+                i18n("Tessie"),
+                i18n("Home Assistant")
+            ]
             onActivated: page.brokerEdited()
         }
 
         Hint {
-            text: page.useApi
-                ? i18n("Reads the car straight from Tesla, or from a service with the same API. Tesla bills each request, so the widget asks sparingly and lets the car sleep.")
-                : i18n("Reads the values TeslaMate publishes to an MQTT broker.")
+            text: {
+                switch (page.source.key) {
+                case "fleet": return i18n("Reads the car straight from Tesla, or from a service with the same API. Tesla bills each request, so the widget asks sparingly and lets the car sleep.")
+                case "teslemetry": return i18n("Reads the car from Teslemetry, a service that offers the Tesla Fleet API with its own token and keeps the car's data in a cache.")
+                case "homeAssistant": return i18n("Reads the car's entities from Home Assistant, as its own Tesla Fleet, Teslemetry or Tessie integration provides them.")
+                case "tessie": return i18n("Reads the car from Tessie, which keeps the car's latest data, so asking doesn't wake the car or keep it awake.")
+                case "teslamateApi": return i18n("Reads TeslaMate's values from TeslaMateApi, a small web service that runs next to TeslaMate, so this computer doesn't need mosquitto_sub or a way to the MQTT broker.")
+                default: return i18n("Reads the values TeslaMate publishes to an MQTT broker.")
+                }
+            }
         }
 
         Kirigami.Separator {
-            visible: page.useApi
+            visible: page.source.key === "teslemetry"
+            Kirigami.FormData.isSection: true
+            Kirigami.FormData.label: i18n("Teslemetry")
+        }
+
+        Kirigami.PasswordField {
+            id: teslemetryToken
+            visible: page.source.key === "teslemetry"
+            Kirigami.FormData.label: i18n("Access token:")
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            onTextChanged: page.brokerEdited()
+        }
+
+        QQC2.TextField {
+            id: teslemetryVin
+            visible: page.source.key === "teslemetry"
+            Kirigami.FormData.label: i18n("VIN:")
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            inputMethodHints: Qt.ImhPreferUppercase | Qt.ImhNoPredictiveText
+            onTextChanged: page.formEdited()
+            onEditingFinished: if (text !== Api.cleanVin(text)) text = Api.cleanVin(text)
+        }
+
+        Hint {
+            visible: page.source.key === "teslemetry"
+            text: i18n("Make an access token in the Teslemetry console, at teslemetry.com, with access to the car's data. It doesn't expire, so there is nothing to renew. Teslemetry answers from its cache for free while the data is fresh, and charges credits when it has to ask the car. Find Cars fills in the VIN. The token is stored unencrypted in Plasma's configuration.")
+        }
+
+        Kirigami.Separator {
+            visible: page.source.key === "homeAssistant"
+            Kirigami.FormData.isSection: true
+            Kirigami.FormData.label: i18n("Home Assistant")
+        }
+
+        QQC2.TextField {
+            id: haUrl
+            visible: page.source.key === "homeAssistant"
+            Kirigami.FormData.label: i18n("Address:")
+            placeholderText: i18nc("example web address", "http://homeassistant.local:8123")
+            inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoAutoUppercase
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            onTextChanged: page.brokerEdited()
+        }
+
+        Kirigami.PasswordField {
+            id: haToken
+            visible: page.source.key === "homeAssistant"
+            Kirigami.FormData.label: i18n("Access token:")
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            onTextChanged: page.brokerEdited()
+        }
+
+        QQC2.TextField {
+            id: haPrefix
+            visible: page.source.key === "homeAssistant"
+            Kirigami.FormData.label: i18n("Car:")
+            placeholderText: i18nc("example start of entity IDs", "my_model_3")
+            inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            onTextChanged: page.formEdited()
+            onEditingFinished: if (text !== HomeAssistant.cleanPrefix(text)) text = HomeAssistant.cleanPrefix(text)
+        }
+
+        Hint {
+            visible: page.source.key === "homeAssistant"
+            text: i18n("Make a long-lived access token in your Home Assistant profile, under Security. The car is the start of its entity IDs, such as my_model_3 for sensor.my_model_3_battery_level; Find Cars lists them. The widget knows the entities by Home Assistant's English names, so renamed or translated entity IDs aren't found. The token is stored unencrypted in Plasma's configuration.")
+        }
+
+        Kirigami.Separator {
+            visible: page.source.key === "tessie"
+            Kirigami.FormData.isSection: true
+            Kirigami.FormData.label: i18n("Tessie")
+        }
+
+        Kirigami.PasswordField {
+            id: tessieToken
+            visible: page.source.key === "tessie"
+            Kirigami.FormData.label: i18n("Access token:")
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            onTextChanged: page.brokerEdited()
+        }
+
+        QQC2.TextField {
+            id: tessieVin
+            visible: page.source.key === "tessie"
+            Kirigami.FormData.label: i18n("VIN:")
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            inputMethodHints: Qt.ImhPreferUppercase | Qt.ImhNoPredictiveText
+            onTextChanged: page.formEdited()
+            onEditingFinished: if (text !== Api.cleanVin(text)) text = Api.cleanVin(text)
+        }
+
+        Hint {
+            visible: page.source.key === "tessie"
+            text: i18n("Make an access token in Tessie's dashboard, under Settings, API. Tessie doesn't charge for each request, so checking every minute costs nothing more. Find Cars fills in the VIN. The token is stored unencrypted in Plasma's configuration.")
+        }
+
+        Kirigami.Separator {
+            visible: page.source.key === "teslamateApi"
+            Kirigami.FormData.isSection: true
+            Kirigami.FormData.label: i18n("TeslaMate API")
+        }
+
+        QQC2.TextField {
+            id: teslamateApiUrl
+            visible: page.source.key === "teslamateApi"
+            Kirigami.FormData.label: i18n("Address:")
+            placeholderText: i18nc("example web address", "http://teslamate.local:8080")
+            inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoAutoUppercase
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            onTextChanged: page.brokerEdited()
+        }
+
+        Kirigami.PasswordField {
+            id: teslamateApiToken
+            visible: page.source.key === "teslamateApi"
+            Kirigami.FormData.label: i18n("Token:")
+            placeholderText: i18n("Optional")
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            onTextChanged: page.formEdited()
+        }
+
+        QQC2.SpinBox {
+            id: teslamateApiCarId
+            visible: page.source.key === "teslamateApi"
+            Kirigami.FormData.label: i18n("Car ID:")
+            from: 1
+            to: 999
+            editable: true
+            textFromValue: (value) => String(value)
+            valueFromText: (text) => parseInt(text)
+            onValueModified: page.formEdited()
+        }
+
+        Hint {
+            visible: page.source.key === "teslamateApi"
+            text: i18n("TeslaMateApi listens on port 8080 and needs MQTT enabled. Reading the car needs no token; the token is TeslaMateApi's API_TOKEN, for a server that asks for it. The car ID is TeslaMate's, 1 for the first car; Find Cars lists them. The token is stored unencrypted in Plasma's configuration.")
+        }
+
+        Kirigami.Separator {
+            visible: page.source.key === "fleet"
             Kirigami.FormData.isSection: true
             Kirigami.FormData.label: i18n("Tesla Fleet API")
         }
@@ -224,7 +538,7 @@ KCM.SimpleKCM {
         // In the order of Api.REGIONS, then a custom URL.
         QQC2.ComboBox {
             id: apiRegion
-            visible: page.useApi
+            visible: page.source.key === "fleet"
             Kirigami.FormData.label: i18n("Region:")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
             model: [
@@ -238,7 +552,7 @@ KCM.SimpleKCM {
 
         QQC2.TextField {
             id: apiBaseUrl
-            visible: page.useApi && apiRegion.currentIndex === 3
+            visible: page.source.key === "fleet" && apiRegion.currentIndex === 3
             Kirigami.FormData.label: i18n("URL:")
             placeholderText: i18nc("example web address", "https://api.example.com")
             inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoAutoUppercase
@@ -247,13 +561,13 @@ KCM.SimpleKCM {
         }
 
         Hint {
-            visible: page.useApi
+            visible: page.source.key === "fleet"
             text: i18n("The region your Tesla account belongs to. Choose Custom URL for a service that offers the Fleet API's URLs with its own token.")
         }
 
         Kirigami.PasswordField {
             id: apiAccessToken
-            visible: page.useApi
+            visible: page.source.key === "fleet"
             Kirigami.FormData.label: i18n("Access token:")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
             onTextChanged: {
@@ -264,7 +578,7 @@ KCM.SimpleKCM {
 
         Kirigami.PasswordField {
             id: apiRefreshToken
-            visible: page.useApi
+            visible: page.source.key === "fleet"
             Kirigami.FormData.label: i18n("Refresh token:")
             placeholderText: i18n("Optional")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
@@ -273,7 +587,7 @@ KCM.SimpleKCM {
 
         QQC2.TextField {
             id: apiClientId
-            visible: page.useApi
+            visible: page.source.key === "fleet"
             Kirigami.FormData.label: i18n("Client ID:")
             placeholderText: i18n("Optional")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
@@ -282,7 +596,7 @@ KCM.SimpleKCM {
 
         QQC2.TextField {
             id: apiAuthUrl
-            visible: page.useApi && apiRefreshToken.text.trim() !== ""
+            visible: page.source.key === "fleet" && apiRefreshToken.text.trim() !== ""
             Kirigami.FormData.label: i18n("Token server:")
             placeholderText: "https://fleet-auth.prd.vn.cloud.tesla.com"
             inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoAutoUppercase
@@ -291,13 +605,13 @@ KCM.SimpleKCM {
         }
 
         Hint {
-            visible: page.useApi
+            visible: page.source.key === "fleet"
             text: i18n("tools/tesla-login.py in the widget's source gets these for your own Fleet API app. Tesla's access tokens last 8 hours. With the refresh token and the app's client ID, the widget renews the access token itself and saves the new tokens. The token needs the vehicle_device_data scope. Tokens are stored unencrypted in Plasma's configuration.")
         }
 
         QQC2.TextField {
             id: apiVin
-            visible: page.useApi
+            visible: page.source.key === "fleet"
             Kirigami.FormData.label: i18n("VIN:")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
             inputMethodHints: Qt.ImhPreferUppercase | Qt.ImhNoPredictiveText
@@ -306,14 +620,14 @@ KCM.SimpleKCM {
         }
 
         Kirigami.Separator {
-            visible: !page.useApi
+            visible: page.mqtt
             Kirigami.FormData.isSection: true
             Kirigami.FormData.label: i18n("MQTT broker")
         }
 
         QQC2.TextField {
             id: brokerHost
-            visible: !page.useApi
+            visible: page.mqtt
             Kirigami.FormData.label: i18n("Host:")
             placeholderText: i18nc("example broker addresses", "192.168.1.x or mqtt.example.com")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
@@ -336,7 +650,7 @@ KCM.SimpleKCM {
 
         QQC2.SpinBox {
             id: brokerPort
-            visible: !page.useApi
+            visible: page.mqtt
             Kirigami.FormData.label: i18n("Port:")
             from: 1
             to: 65535
@@ -348,7 +662,7 @@ KCM.SimpleKCM {
 
         QQC2.TextField {
             id: brokerUser
-            visible: !page.useApi
+            visible: page.mqtt
             Kirigami.FormData.label: i18n("Username:")
             placeholderText: i18n("Optional")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
@@ -357,7 +671,7 @@ KCM.SimpleKCM {
 
         Kirigami.PasswordField {
             id: brokerPassword
-            visible: !page.useApi
+            visible: page.mqtt
             Kirigami.FormData.label: i18n("Password:")
             placeholderText: i18n("Optional")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
@@ -366,7 +680,7 @@ KCM.SimpleKCM {
 
         QQC2.CheckBox {
             id: useTls
-            visible: !page.useApi
+            visible: page.mqtt
             Kirigami.FormData.label: i18n("Security:")
             text: i18n("Use TLS")
             onToggled: {
@@ -376,7 +690,7 @@ KCM.SimpleKCM {
         }
 
         RowLayout {
-            visible: !page.useApi
+            visible: page.mqtt
             Kirigami.FormData.label: i18n("CA file:")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
             enabled: useTls.checked
@@ -406,19 +720,19 @@ KCM.SimpleKCM {
         }
 
         Hint {
-            visible: !page.useApi
+            visible: page.mqtt
             text: i18n("Leave the CA file empty to use the system's certificates (needs mosquitto 2.0 or newer). TLS brokers usually listen on port 8883; with mosquitto 2.0, port 8883 always uses TLS. Host must match the name on the broker's certificate.")
         }
 
         Kirigami.Separator {
-            visible: !page.useApi
+            visible: page.mqtt
             Kirigami.FormData.isSection: true
             Kirigami.FormData.label: i18n("TeslaMate")
         }
 
         QQC2.TextField {
             id: topicPrefix
-            visible: !page.useApi
+            visible: page.mqtt
             Kirigami.FormData.label: i18n("Topic prefix:")
             placeholderText: "teslamate/cars/1"
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
@@ -426,7 +740,7 @@ KCM.SimpleKCM {
         }
 
         Hint {
-            visible: !page.useApi
+            visible: page.mqtt
             text: i18n("If TeslaMate sets MQTT_NAMESPACE, use teslamate/<namespace>/cars/1.")
         }
 
@@ -464,6 +778,11 @@ KCM.SimpleKCM {
                 onFinished: (found, err) => page.apiCheckFinished(found, err)
                 onTokensRenewed: (access, refresh, expiresAt) => page.tokensRenewed(access, refresh, expiresAt)
             }
+
+            RestFetch {
+                id: restFetch
+                onFinished: (found, err) => page.restCheckFinished(found, err)
+            }
         }
 
         Kirigami.InlineMessage {
@@ -479,15 +798,11 @@ KCM.SimpleKCM {
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
             visible: page.cars.length > 1
             model: page.cars.map(c => {
-                const id = c.vin || c.prefix
-                return c.name ? i18nc("car name (topic prefix or VIN)", "%1 (%2)", c.name, id) : id
+                const id = page.carKey(c)
+                return c.name ? i18nc("car name (topic prefix, VIN or car ID)", "%1 (%2)", c.name, id) : id
             })
             displayText: currentIndex < 0 ? i18n("Choose a car…") : currentText
-            onActivated: (index) => {
-                const car = page.cars[index]
-                if (car.vin) apiVin.text = car.vin
-                else topicPrefix.text = car.prefix
-            }
+            onActivated: (index) => page.pickCar(page.cars[index])
         }
 
         Kirigami.Separator {
@@ -500,7 +815,7 @@ KCM.SimpleKCM {
         // the text the first digit would be saved and the rest land after the unit. i18np()
         // would also add digit grouping or locale digits that parseInt() can't read back.
         RowLayout {
-            visible: !page.useApi
+            visible: !page.source.cloud
             Kirigami.FormData.label: i18n("Every:")
             spacing: Kirigami.Units.smallSpacing
 
@@ -516,7 +831,7 @@ KCM.SimpleKCM {
         }
 
         RowLayout {
-            visible: !page.useApi
+            visible: !page.source.cloud
             Kirigami.FormData.label: i18n("While the car sleeps:")
             spacing: Kirigami.Units.smallSpacing
 
@@ -534,7 +849,7 @@ KCM.SimpleKCM {
 
         // The API's own rates, in minutes: each request is billed.
         RowLayout {
-            visible: page.useApi
+            visible: page.source.cloud
             Kirigami.FormData.label: i18n("Every:")
             spacing: Kirigami.Units.smallSpacing
 
@@ -560,7 +875,7 @@ KCM.SimpleKCM {
         }
 
         RowLayout {
-            visible: page.useApi
+            visible: page.source.cloud
             Kirigami.FormData.label: i18n("While the car sleeps:")
             spacing: Kirigami.Units.smallSpacing
 
@@ -585,13 +900,14 @@ KCM.SimpleKCM {
         }
 
         Hint {
-            text: page.useApi
+            text: page.source.sleepAware
                 ? i18n("Used while the car is asleep, offline or falling asleep and the popup is closed, and always for a widget on the desktop. Opening the popup or pressing Refresh updates right away, at most once a minute. Asking an awake car keeps it awake, so after 15 idle minutes the widget stops asking for 21 minutes to let it sleep, as TeslaMate does.")
                 : i18n("Used while the car is asleep or offline and the popup is closed, and always for a widget on the desktop. Opening the popup or pressing Refresh updates right away.")
         }
 
+        // Tesla's own prices, for the Fleet API itself.
         Hint {
-            visible: page.useApi
+            visible: dataSource.currentIndex === 1
             text: i18n("Tesla bills roughly $1 for every 500 data requests (the rate varies by region), with a $10 monthly credit for individual developers. Checking every 5 minutes while a car is awake 3 hours a day, and every 15 minutes while it sleeps, comes to about 4,000 requests a month. Services with the same API have their own prices.")
         }
     }

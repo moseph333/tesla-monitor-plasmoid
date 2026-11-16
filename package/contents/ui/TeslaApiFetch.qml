@@ -3,9 +3,9 @@ import QtQuick
 import "teslaapi.js" as Api
 import "tokenhub.js" as TokenHub
 
-// Talks to the Tesla Fleet API (or a proxy with the same URLs) for the widget's poll and for
-// the settings page's buttons, renews the access token when it can, and words a failure as
-// a message people can act on. It never wakes the car.
+// Talks to the Tesla Fleet API (or Teslemetry, or a proxy with the same URLs) for the
+// widget's poll and for the settings page's buttons, renews the access token when it can,
+// and words a failure as a message people can act on. It never wakes the car.
 QtObject {
     id: fetch
 
@@ -27,8 +27,8 @@ QtObject {
     // cancelled: the old refresh token no longer works.
     signal tokensRenewed(string access, string refresh, real expiresAt)
 
-    // options = {region, customUrl, accessToken, refreshToken, clientId, authUrl, tokenExpiry,
-    //            vin, request, withLocation}, where request is "data", "check", "summary"
+    // options = {service, region, customUrl, accessToken, refreshToken, clientId, authUrl,
+    //            tokenExpiry, vin, request, withLocation} (see Api.fleetOptions()), where request is "data", "check", "summary"
     // or "vehicles" (see Api.pollPlan()). Returns false and runs nothing if the settings
     // aren't enough.
     function run(o) {
@@ -206,6 +206,16 @@ QtObject {
 
     // The message for an error from Api.apiError(), or "" if there was none.
     function message(error) {
+        if (options.service === "teslemetry") {
+            switch (error.kind) {
+            case "auth": return i18n("Teslemetry rejected the access token. Make a new one in the Teslemetry console.")
+            case "forbidden": return i18n("The Teslemetry token may not read this car's data. Check its access in the Teslemetry console.")
+            case "payment": return i18n("Teslemetry wants an active subscription or more credits for this request.")
+            case "rateLimited": return i18n("Too many requests to Teslemetry. The widget will try again later.")
+            case "server": return i18n("Teslemetry had a problem (HTTP %1). The widget will try again.", error.detail)
+            case "http": return i18n("Teslemetry answered: %1", error.detail)
+            }
+        }
         switch (error.kind) {
         case "": return ""
         case "network": return i18n("Can't reach %1. Check the region or URL and the network.", host())

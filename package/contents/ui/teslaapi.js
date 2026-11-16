@@ -15,6 +15,9 @@ const REGIONS = [
     "https://fleet-api.prd.cn.vn.cloud.tesla.cn"
 ];
 const AUTH_URL = "https://fleet-auth.prd.vn.cloud.tesla.com";
+// Teslemetry serves the Fleet API's URLs, from its cache where it can, with a long-lived
+// token of its own that never needs renewing.
+const TESLEMETRY_URL = "https://api.teslemetry.com";
 
 // The API's base URL for a Region setting, without a trailing slash. A custom URL gets
 // https:// if it has no scheme. "" when the custom URL is empty.
@@ -25,6 +28,25 @@ function baseUrl(region, custom) {
     if (!url) return "";
     if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) url = "https://" + url;
     return url;
+}
+
+// The settings TeslaApiFetch.run() takes for a source of kind "fleet", from cfg (the
+// widget's configuration, or the settings page's fields under the same names): the Fleet
+// API itself, or Teslemetry. service names the source in messages.
+function fleetOptions(key, cfg) {
+    if (key === "teslemetry")
+        return { service: "teslemetry", region: REGIONS.length, customUrl: TESLEMETRY_URL,
+                 accessToken: String(cfg.teslemetryToken || ""), refreshToken: "", clientId: "", authUrl: "",
+                 tokenExpiry: 0, vin: String(cfg.teslemetryVin || "") };
+    return { service: "fleet", region: cfg.apiRegion, customUrl: String(cfg.apiBaseUrl || ""),
+             accessToken: String(cfg.apiAccessToken || ""), refreshToken: String(cfg.apiRefreshToken || ""),
+             clientId: String(cfg.apiClientId || ""), authUrl: String(cfg.apiAuthUrl || ""),
+             tokenExpiry: Number(cfg.apiTokenExpiry) || 0, vin: String(cfg.apiVin || "") };
+}
+
+// Whether fleetOptions() are enough to read a car.
+function fleetConfigured(o) {
+    return baseUrl(o.region, o.customUrl) !== "" && o.accessToken.trim() !== "" && cleanVin(o.vin) !== "";
 }
 
 // The token endpoint's base, from the setting or Tesla's default.
@@ -347,6 +369,8 @@ function apiError(status, body) {
     if (status >= 200 && status < 300) return result("", "");
     if (status === 0) return result("network", "");
     if (status === 401) return result("auth");
+    // Teslemetry, for a request its subscription or credits don't cover.
+    if (status === 402) return result("payment");
     if (status === 403) return result("forbidden");
     if (status === 404) return result("notFound");
     if (status === 408) return result("asleep");

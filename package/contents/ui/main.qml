@@ -5,19 +5,26 @@ import org.kde.plasma.core as PlasmaCore
 import "logic.js" as Logic
 import "models.js" as Models
 import "teslaapi.js" as Api
+import "sources.js" as Sources
 
 PlasmoidItem {
     id: root
 
     readonly property var cfg: Plasmoid.configuration
-    // 0 TeslaMate over MQTT, 1 the Tesla Fleet API.
-    readonly property bool useApi: cfg.dataSource === 1
+    // Where the data comes from: see sources.js.
+    readonly property var source: Sources.byId(cfg.dataSource)
     // For MQTT, uses the command builder's own test, so a host like "mqtt://" counts as not
     // configured.
-    readonly property bool configured: useApi
-        ? Api.baseUrl(cfg.apiRegion, cfg.apiBaseUrl) !== "" && cfg.apiAccessToken.trim() !== ""
-          && Api.cleanVin(cfg.apiVin) !== ""
-        : Logic.parseBrokerHost(cfg.brokerHost).host !== ""
+    readonly property bool configured: {
+        switch (source.kind) {
+        case "fleet":
+            return Api.fleetConfigured(Api.fleetOptions(source.key, cfg))
+        case "rest":
+            return restFetch.canRun(restOptions("data"))
+        default:
+            return Logic.parseBrokerHost(cfg.brokerHost).host !== ""
+        }
+    }
     // Used for both subscribing and stripping topics.
     readonly property string prefix: Logic.topicPrefix(cfg.topicPrefix)
     // Automatic follows the locale's measurement system.
@@ -40,12 +47,9 @@ PlasmoidItem {
     readonly property bool onDesktop: Plasmoid.formFactor === PlasmaCore.Types.Planar
     // A desktop card counts as closed, so it polls at the idle rate while the car sleeps.
     readonly property bool popupOpen: expanded && !onDesktop
-    // The API bills each request, so it has its own, slower rates, and never polls more
-    // than once a minute.
-    readonly property int pollMs: useApi
-        ? Logic.pollIntervalMs(Math.max(60, cfg.apiRefreshSeconds), Math.max(60, cfg.apiIdleRefreshSeconds),
-                               carState, hasData, popupOpen)
-        : Logic.pollIntervalMs(cfg.refreshSeconds, cfg.idleRefreshSeconds, carState, hasData, popupOpen)
+    // Online services have their own, slower rates, and never poll more than once a minute.
+    readonly property var rates: Sources.refreshSeconds(source, cfg)
+    readonly property int pollMs: Logic.pollIntervalMs(rates.active, rates.idle, carState, hasData, popupOpen)
     // The last poll failed and the data is over a minute old (or two intervals, when polling
     // slowly), so one missed poll doesn't count.
     readonly property bool stale: hasData && errorText !== "" && lastUpdated !== null
@@ -77,8 +81,10 @@ PlasmoidItem {
     readonly property var usableCold: Logic.usableIfCold(car)
     // Not named "update": that would hide Item's update() method.
     readonly property var softwareUpdate: Logic.updateProgress(car)
-    // "" when unset, which hides the link and the context menu entry.
-    readonly property string teslamateUrl: Logic.normalizeUrl(cfg.teslamateUrl)
+    // The data source's web page, which the car's name and the context menu open: {url, name}.
+    readonly property var webLink: Sources.webLink(source, cfg)
+    // "" when there is none, which hides the link and the context menu entry.
+    readonly property string webUrl: Logic.normalizeUrl(webLink.url)
     // The car drawing's body color, or "" for theme colors (by setting, or unknown paint).
     readonly property string paint: cfg.carColor === 0 ? Logic.paintColor(car.exterior_color) : ""
     // Which model to draw: the setting's choice, or what TeslaMate reports.
@@ -169,9 +175,9 @@ PlasmoidItem {
     }
 
     // Closes the popup too, so it doesn't stay open behind the browser.
-    function openTeslaMate() {
-        if (!teslamateUrl) return
-        Qt.openUrlExternally(teslamateUrl)
+    function openWebPage() {
+        if (!webUrl) return
+        Qt.openUrlExternally(webUrl)
         expanded = false
     }
 
@@ -205,10 +211,10 @@ PlasmoidItem {
             onTriggered: root.refresh(true)
         },
         PlasmaCore.Action {
-            text: i18n("Open TeslaMate")
+            text: i18nc("open a web site such as TeslaMate", "Open %1", root.webLink.name)
             icon.name: "internet-web-browser"
-            visible: root.teslamateUrl !== ""
-            onTriggered: root.openTeslaMate()
+            visible: root.webUrl !== ""
+            onTriggered: root.openWebPage()
         }
     ]
 
@@ -230,21 +236,27 @@ PlasmoidItem {
         }
     }
 
-    // The API settings for TeslaApiFetch.run(), asking for request.
+    // The settings for TeslaApiFetch.run() (the Fleet API or Teslemetry), asking for request.
     function apiOptions(request) {
-        return {
-            region: cfg.apiRegion,
-            customUrl: cfg.apiBaseUrl,
-            accessToken: cfg.apiAccessToken,
-            refreshToken: cfg.apiRefreshToken,
-            clientId: cfg.apiClientId,
-            authUrl: cfg.apiAuthUrl,
-            tokenExpiry: cfg.apiTokenExpiry,
-            vin: cfg.apiVin,
+        return Object.assign(Api.fleetOptions(source.key, cfg), {
             // Only for navigation, which is opt-in: asking for it shows an icon in the car.
             withLocation: cfg.showNavigation,
             request: request
+        })
+    }
+
+    // The settings for RestFetch.run(), asking for request.
+    function restOptions(request) {
+        switch (source.key) {
+        case "teslamateApi":
+            return { source: source, url: cfg.teslamateApiUrl, token: cfg.teslamateApiToken,
+                     car: cfg.teslamateApiCarId, request: request }
+        case "tessie":
+            return { source: source, url: "", token: cfg.tessieToken, car: cfg.tessieVin, request: request }
+        case "homeAssistant":
+            return { source: source, url: cfg.haUrl, token: cfg.haToken, car: cfg.haPrefix, request: request }
         }
+        return { source: source, url: "", token: "", car: "", request: request }
     }
 
     // Api.pollPlan()'s state between polls, and whether the running request is a summary
@@ -257,12 +269,17 @@ PlasmoidItem {
     function refresh(manual) {
         if (!configured) return
         if (manual) userRefreshing = true
-        if (useApi) {
+        if (source.kind === "fleet") {
             if (apiFetch.busy) return
             const plan = Api.pollPlan(apiPlan, car, Date.now(), { forced: manual })
             apiPlan = plan.state
             apiSuspended = plan.suspended
             if (!apiFetch.run(apiOptions(plan.request))) userRefreshing = false
+            return
+        }
+        if (source.kind === "rest") {
+            if (restFetch.busy) return
+            if (!restFetch.run(restOptions("data"))) userRefreshing = false
             return
         }
         if (fetch.busy) return
@@ -287,6 +304,17 @@ PlasmoidItem {
         const values = result.kind === "data" ? result.values
             : Api.mergeSummary(car, result.values, apiSuspended)
         values.since = Api.trackSince(car, values, time)
+        applyValues(values)
+    }
+
+    // A source that doesn't say when the state began gets the time this widget saw it change.
+    function applyRestResult(result, err) {
+        if (!result) {
+            applyFailure(err)
+            return
+        }
+        const values = result.values
+        if (!values.since) values.since = Api.trackSince(car, values, Date.now())
         applyValues(values)
     }
 
@@ -332,6 +360,11 @@ PlasmoidItem {
         }
     }
 
+    RestFetch {
+        id: restFetch
+        onFinished: (result, err) => root.applyRestResult(result, err)
+    }
+
     Texts { id: texts }
 
     Notifier {
@@ -348,12 +381,12 @@ PlasmoidItem {
         onTriggered: root.refresh(false)
     }
 
-    // Refresh when the popup opens: for the API, which bills each request, at most once a
-    // minute. Bindings on expanded (such as popupOpen) may not have updated yet inside this
-    // handler, so it uses the signal's argument.
+    // Refresh when the popup opens: for an online service, which may bill each request, at
+    // most once a minute. Bindings on expanded (such as popupOpen) may not have updated yet
+    // inside this handler, so it uses the signal's argument.
     onExpandedChanged: (expanded) => {
         if (expanded && !onDesktop && configured
-            && (!lastUpdated || Date.now() - lastUpdated.getTime() > (useApi ? 60 * 1000 : 5000)))
+            && (!lastUpdated || Date.now() - lastUpdated.getTime() > Sources.popupRefreshMs(source)))
             refresh(false)
     }
 
@@ -369,7 +402,9 @@ PlasmoidItem {
     readonly property var connectionKeys: ["dataSource", "brokerHost", "brokerPort", "brokerUser", "brokerPassword",
                                            "topicPrefix", "useTls", "caFile", "apiRegion", "apiBaseUrl",
                                            "apiVin", "apiAccessToken", "apiRefreshToken", "apiClientId",
-                                           "apiAuthUrl"]
+                                           "apiAuthUrl", "teslamateApiUrl", "teslamateApiToken",
+                                           "teslamateApiCarId", "teslemetryToken", "teslemetryVin",
+                                           "tessieToken", "tessieVin", "haUrl", "haToken", "haPrefix"]
     property string connectionSeen: ""
     // True while the widget saves tokens it renewed, which isn't a change of settings.
     property bool savingTokens: false
@@ -408,6 +443,7 @@ PlasmoidItem {
             notifier.startOver()
             fetch.cancel()
             apiFetch.cancel()
+            restFetch.cancel()
             root.refresh(false)
         }
     }

@@ -8,8 +8,8 @@ import org.kde.kirigami as Kirigami
 
 import "logic.js" as Logic
 
-// The card's header: the car's name (a link to TeslaMate if its address is set), what the
-// car is doing, where and since when, and the refresh button.
+// The card's header: the car's name (a link to the data source's web page, if it has one),
+// what the car is doing, where and since when, and the refresh button.
 RowLayout {
     // main.qml's root item, which has the car's state, and the card's Look.
     required property PlasmoidItem widget
@@ -30,7 +30,7 @@ RowLayout {
             textFormat: Text.PlainText
             elide: Text.ElideRight
             // Underlined like a link when hovered or focused, if it is one.
-            font.underline: widget.teslamateUrl !== "" && (nameHover.hovered || nameLink.activeFocus)
+            font.underline: widget.webUrl !== "" && (nameHover.hovered || nameLink.activeFocus)
 
             // The link. It covers only the text, not the heading's full width, and is what
             // Tab and screen readers reach, so the heading keeps its own role when there is
@@ -41,32 +41,32 @@ RowLayout {
                 x: nameHeading.effectiveHorizontalAlignment === Text.AlignRight ? nameHeading.width - width : 0
                 width: Math.min(nameHeading.contentWidth, nameHeading.width)
                 height: nameHeading.height
-                activeFocusOnTab: widget.teslamateUrl !== ""
+                activeFocusOnTab: widget.webUrl !== ""
 
                 Keys.onPressed: (event) => {
                     if (!widget.isActivationKey(event.key)) return
-                    widget.openTeslaMate()
+                    widget.openWebPage()
                     event.accepted = true
                 }
 
                 Accessible.role: Accessible.Link
                 Accessible.name: nameHeading.text
-                Accessible.description: i18n("Open TeslaMate")
-                Accessible.ignored: widget.teslamateUrl === ""
-                Accessible.onPressAction: widget.openTeslaMate()
+                Accessible.description: i18nc("open a web site such as TeslaMate", "Open %1", widget.webLink.name)
+                Accessible.ignored: widget.webUrl === ""
+                Accessible.onPressAction: widget.openWebPage()
 
                 HoverHandler {
                     id: nameHover
-                    enabled: widget.teslamateUrl !== ""
+                    enabled: widget.webUrl !== ""
                     cursorShape: Qt.PointingHandCursor
                 }
                 TapHandler {
-                    enabled: widget.teslamateUrl !== ""
-                    onTapped: widget.openTeslaMate()
+                    enabled: widget.webUrl !== ""
+                    onTapped: widget.openWebPage()
                 }
                 PlasmaComponents3.ToolTip {
                     visible: nameHover.hovered
-                    text: i18n("Open TeslaMate")
+                    text: i18nc("open a web site such as TeslaMate", "Open %1", widget.webLink.name)
                 }
             }
         }

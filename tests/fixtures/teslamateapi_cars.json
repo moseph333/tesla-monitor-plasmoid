@@ -1,0 +1,24 @@
+{
+  "data": {
+    "cars": [
+      {
+        "car_id": 1,
+        "name": "Blue Thunder",
+        "car_details": { "eid": 1234, "vid": 5678, "vin": "5YJ3E1EA0KF000001", "model": "3", "trim_badging": "74D", "efficiency": 0.153 },
+        "car_exterior": { "exterior_color": "DeepBlue", "spoiler_type": "None", "wheel_type": "Pinwheel18" },
+        "car_settings": { "suspend_min": 21, "suspend_after_idle_min": 15, "req_not_unlocked": false, "free_supercharging": false, "use_streaming_api": true },
+        "teslamate_details": { "inserted_at": "2024-01-01T10:00:00Z", "updated_at": "2026-11-01T10:00:00Z" },
+        "teslamate_stats": { "total_charges": 412, "total_drives": 1820, "total_updates": 31 }
+      },
+      {
+        "car_id": 2,
+        "name": null,
+        "car_details": { "eid": 4321, "vid": 8765, "vin": "7SAYGDEE0PF000002", "model": "Y", "trim_badging": null, "efficiency": null },
+        "car_exterior": { "exterior_color": null, "spoiler_type": null, "wheel_type": null },
+        "car_settings": { "suspend_min": 21, "suspend_after_idle_min": 15, "req_not_unlocked": false, "free_supercharging": false, "use_streaming_api": true },
+        "teslamate_details": { "inserted_at": "2025-03-01T10:00:00Z", "updated_at": "2026-11-01T10:00:00Z" },
+        "teslamate_stats": { "total_charges": 80, "total_drives": 300, "total_updates": 8 }
+      }
+    ]
+  }
+}
