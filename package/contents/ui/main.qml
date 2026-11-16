@@ -249,6 +249,8 @@ PlasmoidItem {
         case "teslamateApi":
             return { source: source, url: cfg.teslamateApiUrl, token: cfg.teslamateApiToken,
                      car: cfg.teslamateApiCarId, request: request }
+        case "tessie":
+            return { source: source, url: "", token: cfg.tessieToken, car: cfg.tessieVin, request: request }
         }
         return { source: source, url: "", token: "", car: "", request: request }
     }
@@ -397,7 +399,8 @@ PlasmoidItem {
                                            "topicPrefix", "useTls", "caFile", "apiRegion", "apiBaseUrl",
                                            "apiVin", "apiAccessToken", "apiRefreshToken", "apiClientId",
                                            "apiAuthUrl", "teslamateApiUrl", "teslamateApiToken",
-                                           "teslamateApiCarId", "teslemetryToken", "teslemetryVin"]
+                                           "teslamateApiCarId", "teslemetryToken", "teslemetryVin",
+                                           "tessieToken", "tessieVin"]
     property string connectionSeen: ""
     // True while the widget saves tokens it renewed, which isn't a change of settings.
     property bool savingTokens: false

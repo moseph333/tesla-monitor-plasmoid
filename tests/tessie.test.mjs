@@ -18,6 +18,10 @@ function fixture(name) {
 const T = load("tessie.js");
 const Api = load("teslaapi.js");
 
+test("baseUrl is Tessie's API", () => {
+    assert.equal(T.baseUrl(), "https://api.tessie.com");
+});
+
 test("requestPath reads the state from Tessie's cache", () => {
     assert.equal(T.requestPath("data", "5yj3 e1ea0kf000001"), "/5YJ3E1EA0KF000001/state?use_cache=true");
     assert.equal(T.requestPath("test", "5YJ3E1EA0KF000001"), "/5YJ3E1EA0KF000001/status");

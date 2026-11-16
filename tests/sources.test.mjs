@@ -38,6 +38,14 @@ test("byId knows Teslemetry, read like the Fleet API", () => {
     assert.deepEqual(S.refreshSeconds(S.byId(3), cfg), { active: 300, idle: 900 });
 });
 
+test("byId knows Tessie, an online service that lets the car sleep", () => {
+    assert.equal(S.byId(4).key, "tessie");
+    assert.equal(S.byId(4).kind, "rest");
+    assert.equal(S.byId(4).cloud, true);
+    assert.equal(S.byId(4).sleepAware, false);
+    assert.equal(S.popupRefreshMs(S.byId(4)), 60000);
+});
+
 test("byId falls back to TeslaMate over MQTT", () => {
     assert.equal(S.byId(99).id, 0);
     assert.equal(S.byId(-1).id, 0);

@@ -26,6 +26,8 @@ KCM.SimpleKCM {
     property real cfg_apiTokenExpiry: 0
     property alias cfg_teslemetryToken: teslemetryToken.text
     property alias cfg_teslemetryVin: teslemetryVin.text
+    property alias cfg_tessieToken: tessieToken.text
+    property alias cfg_tessieVin: tessieVin.text
     property alias cfg_teslamateApiUrl: teslamateApiUrl.text
     property alias cfg_teslamateApiToken: teslamateApiToken.text
     property alias cfg_teslamateApiCarId: teslamateApiCarId.value
@@ -158,14 +160,22 @@ KCM.SimpleKCM {
         case "teslamateApi":
             return { source: source, url: teslamateApiUrl.text, token: teslamateApiToken.text,
                      car: teslamateApiCarId.value, request: request }
+        case "tessie":
+            return { source: source, url: "", token: tessieToken.text, car: tessieVin.text, request: request }
         }
         return { source: source, url: "", token: "", car: "", request: request }
     }
 
     // Test Connection reads the car the settings name; Find Cars lists the cars.
     function runRestCheck(kind) {
+        if (kind === "test" && source.key === "tessie" && Api.cleanVin(tessieVin.text) === "") {
+            showResult(Kirigami.MessageType.Error, i18n("Enter the car's VIN, or use Find Cars."))
+            return
+        }
         if (!restFetch.run(restOptions(kind === "find" ? "cars" : "test")))
-            showResult(Kirigami.MessageType.Error, i18n("Enter the service's address."))
+            showResult(Kirigami.MessageType.Error, source.key === "tessie"
+                ? i18n("Paste your Tessie access token.")
+                : i18n("Enter the service's address."))
     }
 
     function restCheckFinished(found, err) {
@@ -177,7 +187,8 @@ KCM.SimpleKCM {
             restCarsFound(found.cars)
             return
         }
-        showResult(Kirigami.MessageType.Positive, foundText(found.values.display_name || "", found.values.state || ""))
+        const name = found.values.display_name || (source.key === "tessie" ? Api.cleanVin(tessieVin.text) : "")
+        showResult(Kirigami.MessageType.Positive, foundText(name, found.values.state || ""))
     }
 
     function restCarsFound(found) {
@@ -185,15 +196,23 @@ KCM.SimpleKCM {
         if (found.length === 1) {
             // Set before showing the message, since editing the car hides it.
             pickCar(found[0])
-            showResult(Kirigami.MessageType.Positive, found[0].name
-                ? i18n("Found %1. Car ID set to %2.", found[0].name, carKey(found[0]))
-                : i18n("Found a car. Car ID set to %1.", carKey(found[0])))
+            showResult(Kirigami.MessageType.Positive, carSetText(found[0]))
         } else if (found.length > 1) {
             carPicker.currentIndex = -1
             showResult(Kirigami.MessageType.Information, i18np("Found %1 car. Choose one:", "Found %1 cars. Choose one:", found.length))
         } else {
-            showResult(Kirigami.MessageType.Warning, i18n("TeslaMate has no cars yet."))
+            showResult(Kirigami.MessageType.Warning, source.key === "teslamateApi"
+                ? i18n("TeslaMate has no cars yet.")
+                : i18n("This account has no cars, or the token may not list them."))
         }
+    }
+
+    // What Find Cars says when it found one car and set it.
+    function carSetText(car) {
+        const key = carKey(car)
+        if (source.key === "teslamateApi")
+            return car.name ? i18n("Found %1. Car ID set to %2.", car.name, key) : i18n("Found a car. Car ID set to %1.", key)
+        return car.name ? i18n("Found %1. VIN set to %2.", car.name, key) : i18n("Found a car. VIN set to %1.", key)
     }
 
     // "Found Blue Thunder. It's asleep.", for a car's name and TeslaMate state.
@@ -212,6 +231,7 @@ KCM.SimpleKCM {
         switch (source.key) {
         case "fleet":
         case "teslemetry":
+        case "tessie":
             return car.vin
         case "teslamateApi": return String(car.id)
         default: return car.prefix
@@ -225,6 +245,9 @@ KCM.SimpleKCM {
             break
         case "teslemetry":
             teslemetryVin.text = car.vin
+            break
+        case "tessie":
+            tessieVin.text = car.vin
             break
         case "teslamateApi":
             teslamateApiCarId.value = car.id
@@ -316,7 +339,8 @@ KCM.SimpleKCM {
             id: dataSource
             Kirigami.FormData.label: i18n("Data source:")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            model: [i18n("TeslaMate (MQTT)"), i18n("Tesla Fleet API"), i18n("TeslaMate API"), i18n("Teslemetry")]
+            model: [i18n("TeslaMate (MQTT)"), i18n("Tesla Fleet API"), i18n("TeslaMate API"), i18n("Teslemetry"),
+                    i18n("Tessie")]
             onActivated: page.brokerEdited()
         }
 
@@ -325,6 +349,7 @@ KCM.SimpleKCM {
                 switch (page.source.key) {
                 case "fleet": return i18n("Reads the car straight from Tesla, or from a service with the same API. Tesla bills each request, so the widget asks sparingly and lets the car sleep.")
                 case "teslemetry": return i18n("Reads the car from Teslemetry, a service that offers the Tesla Fleet API with its own token and keeps the car's data in a cache.")
+                case "tessie": return i18n("Reads the car from Tessie, which keeps the car's latest data, so asking doesn't wake the car or keep it awake.")
                 case "teslamateApi": return i18n("Reads TeslaMate's values from TeslaMateApi, a small web service that runs next to TeslaMate, so this computer doesn't need mosquitto_sub or a way to the MQTT broker.")
                 default: return i18n("Reads the values TeslaMate publishes to an MQTT broker.")
                 }
@@ -358,6 +383,35 @@ KCM.SimpleKCM {
         Hint {
             visible: page.source.key === "teslemetry"
             text: i18n("Make an access token in the Teslemetry console, at teslemetry.com, with access to the car's data. It doesn't expire, so there is nothing to renew. Teslemetry answers from its cache for free while the data is fresh, and charges credits when it has to ask the car. Find Cars fills in the VIN. The token is stored unencrypted in Plasma's configuration.")
+        }
+
+        Kirigami.Separator {
+            visible: page.source.key === "tessie"
+            Kirigami.FormData.isSection: true
+            Kirigami.FormData.label: i18n("Tessie")
+        }
+
+        Kirigami.PasswordField {
+            id: tessieToken
+            visible: page.source.key === "tessie"
+            Kirigami.FormData.label: i18n("Access token:")
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            onTextChanged: page.brokerEdited()
+        }
+
+        QQC2.TextField {
+            id: tessieVin
+            visible: page.source.key === "tessie"
+            Kirigami.FormData.label: i18n("VIN:")
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            inputMethodHints: Qt.ImhPreferUppercase | Qt.ImhNoPredictiveText
+            onTextChanged: page.formEdited()
+            onEditingFinished: if (text !== Api.cleanVin(text)) text = Api.cleanVin(text)
+        }
+
+        Hint {
+            visible: page.source.key === "tessie"
+            text: i18n("Make an access token in Tessie's dashboard, under Settings, API. Tessie doesn't charge for each request, so checking every minute costs nothing more. Find Cars fills in the VIN. The token is stored unencrypted in Plasma's configuration.")
         }
 
         Kirigami.Separator {

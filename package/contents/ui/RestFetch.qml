@@ -2,6 +2,8 @@ import QtQuick
 
 import "rest.js" as Rest
 import "teslamateapi.js" as TeslaMateApi
+import "tessie.js" as Tessie
+import "teslaapi.js" as Api
 
 // Reads the car from a source with a simple JSON API over HTTP (kind "rest" in sources.js)
 // for the widget's poll and for the settings page's buttons, and words a failure as a
@@ -33,6 +35,9 @@ QtObject {
             if (!base || (o.request !== "cars" && !TeslaMateApi.carId(o.car))) return null
             return { base: base, path: TeslaMateApi.requestPath(o.request, o.car) }
         }
+        case "tessie":
+            if (!String(o.token || "").trim() || (o.request !== "cars" && !Tessie.cleanVin(o.car))) return null
+            return { base: Tessie.baseUrl(), path: Tessie.requestPath(o.request, o.car) }
         }
         return null
     }
@@ -74,6 +79,7 @@ QtObject {
     function convert(json) {
         switch (options.source.key) {
         case "teslamateApi": return TeslaMateApi.convert(options.request, json)
+        case "tessie": return Tessie.convert(options.request, json, Api.fromVehicleData)
         }
         return { error: { kind: "badJson", detail: "" } }
     }
@@ -134,7 +140,9 @@ QtObject {
         case "network": return i18n("Can't reach %1. Check the address and the network, and that %2 is running.", host, name)
         case "auth": return i18n("%1 rejected the token. Check it in the widget settings.", name)
         case "forbidden": return i18n("The token may not read this car's data.")
-        case "notFound": return i18n("%1 doesn't answer like %2. Check the address.", host, name)
+        case "notFound": return options.source.key === "tessie"
+            ? i18n("This Tessie account has no car with VIN %1. Try Find Cars.", Tessie.cleanVin(options.car))
+            : i18n("%1 doesn't answer like %2. Check the address.", host, name)
         case "noCar": return i18n("TeslaMate has no car with ID %1, or the TeslaMate API hasn't received its values over MQTT yet. Try Find Cars.", String(options.car))
         case "rateLimited": return i18n("Too many requests to %1. The widget will try again later.", name)
         case "server": return error.detail

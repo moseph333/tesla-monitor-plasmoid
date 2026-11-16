@@ -5,7 +5,7 @@
     <kcfgfile name=""/>
     <group name="General">
         <!-- Where the data comes from: 0 TeslaMate over MQTT, 1 the Tesla Fleet API, 2 the
-             TeslaMate API, 3 Teslemetry (see sources.js). -->
+             TeslaMate API, 3 Teslemetry, 4 Tessie (see sources.js). -->
         <entry name="dataSource" type="Int">
             <default>0</default>
         </entry>
@@ -52,6 +52,13 @@
             <default></default>
         </entry>
         <entry name="teslemetryVin" type="String">
+            <default></default>
+        </entry>
+        <!-- Tessie. -->
+        <entry name="tessieToken" type="String">
+            <default></default>
+        </entry>
+        <entry name="tessieVin" type="String">
             <default></default>
         </entry>
         <!-- TeslaMate API (TeslaMateApi): its address, the API_TOKEN it may be set up with,

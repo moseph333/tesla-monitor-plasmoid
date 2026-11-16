@@ -7,6 +7,10 @@
 
 const BASE_URL = "https://api.tessie.com";
 
+function baseUrl() {
+    return BASE_URL;
+}
+
 // A VIN as typed: spaces dropped, upper case. (The same as teslaapi.js cleanVin().)
 function cleanVin(text) {
     return String(text || "").replace(/\s+/g, "").toUpperCase();
