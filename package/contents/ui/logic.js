@@ -645,6 +645,13 @@ function normalizeUrl(text) {
     return /^[a-z][a-z0-9+.-]*:\/\//i.test(url) ? url : "http://" + url;
 }
 
+// The web page a URL from normalizeUrl() may open: only http and https, so a setting can't
+// hand the browser, or another handler, a file or some other kind of address. "" if not.
+function webUrl(text) {
+    const url = normalizeUrl(text);
+    return /^https?:\/\/[^\/?#\s]/i.test(url) && !/\s/.test(url) ? url : "";
+}
+
 // The mosquitto_sub command line, or "" without a host.
 // options = {host, port, user, password, tls, caFile, topics, wait}.
 // -W only counts once connected, so `timeout` bounds a host that drops packets (exit 124).

@@ -83,8 +83,9 @@ PlasmoidItem {
     readonly property var softwareUpdate: Logic.updateProgress(car)
     // The data source's web page, which the car's name and the context menu open: {url, name}.
     readonly property var webLink: Sources.webLink(source, cfg)
-    // "" when there is none, which hides the link and the context menu entry.
-    readonly property string webUrl: Logic.normalizeUrl(webLink.url)
+    // "" when there is none, or it isn't an http or https address, which hides the link and
+    // the context menu entry.
+    readonly property string webUrl: Logic.webUrl(webLink.url)
     // The car drawing's body color, or "" for theme colors (by setting, or unknown paint).
     readonly property string paint: cfg.carColor === 0 ? Logic.paintColor(car.exterior_color) : ""
     // Which model to draw: the setting's choice, or what TeslaMate reports.

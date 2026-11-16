@@ -1442,6 +1442,15 @@ test("parseCars keeps a car with an empty name and handles no output", () => {
     assert.deepEqual(L.parseCars(undefined), []);
 });
 
+test("webUrl only opens http and https addresses", () => {
+    assert.equal(L.webUrl("teslamate.local:4000"), "http://teslamate.local:4000");
+    assert.equal(L.webUrl(" https://ha.example.com/lovelace "), "https://ha.example.com/lovelace");
+    assert.equal(L.webUrl("HTTP://tm.lan"), "HTTP://tm.lan");
+    for (const text of ["file:///etc/passwd", "smb://nas/share", "javascript://x%0Aalert(1)", "http://",
+                        "http://a b", "", "  ", null, undefined])
+        assert.equal(L.webUrl(text), "", String(text));
+});
+
 test("noMarkup keeps text from being read as markup", () => {
     assert.equal(L.noMarkup("<img src=http://x/>Car"), "\u2039img src=http://x/\u203aCar");
     assert.equal(L.noMarkup("Tom & Jerry\nline"), "Tom & Jerry\nline");
