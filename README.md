@@ -7,7 +7,7 @@
 
 > An unofficial community project. It isn't affiliated with or endorsed by Tesla, Inc. or the TeslaMate project. See [Disclaimer](#disclaimer).
 
-A KDE Plasma 6 widget that shows a Tesla's status from [TeslaMate](https://docs.teslamate.org) over MQTT, or straight from the [Tesla Fleet API](https://developer.tesla.com/docs/fleet-api). On the desktop it's a full card. In a panel it's a battery icon in the shape of your car, a Model S, 3, X, Y or Cybertruck, with the battery percentage or the range beside it, that opens the card when clicked. It's drawn like Plasma's battery icon: a thin outline with a solid fill that grows from left to right, and a bolt while charging. The panel icon also works from the keyboard, where Space or Enter opens the card, and screen readers read out the same status as its tooltip.
+A KDE Plasma 6 widget that shows a Tesla's status from [TeslaMate](https://docs.teslamate.org), over MQTT or through the [TeslaMate API](https://github.com/tobiasehlert/teslamateapi), straight from the [Tesla Fleet API](https://developer.tesla.com/docs/fleet-api), or from [Teslemetry](https://teslemetry.com), [Tessie](https://tessie.com) or [Home Assistant](https://www.home-assistant.io). On the desktop it's a full card. In a panel it's a battery icon in the shape of your car, a Model S, 3, X, Y or Cybertruck, with the battery percentage or the range beside it, that opens the card when clicked. It's drawn like Plasma's battery icon: a thin outline with a solid fill that grows from left to right, and a bolt while charging. The panel icon also works from the keyboard, where Space or Enter opens the card, and screen readers read out the same status as its tooltip.
 
 <p>
 <img src="screenshots/parked.png" width="270" alt="The card of a parked Model 3 in Breeze Dark: battery ring at 72%, temperatures, and the car in its blue paint">
@@ -36,9 +36,9 @@ The card shows:
 
 It can also send desktop notifications when charging finishes or stops early, when something is left open or the car is unlocked with nobody inside, when a tire's pressure is low, and when a software update is available. See [Notifications](#notifications).
 
-The widget runs `mosquitto_sub` every 15 seconds by default, and every 2 minutes while the car sleeps and the popup is closed, to read TeslaMate's retained messages from the broker. It never talks to the car. Opening the popup, or pressing the refresh button in its header, updates right away. With the Tesla Fleet API, it asks every 5 minutes by default, lets the car fall asleep, and only asks whether it's still asleep every 15 minutes. See [Tesla Fleet API](#tesla-fleet-api). If the broker or the API stops answering, the card keeps the last data and fades it, the panel icon dims, and the card's footer and the icon's tooltip say when the data was last updated, with the day once that wasn't today.
+The widget runs `mosquitto_sub` every 15 seconds by default, and every 2 minutes while the car sleeps and the popup is closed, to read TeslaMate's retained messages from the broker. It never talks to the car. Opening the popup, or pressing the refresh button in its header, updates right away. The TeslaMate API and Home Assistant are asked as often. With the Tesla Fleet API and Teslemetry, it asks every 5 minutes by default, lets the car fall asleep, and only asks whether it's still asleep every 15 minutes. See [Tesla Fleet API](#tesla-fleet-api). Tessie is asked every 5 minutes too, and every 15 while the car sleeps, but answers from its own copy, so asking never keeps the car awake. See [Other data sources](#other-data-sources). If the broker or the service stops answering, the card keeps the last data and fades it, the panel icon dims, and the card's footer and the icon's tooltip say when the data was last updated, with the day once that wasn't today.
 
-**Contents:** [Requirements](#requirements) · [Install](#install) · [Settings](#settings) · [TLS](#tls) · [Tesla Fleet API](#tesla-fleet-api) · [Notifications](#notifications) · [Security and privacy](#security-and-privacy) · [TeslaMate behavior](#teslamate-behavior) · [Troubleshooting](#troubleshooting) · [Development](#development) · [Contributing](#contributing)
+**Contents:** [Requirements](#requirements) · [Install](#install) · [Settings](#settings) · [TLS](#tls) · [Tesla Fleet API](#tesla-fleet-api) · [Other data sources](#other-data-sources) · [Notifications](#notifications) · [Security and privacy](#security-and-privacy) · [TeslaMate behavior](#teslamate-behavior) · [Troubleshooting](#troubleshooting) · [Development](#development) · [Contributing](#contributing)
 
 ## Requirements
 
@@ -56,6 +56,12 @@ For TeslaMate:
 - TeslaMate with MQTT enabled, and a broker this machine can reach
 
 For the Tesla Fleet API, nothing to install: an access token for it (see [Tesla Fleet API](#tesla-fleet-api)), or for a service that offers the same API. `tools/tesla-login.py`, which gets the tokens, needs Python 3.9 or newer.
+
+For the other sources, nothing to install either (see [Other data sources](#other-data-sources)):
+
+- TeslaMate API: [TeslaMateApi](https://github.com/tobiasehlert/teslamateapi) running next to TeslaMate, with MQTT enabled
+- Teslemetry or Tessie: an account and an access token from it
+- Home Assistant: its Tesla Fleet, Teslemetry or Tessie integration set up, and a long-lived access token
 
 ## Install
 
@@ -100,7 +106,7 @@ From a source checkout, `make uninstall` does the same.
 
 | Setting | Value |
 | ------- | ----- |
-| Data source | **TeslaMate (MQTT)**, the default, or **Tesla Fleet API**. The page shows the settings for the one you choose |
+| Data source | **TeslaMate (MQTT)**, the default, **Tesla Fleet API**, **TeslaMate API**, **Teslemetry**, **Tessie** or **Home Assistant**. The page shows the settings for the one you choose |
 | Host, Port | Your MQTT broker. You can paste a URL such as `mqtts://user@broker:8883`, and the widget moves the port, TLS and username into their own fields |
 | Username, Password | A broker account, if the broker requires one. A password without a username isn't sent, since MQTT has no such login |
 | Use TLS, CA file | For a broker that uses TLS. See [TLS](#tls) |
@@ -119,7 +125,22 @@ For the Tesla Fleet API:
 | Every (under Refresh) | 5 minutes by default, and never less than 1 |
 | While the car sleeps | 15 minutes by default. Also used while the widget lets an awake car fall asleep |
 
-**Test Connection** tries the values on the page before you apply them, and says what went wrong if it can't read the car's data. **Find Cars** lists the cars TeslaMate publishes on the broker, or the cars on the Tesla account, and fills in the topic prefix or VIN, or lets you choose when there are several.
+For the other sources:
+
+| Source | Setting | Value |
+| ------ | ------- | ----- |
+| TeslaMate API | Address | TeslaMateApi's address, such as `http://teslamate.local:8080`. `http://` is added if you leave it out |
+| | Token | Optional. TeslaMateApi's `API_TOKEN`, for a server that asks for it |
+| | Car ID | TeslaMate's ID for the car, 1 for the first |
+| Teslemetry | Access token, VIN | A token from the Teslemetry console, and the car to show |
+| Tessie | Access token, VIN | A token from Tessie's dashboard, and the car to show |
+| Home Assistant | Address | Home Assistant's address, such as `http://homeassistant.local:8123` |
+| | Access token | A long-lived access token, from your Home Assistant profile |
+| | Car | The start of the car's entity IDs, such as `my_model_3` for `sensor.my_model_3_battery_level` |
+
+The TeslaMate API and Home Assistant use the TeslaMate refresh settings, in seconds. Teslemetry and Tessie use the Fleet API's, in minutes.
+
+**Test Connection** tries the values on the page before you apply them, and says what went wrong if it can't read the car's data. **Find Cars** lists the cars TeslaMate publishes on the broker or knows of, the cars on the Tesla, Teslemetry or Tessie account, or the cars Home Assistant has, and fills in the topic prefix, car ID, VIN or car, or lets you choose when there are several.
 
 **Display**
 
@@ -134,8 +155,8 @@ For the Tesla Fleet API:
 | Right-hand drive | Off by default. TeslaMate names doors and windows by driver and passenger side, so turn this on if the steering wheel is on the right |
 | Car color | **The car's paint** by default: the drawing's body takes the color TeslaMate reports as `exterior_color`. **Theme colors** draws it in tints of your color scheme instead, which is also what you get when TeslaMate reports no paint or one the widget doesn't know |
 | Show the destination and arrival while driving | Off by default. While the car follows a route, the card shows the destination, the time to arrival with any traffic delay, the distance left and the battery level on arrival. Needs TeslaMate 1.29 or newer |
-| Unlocked is OK at | TeslaMate geofence names, separated by commas, such as `Home, Work`. There an unlocked car isn't shown as a warning or notified, for a garage or home where you leave it unlocked on purpose |
-| TeslaMate | TeslaMate's web address, such as `http://teslamate.local:4000`. Clicking the car's name in the popup, or **Open TeslaMate** in the widget's context menu, opens it in your browser. `http://` is added if you leave it out |
+| Unlocked is OK at | TeslaMate geofence names, or Home Assistant zone names, separated by commas, such as `Home, Work`. There an unlocked car isn't shown as a warning or notified, for a garage or home where you leave it unlocked on purpose |
+| TeslaMate | TeslaMate's web address, such as `http://teslamate.local:4000`. Clicking the car's name in the popup, or **Open TeslaMate** in the widget's context menu, opens it in your browser. `http://` is added if you leave it out. With Home Assistant, Teslemetry or Tessie as the data source, they open Home Assistant, the Teslemetry console or Tessie's web app instead |
 
 **Notifications**
 
@@ -203,6 +224,37 @@ Tesla's access tokens last 8 hours. With the refresh token and client ID, the wi
 - How long the car has been in its state ("Parked · 3h") only counts from a change the widget saw.
 - With navigation on, the widget also asks for the car's location, which on recent software shows a location sharing icon in the car.
 
+## Other data sources
+
+All of these read what another program already fetched from the car, so the widget itself never reaches the car.
+
+### TeslaMate API
+
+[TeslaMateApi](https://github.com/tobiasehlert/teslamateapi) is a small web service that runs next to TeslaMate and answers with what TeslaMate publishes over MQTT. Use it when this computer can't reach the MQTT broker, or you'd rather not install `mosquitto_sub`. It shows the same things as TeslaMate over MQTT, geofences included, except each window on its own: it only says whether some window is open.
+
+- It listens on port 8080 and needs `MQTT_HOST` and MQTT enabled. Reading the car needs no token. If your server asks for its `API_TOKEN`, put that in **Token**.
+- It converts lengths, pressures and temperatures to the units set in TeslaMate, and the widget converts them back, so the widget's own unit settings still apply.
+- Until it has received a value over MQTT, it reports 0, an empty name or false. The widget treats a tire pressure, charge limit or battery of 0 as unknown. After TeslaMateApi restarts, it may say for a few minutes that TeslaMate is having trouble reaching the car.
+
+### Teslemetry
+
+[Teslemetry](https://teslemetry.com) offers the Tesla Fleet API's URLs with its own access token, made once in its console, which doesn't expire and needs no refresh token or client ID. **Find Cars** fills in the VIN. Teslemetry answers from a cache that it keeps fresh for 20 minutes, for free, and charges credits when it has to ask the car. The widget treats it like the Fleet API: it lets the car sleep, and asks for the car's location only when navigation is on. Like the Fleet API, it has no geofences and no warning about TeslaMate.
+
+### Tessie
+
+[Tessie](https://tessie.com) keeps the car's latest data and serves it to the widget, which reads it every 5 minutes by default. Tessie doesn't charge for each request, so every minute costs nothing more, and asking never wakes the car or keeps it awake. While the car sleeps, the card keeps showing what Tessie last knew. Make an access token in Tessie's dashboard, under **Settings → API**. **Find Cars** fills in the VIN. Tessie has no geofences.
+
+### Home Assistant
+
+The widget reads the car from Home Assistant's REST API, as Home Assistant's own [Tesla Fleet](https://www.home-assistant.io/integrations/tesla_fleet/), [Teslemetry](https://www.home-assistant.io/integrations/teslemetry/) or [Tessie](https://www.home-assistant.io/integrations/tessie/) integration provides it. Home Assistant converts values to its unit system, and the widget converts them back. The car's zone counts as its geofence.
+
+- Make a long-lived access token in your Home Assistant profile, under **Security**.
+- **Car** is the start of the car's entity IDs. Home Assistant names them after the car and the entity, such as `sensor.my_model_3_battery_level` for a car called My Model 3, so the car is `my_model_3`. **Find Cars** lists the cars it has.
+- The widget finds the entities by Home Assistant's English names. If Home Assistant runs in another language, it may have named them in that language when the car was added, and the widget won't find them. Renamed entities aren't found either. Rename them back to the English IDs, or use another source.
+- Entities Home Assistant turns off by default, such as Teslemetry's odometer and power, stay empty on the card until you turn them on.
+- Each poll downloads the state of every entity in Home Assistant, so on a large installation you may want a longer refresh interval.
+- Home Assistant doesn't give the car's model or paint, so the car is drawn as the **Model** setting says, and in theme colors.
+
 ## Notifications
 
 The widget sends a notification when:
@@ -214,16 +266,17 @@ The widget sends a notification when:
 
 Notifications are only for changes. Nothing is sent for what's already the case when the widget starts, after you change the connection settings, or after a long break in the data, such as while the computer sleeps. Plasma shows them as System Notifications, and clicking one opens the widget. Copies of the widget that show the same car, such as one in the panel and one on the desktop, send each notification once.
 
-If you leave the car unlocked on purpose somewhere, such as in your garage at home, add that TeslaMate geofence to **Unlocked is OK at** on the Display page. The widget then neither warns nor notifies there.
+If you leave the car unlocked on purpose somewhere, such as in your garage at home, add that TeslaMate geofence or Home Assistant zone to **Unlocked is OK at** on the Display page. The widget then neither warns nor notifies there.
 
 ## Security and privacy
 
-With TeslaMate, the widget only reads from the MQTT broker. It never contacts the car or Tesla's servers, and sends nothing anywhere else. With the Tesla Fleet API, it only contacts the API's URL and the token server, and only reads from them.
+With TeslaMate, the widget only reads from the MQTT broker. It never contacts the car or Tesla's servers, and sends nothing anywhere else. With the Tesla Fleet API, it only contacts the API's URL and the token server, and only reads from them. With the other sources, it only reads from TeslaMateApi, Teslemetry, Tessie or Home Assistant.
 
 - Plasma stores the password in plain text, and the widget passes it to `mosquitto_sub` on the command line, where other users of this computer can see it. Use a broker account that can only read TeslaMate's topics.
 - The widget never uses the car's position (`latitude`, `longitude`, `location`, `heading`, `elevation`) or the older `active_route_*` topics, so the account can be denied those. It shows the navigation destination (`active_route`) only when **Show the destination and arrival while driving** is on, but it still receives that topic with everything else under the prefix, so deny it too if you don't use navigation.
 - Use TLS if the broker is reachable from outside your home network.
 - Plasma stores the Tesla API's tokens in plain text too, in `~/.config/plasma-org.kde.plasma.desktop-appletsrc`. They are only sent in HTTPS headers, never on a command line. Anyone with the tokens can read the car's data until they expire, or for as long as the refresh token works.
+- The same goes for the Teslemetry, Tessie, TeslaMate API and Home Assistant tokens. Teslemetry's and Tessie's don't expire, so revoke one you no longer use. A Home Assistant token can do anything your Home Assistant user can, so make it for a user that isn't an administrator if you can, and use HTTPS if Home Assistant is reachable from outside your home network. The TeslaMate API and Home Assistant are often reached over plain HTTP at home, where the token travels unencrypted.
 
 To report a security problem, see [SECURITY.md](SECURITY.md).
 
@@ -274,7 +327,7 @@ make lint      # check QML syntax, metadata.json, main.xml and the tools
 
 `make lint` uses Qt 6's `qmlformat`, `jq`, `xmllint`, `shellcheck` and Python, and skips any that aren't installed.
 
-The tests in `tests/` cover `logic.js`, `models.js`, `notifyhub.js`, `teslaapi.js` and `tokenhub.js`, which need only Node.js 18 or newer, and `tools/tesla-login.py`, which needs Python 3.9 or newer and runs against the fake Fleet API below. `logic.js` holds the widget's decisions and never calls `Qt` or `i18n()`, so Node can run it; the QML turns its results into words. Qt 6's `qmllint` catches QML syntax errors:
+The tests in `tests/` cover `logic.js`, `models.js`, `notifyhub.js`, `sources.js`, `rest.js`, `teslaapi.js`, `tokenhub.js`, `teslamateapi.js`, `tessie.js` and `homeassistant.js`, which need only Node.js 18 or newer, and `tools/tesla-login.py`, which needs Python 3.9 or newer and runs against the fake Fleet API below. `logic.js` holds the widget's decisions and never calls `Qt` or `i18n()`, so Node can run it; the QML turns its results into words. Qt 6's `qmllint` catches QML syntax errors:
 
 ```bash
 qmllint package/contents/ui/*.qml package/contents/config/*.qml
@@ -323,7 +376,7 @@ The card draws its own lock, Sentry and bolt signs instead of taking them from t
 
 ### Fake Tesla Fleet API
 
-`tools/fake-tesla-api.py` serves made-up Fleet API replies on `localhost`, so you can try the API source without a car, an account or a bill. It needs only Python 3.9 or newer:
+`tools/fake-tesla-api.py` serves made-up Fleet API replies on `localhost`, so you can try the API source without a car, an account or a bill. It serves the same car to the other sources too. It needs only Python 3.9 or newer:
 
 ```bash
 tools/fake-tesla-api.py --expire-first
@@ -336,6 +389,13 @@ curl http://localhost:8765/_scenario/charging
 ```
 
 The scenarios are `parked`, `charging`, `complete`, `driving`, `open`, `unlocked`, `update`, `asleep` and `offline`.
+
+For the other sources, use `http://localhost:8765` as the address:
+
+- **TeslaMate API**: no token, car ID 1.
+- **Home Assistant**: any token, and `blue_thunder` as the car, or use **Find Cars**.
+- **Tessie**: its address can't be changed in the settings, so the fake server only helps to look at its replies, such as `curl -H 'Authorization: Bearer x' http://localhost:8765/5YJ3E1EA0KF000001/state`.
+- **Teslemetry**: the source always asks Teslemetry. Its replies are the Fleet API's, so try those with the **Tesla Fleet API** source.
 
 It also fakes Tesla's sign-in page, which signs in at once, and app registration, so `tools/tesla-login.py` can be tried against it. Its client secret is `fake-secret` (`--client-secret` changes it), and `--fail-register` makes registration fail. The URL options are hidden from `--help`, since only the fake server needs them:
 
