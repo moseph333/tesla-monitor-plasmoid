@@ -4,6 +4,13 @@ All notable changes to Tesla Monitor are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.10.0] - 2026-11-16
+
+### Added
+
+- `tools/tesla-login.py` gets the tokens for the Tesla Fleet API source. `register` registers your Fleet API app with Tesla for a region, and `login` signs in through Tesla's page in the browser and prints the region, tokens, client ID and VIN to paste into the widget's settings. The README walks through it.
+- `tools/fake-tesla-api.py` also fakes Tesla's sign-in page and app registration, so the helper can be tried without Tesla.
+
 ## [1.9.0] - 2026-11-16
 
 ### Added
@@ -137,6 +144,7 @@ All notable changes to Tesla Monitor are listed here. The format follows
 
 - First public version of the widget.
 
+[1.10.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.8.0...v1.9.0
 [1.7.1]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/4fc8407...v1.7.0
