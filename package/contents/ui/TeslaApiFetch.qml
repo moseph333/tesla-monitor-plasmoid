@@ -1,0 +1,228 @@
+import QtQuick
+
+import "teslaapi.js" as Api
+import "tokenhub.js" as TokenHub
+
+// Talks to the Tesla Fleet API (or a proxy with the same URLs) for the widget's poll and for
+// the settings page's buttons, renews the access token when it can, and words a failure as
+// a message people can act on. It never wakes the car.
+QtObject {
+    id: fetch
+
+    // The running request's number, or 0 when idle.
+    property int serial: 0
+    property int lastSerial: 0
+    readonly property bool busy: serial !== 0
+    // What the last run() was given, with the resolved base URL, for messages.
+    property var options: ({})
+    // The tokens in use: the settings' own, or newer ones renewed since.
+    property var tokens: ({ access: "", refresh: "", expiresAt: 0 })
+    // Ends the open HTTP request as if it got no reply.
+    property var abortPending: null
+
+    // result is {kind: "data" | "summary", values} or {kind: "vehicles", vehicles}, or null
+    // on failure.
+    signal finished(var result, string errorText)
+    // New tokens, for the settings. Sent even if the request that renewed them was
+    // cancelled: the old refresh token no longer works.
+    signal tokensRenewed(string access, string refresh, real expiresAt)
+
+    // options = {region, customUrl, accessToken, refreshToken, clientId, authUrl, tokenExpiry,
+    //            vin, request, withLocation}, where request is "data", "check", "summary"
+    // or "vehicles" (see Api.pollPlan()). Returns false and runs nothing if the settings
+    // aren't enough.
+    function run(o) {
+        const base = Api.baseUrl(o.region, o.customUrl)
+        const access = String(o.accessToken || "").trim()
+        if (!base || !access) return false
+        if (o.request !== "vehicles" && !Api.cleanVin(o.vin)) return false
+        options = Object.assign({}, o, { base: base })
+        tokens = { access: access, refresh: String(o.refreshToken || "").trim(), expiresAt: Number(o.tokenExpiry) || 0 }
+        // Another copy may already have traded these tokens for new ones.
+        const shared = tokens.refresh ? TokenHub.latest(tokens.refresh) : null
+        if (shared) adopt(shared)
+        lastSerial = lastSerial + 1
+        serial = lastSerial
+        const id = serial
+        if (Api.needsRefresh(tokens.expiresAt, Date.now()) && canRenew()) renew(id, () => step(id))
+        else step(id)
+        return true
+    }
+
+    // Drops the running request's result, so data from old settings can't arrive after they
+    // change. A token renewal under way still completes and is saved.
+    function cancel() {
+        serial = 0
+    }
+
+    function canRenew() {
+        return tokens.refresh !== "" && String(options.clientId || "").trim() !== ""
+    }
+
+    function adopt(next) {
+        tokens = next
+        fetch.tokensRenewed(next.access, next.refresh, next.expiresAt)
+    }
+
+    function done(id, result, error) {
+        if (id !== serial) return
+        serial = 0
+        fetch.finished(result, error ? message(error) : "")
+    }
+
+    function step(id) {
+        if (id !== serial) return
+        const vin = options.vin
+        switch (options.request) {
+        case "vehicles":
+            get(id, "/api/1/vehicles", json => done(id, { kind: "vehicles", vehicles: Api.parseVehicles(json) }, null))
+            break
+        case "summary":
+            get(id, Api.vehiclePath(vin), json => done(id, { kind: "summary", values: Api.fromVehicleSummary(json) }, null))
+            break
+        case "check":
+            get(id, Api.vehiclePath(vin), json => {
+                const summary = Api.fromVehicleSummary(json)
+                if (summary.state === "online") vehicleData(id)
+                else done(id, { kind: "summary", values: summary }, null)
+            })
+            break
+        default:
+            vehicleData(id)
+        }
+    }
+
+    // A car that fell asleep since the last poll answers 408, which reads as asleep.
+    function vehicleData(id) {
+        get(id, Api.vehicleDataPath(options.vin, options.withLocation),
+            json => done(id, { kind: "data", values: Api.fromVehicleData(json) }, null),
+            status => status === 408 ? (done(id, { kind: "summary", values: { state: "asleep" } }, null), true) : false)
+    }
+
+    // GETs path and passes the parsed reply to ok(). special(status) may handle an error
+    // status itself by returning true. An expired token is renewed once and the request
+    // repeated.
+    function get(id, path, ok, special, retried) {
+        request("GET", options.base + path, null, tokens.access, (status, body) => {
+            if (id !== serial) return
+            if (status === 401 && !retried && canRenew()) {
+                renew(id, () => get(id, path, ok, special, true))
+                return
+            }
+            if (status >= 200 && status < 300) {
+                let json
+                try {
+                    json = JSON.parse(body)
+                } catch (e) {
+                    done(id, null, { kind: "badJson", detail: "" })
+                    return
+                }
+                ok(json)
+                return
+            }
+            if (special && special(status)) return
+            done(id, null, Api.apiError(status, body))
+        })
+    }
+
+    // Trades the refresh token for new tokens, then calls then(). The result is kept even if
+    // the request was cancelled meanwhile.
+    function renew(id, then) {
+        const old = tokens.refresh
+        const shared = TokenHub.latest(old)
+        if (shared) {
+            adopt(shared)
+            then()
+            return
+        }
+        // Another copy is renewing these tokens; carry on with the current ones.
+        if (!TokenHub.begin(old, Date.now())) {
+            then()
+            return
+        }
+        request("POST", Api.authUrl(options.authUrl) + "/oauth2/v3/token",
+                Api.refreshTokenBody(options.clientId, old), "", (status, body) => {
+            let next = null
+            if (status === 200) {
+                try {
+                    next = Api.parseTokens(JSON.parse(body), old, Date.now())
+                } catch (e) {
+                    next = null
+                }
+            }
+            TokenHub.finish(old, next)
+            if (next) {
+                adopt(next)
+                then()
+            } else {
+                done(id, null, { kind: "refresh", detail: status === 0 ? "" : Api.apiError(status, body).detail })
+            }
+        })
+    }
+
+    // One HTTP request. callback(status, body) runs once: with status 0 if there was no reply
+    // within the timeout.
+    function request(method, url, body, bearer, callback) {
+        const xhr = new XMLHttpRequest()
+        let finished = false
+        const finish = (status, text) => {
+            if (finished) return
+            finished = true
+            abortPending = null
+            timeout.stop()
+            callback(status, text)
+        }
+        abortPending = () => {
+            finish(0, "")
+            try {
+                xhr.abort()
+            } catch (e) {
+            }
+        }
+        xhr.onreadystatechange = () => {
+            if (xhr.readyState === XMLHttpRequest.DONE) finish(xhr.status, String(xhr.responseText || ""))
+        }
+        xhr.open(method, url)
+        xhr.setRequestHeader("Accept", "application/json")
+        if (bearer) xhr.setRequestHeader("Authorization", "Bearer " + bearer)
+        timeout.restart()
+        if (body === null) {
+            xhr.send()
+        } else {
+            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded")
+            xhr.send(body)
+        }
+    }
+
+    property Timer timeout: Timer {
+        interval: 20000
+        onTriggered: if (fetch.abortPending) fetch.abortPending()
+    }
+
+    function host() {
+        const match = /^[a-z][a-z0-9+.-]*:\/\/([^\/?#]+)/i.exec(options.base || "")
+        return match ? match[1] : String(options.base || "")
+    }
+
+    // The message for an error from Api.apiError(), or "" if there was none.
+    function message(error) {
+        switch (error.kind) {
+        case "": return ""
+        case "network": return i18n("Can't reach %1. Check the region or URL and the network.", host())
+        case "auth": return canRenew()
+            ? i18n("The Tesla API rejected the access token, even after renewing it.")
+            : i18n("The Tesla API rejected the access token. It may have expired: paste a new one, or add a refresh token and client ID so the widget renews it.")
+        case "refresh": return error.detail
+            ? i18n("Couldn't renew the access token: %1. Paste new tokens in the widget settings.", error.detail)
+            : i18n("Couldn't renew the access token. Paste new tokens in the widget settings.")
+        case "forbidden": return i18n("The token may not read this car's data. It needs the vehicle_device_data scope and access to this car.")
+        case "notFound": return i18n("This account has no car with VIN %1. Try Find Cars.", Api.cleanVin(options.vin))
+        case "region": return i18n("This account's cars are served from another region. Choose a different region.")
+        case "rateLimited": return i18n("Too many requests to the Tesla API. The widget will try again later.")
+        case "server": return i18n("The Tesla API had a problem (HTTP %1). The widget will try again.", error.detail)
+        case "badJson": return i18n("The reply from %1 couldn't be read. Check the URL.", host())
+        case "asleep": return i18n("The car is asleep.")
+        default: return i18n("The Tesla API answered: %1", error.detail)
+        }
+    }
+}

@@ -1,4 +1,4 @@
-// Unit tests for teslaapi.js. Run with `make test`.
+// Unit tests for teslaapi.js and tokenhub.js. Run with `make test`.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -372,4 +372,23 @@ test("apiError classifies HTTP results", () => {
     assert.deepEqual(Api.apiError(503, "<html>"), { kind: "server", detail: "503" });
     assert.deepEqual(Api.apiError(418, '{"error_description":"teapot"}'), { kind: "http", detail: "teapot" });
     assert.deepEqual(Api.apiError(418, ""), { kind: "http", detail: "418" });
+});
+
+test("tokenhub follows a chain of renewals and lets one copy renew at a time", () => {
+    const Hub = load("tokenhub.js");
+    assert.equal(Hub.latest("r1"), null);
+    assert.equal(Hub.begin("r1", 0), true);
+    assert.equal(Hub.begin("r1", 1000), false);
+    Hub.finish("r1", { access: "a2", refresh: "r2", expiresAt: 1 });
+    assert.equal(Hub.begin("r2", 2000), true);
+    Hub.finish("r2", { access: "a3", refresh: "r3", expiresAt: 2 });
+    assert.deepEqual(Hub.latest("r1"), { access: "a3", refresh: "r3", expiresAt: 2 });
+    assert.deepEqual(Hub.latest("r2"), { access: "a3", refresh: "r3", expiresAt: 2 });
+    assert.equal(Hub.latest("r3"), null);
+    // A failed renewal frees the token for the next try, and a stuck one expires.
+    assert.equal(Hub.begin("x", 0), true);
+    Hub.finish("x", null);
+    assert.equal(Hub.latest("x"), null);
+    assert.equal(Hub.begin("x", 10), true);
+    assert.equal(Hub.begin("x", 31000), true);
 });
