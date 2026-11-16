@@ -50,8 +50,10 @@ Item {
         width: parent.width - Kirigami.Units.gridUnit * 2
         visible: !widget.configured
         iconName: "battery-080"
-        text: i18n("Connect to TeslaMate")
-        explanation: widget.cfg.brokerHost.trim() !== ""
+        text: widget.useApi ? i18n("Connect to Tesla") : i18n("Connect to TeslaMate")
+        explanation: widget.useApi
+            ? i18n("Add your Tesla API access token and your car's VIN in the widget settings.")
+            : widget.cfg.brokerHost.trim() !== ""
             ? i18n("The broker host isn't valid. Check it in the widget settings.")
             : i18n("Add your MQTT broker in the widget settings.")
         helpfulAction: QQC2.Action {

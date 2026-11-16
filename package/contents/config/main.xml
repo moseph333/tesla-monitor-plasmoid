@@ -4,6 +4,48 @@
       xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0 http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
     <kcfgfile name=""/>
     <group name="General">
+        <!-- Where the data comes from: 0 TeslaMate over MQTT, 1 the Tesla Fleet API. -->
+        <entry name="dataSource" type="Int">
+            <default>0</default>
+        </entry>
+        <!-- Tesla Fleet API. apiRegion 0 North America and Asia-Pacific, 1 Europe, Middle
+             East and Africa, 2 China, 3 the custom apiBaseUrl (for proxies). -->
+        <entry name="apiRegion" type="Int">
+            <default>0</default>
+        </entry>
+        <entry name="apiBaseUrl" type="String">
+            <default></default>
+        </entry>
+        <entry name="apiVin" type="String">
+            <default></default>
+        </entry>
+        <!-- The widget replaces these three when it renews the access token. -->
+        <entry name="apiAccessToken" type="String">
+            <default></default>
+        </entry>
+        <entry name="apiRefreshToken" type="String">
+            <default></default>
+        </entry>
+        <!-- When apiAccessToken expires, in milliseconds since 1970. 0 is unknown. -->
+        <entry name="apiTokenExpiry" type="Double">
+            <default>0</default>
+        </entry>
+        <!-- The client ID of the Fleet API app the tokens were issued to. Needed to renew. -->
+        <entry name="apiClientId" type="String">
+            <default></default>
+        </entry>
+        <!-- Empty means Tesla's token server. -->
+        <entry name="apiAuthUrl" type="String">
+            <default></default>
+        </entry>
+        <!-- Each request is billed, so the API polls far less often than MQTT. The widget
+             never polls the API more than once a minute. -->
+        <entry name="apiRefreshSeconds" type="Int">
+            <default>300</default>
+        </entry>
+        <entry name="apiIdleRefreshSeconds" type="Int">
+            <default>900</default>
+        </entry>
         <entry name="brokerHost" type="String">
             <default></default>
         </entry>

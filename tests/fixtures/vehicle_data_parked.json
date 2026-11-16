@@ -1,0 +1,70 @@
+{
+  "response": {
+    "id": 1492931337,
+    "vehicle_id": 1234567890,
+    "vin": "5YJ3E1EA0KF000001",
+    "display_name": "Blue Thunder",
+    "state": "online",
+    "charge_state": {
+      "battery_level": 72,
+      "usable_battery_level": 71,
+      "battery_range": 200.0,
+      "est_battery_range": 160.0,
+      "ideal_battery_range": 220.0,
+      "charge_limit_soc": 80,
+      "charging_state": "Disconnected",
+      "charger_power": 0,
+      "charger_voltage": 0,
+      "charger_actual_current": 0,
+      "charger_phases": null,
+      "time_to_full_charge": 0.0,
+      "charge_energy_added": 12.4,
+      "charge_current_request": 32,
+      "charge_current_request_max": 32,
+      "charge_port_door_open": false,
+      "charge_port_latch": "Engaged",
+      "scheduled_charging_pending": false,
+      "scheduled_charging_start_time": null
+    },
+    "climate_state": {
+      "inside_temp": 21.5,
+      "outside_temp": 12.0,
+      "is_climate_on": false,
+      "is_preconditioning": false
+    },
+    "drive_state": {
+      "shift_state": null,
+      "speed": null,
+      "power": 0,
+      "timestamp": 1763300000000
+    },
+    "vehicle_config": {
+      "car_type": "model3",
+      "exterior_color": "DeepBlue",
+      "sun_roof_installed": null
+    },
+    "vehicle_state": {
+      "car_version": "2025.32.6 abcdef1234",
+      "vehicle_name": "Blue Thunder",
+      "locked": true,
+      "sentry_mode": false,
+      "is_user_present": false,
+      "service_mode": false,
+      "odometer": 10000.0,
+      "df": 0, "dr": 0, "pf": 0, "pr": 0,
+      "fd_window": 0, "fp_window": 0, "rd_window": 0, "rp_window": 0,
+      "ft": 0, "rt": 0,
+      "tpms_pressure_fl": 2.9, "tpms_pressure_fr": 2.9,
+      "tpms_pressure_rl": 2.875, "tpms_pressure_rr": 2.9,
+      "tpms_soft_warning_fl": false, "tpms_soft_warning_fr": false,
+      "tpms_soft_warning_rl": false, "tpms_soft_warning_rr": false,
+      "software_update": {
+        "status": "",
+        "version": " ",
+        "download_perc": 0,
+        "install_perc": 1,
+        "expected_duration_sec": 2700
+      }
+    }
+  }
+}

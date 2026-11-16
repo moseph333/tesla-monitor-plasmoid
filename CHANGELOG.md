@@ -4,6 +4,14 @@ All notable changes to Tesla Monitor are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.9.0] - 2026-11-16
+
+### Added
+
+- The widget can read the car straight from the Tesla Fleet API, as well as from TeslaMate over MQTT. A new **Data source** setting chooses between them. The API source takes a region or a custom URL (for services that offer the same API), an access token and the car's VIN, and with a refresh token and client ID renews the access token itself. **Find Cars** lists the account's cars.
+- With the API, the widget lets the car sleep: it never wakes the car, asks only for its state while it sleeps, and stops asking an idle car for its data for 21 minutes so it can fall asleep. Each request is billed, so the API has its own refresh settings, every 5 minutes and every 15 minutes while the car sleeps by default.
+- `tools/fake-tesla-api.py` serves made-up Fleet API replies, to try the API source without a car.
+
 ## [1.8.0] - 2026-11-14
 
 ### Added
@@ -129,6 +137,7 @@ All notable changes to Tesla Monitor are listed here. The format follows
 
 - First public version of the widget.
 
+[1.9.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.8.0...v1.9.0
 [1.7.1]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/4fc8407...v1.7.0
 [1.6.0]: https://github.com/moseph333/tesla-monitor-plasmoid/commit/4fc8407
