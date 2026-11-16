@@ -22,6 +22,7 @@ import html
 import http.server
 import json
 import os
+import re
 import secrets
 import sys
 import time
@@ -43,6 +44,8 @@ SCOPE = "openid offline_access vehicle_device_data"
 DEFAULT_REDIRECT = "http://localhost:8585/callback"
 KEY_PATH = "/.well-known/appspecific/com.tesla.3p.public-key.pem"
 LOCAL_HOSTS = ("localhost", "127.0.0.1")
+# How long the sign-in listener waits for a connected browser to send its request.
+REQUEST_TIMEOUT = 10
 
 
 class LoginError(Exception):
@@ -50,6 +53,19 @@ class LoginError(Exception):
 
 
 # ---------- pure helpers ----------
+
+def printable(text):
+    """Text from a server, safe to print to a terminal: control characters, which could
+    move the cursor or rewrite what was printed before, become spaces."""
+    return re.sub(r"[\x00-\x1f\x7f-\x9f]+", " ", str(text)).strip()
+
+
+def callback_params(text):
+    """The first value of each parameter in a callback address (or just its query)."""
+    text = text.strip().split("#", 1)[0]
+    # A whole address, with or without its scheme, or just the query.
+    query = text.split("?", 1)[1] if "?" in text else text
+    return {key: values[0] for key, values in urllib.parse.parse_qs(query).items()}
 
 def authorize_url(auth_url, client_id, redirect_uri, state, nonce):
     """The address of Tesla's sign-in page for this app."""
@@ -68,20 +84,25 @@ def authorize_url(auth_url, client_id, redirect_uri, state, nonce):
 def parse_callback(text, state):
     """The code from the address the browser was sent back to (or just its query).
     Raises LoginError for a refusal, a state that isn't ours, or no code."""
-    text = text.strip().split("#", 1)[0]
-    # A whole address, with or without its scheme, or just the query.
-    query = text.split("?", 1)[1] if "?" in text else text
-    params = urllib.parse.parse_qs(query)
-    one = {key: values[0] for key, values in params.items()}
+    one = callback_params(text)
     if "error" in one:
         detail = one.get("error_description") or one["error"]
-        raise LoginError("Tesla didn't sign you in: %s" % detail)
+        raise LoginError("Tesla didn't sign you in: %s" % printable(detail))
     if one.get("state") != state:
         raise LoginError("The sign-in reply doesn't belong to this sign-in (its state doesn't match). "
                          "Start again, and use the newest sign-in address.")
     if not one.get("code"):
         raise LoginError("The address has no sign-in code. Paste the whole address the browser ended up on.")
     return one["code"]
+
+
+def ends_sign_in(params, state):
+    """Whether a request to the callback answers this sign-in, so waiting should end. One
+    carrying another state, such as a tab from an earlier sign-in reloaded, is turned away
+    without ending it. Tesla's refusal ends it even without a state."""
+    if "state" in params:
+        return params["state"] == state
+    return "error" in params
 
 
 def check_redirect(redirect_uri):
@@ -104,9 +125,9 @@ def describe_error(status, body):
     code = ""
     if isinstance(body, dict):
         code = str(body.get("error") or "")
-        detail = str(body.get("error_description") or code)
+        detail = printable(body.get("error_description") or code)[:500]
     elif body:
-        detail = str(body).strip()[:200]
+        detail = printable(body)[:200]
     if status == 0:
         return "Couldn't reach Tesla: %s" % (detail or "no reply")
     if code == "invalid_client" or (status == 401 and "secret" in detail.lower()):
@@ -140,7 +161,7 @@ def vehicles_from(reply):
     listing = reply.get("response") if isinstance(reply, dict) else None
     if not isinstance(listing, list):
         return []
-    return [{"vin": v["vin"], "name": v.get("display_name") or ""}
+    return [{"vin": printable(v["vin"]), "name": printable(v.get("display_name") or "")}
             for v in listing if isinstance(v, dict) and v.get("vin")]
 
 
@@ -243,22 +264,32 @@ def wait_for_callback(redirect_uri, state, timeout, url, open_browser):
     result = {}
 
     class Handler(http.server.BaseHTTPRequestHandler):
+        # A browser that connects but sends nothing can't hold up the deadline.
+        timeout = REQUEST_TIMEOUT
+
         def do_GET(self):
             parts = urllib.parse.urlsplit(self.path)
             if parts.path != path:
                 self.send_error(404)
                 return
-            try:
-                result["code"] = parse_callback(parts.query, state)
-                status, message = 200, "Signed in. You can close this tab and go back to the terminal."
-            except LoginError as error:
-                result["error"] = str(error)
-                status, message = 400, str(error)
+            if not ends_sign_in(callback_params(parts.query), state):
+                status, message = 400, ("This reply doesn't belong to the sign-in that's waiting. "
+                                        "Use the newest sign-in address from the terminal.")
+            else:
+                try:
+                    result["code"] = parse_callback(parts.query, state)
+                    status, message = 200, "Signed in. You can close this tab and go back to the terminal."
+                except LoginError as error:
+                    result["error"] = str(error)
+                    status, message = 400, str(error)
             page = ("<!doctype html><meta charset=utf-8><title>Tesla Monitor</title>"
                     "<p style='font:16px sans-serif;margin:2em'>%s</p>" % html.escape(message)).encode()
             self.send_response(status)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(page)))
+            # The address holds the sign-in code, so the page isn't kept or passed on.
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Referrer-Policy", "no-referrer")
             self.end_headers()
             self.wfile.write(page)
 

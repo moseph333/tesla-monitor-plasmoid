@@ -49,9 +49,26 @@ function fleetConfigured(o) {
     return baseUrl(o.region, o.customUrl) !== "" && o.accessToken.trim() !== "" && cleanVin(o.vin) !== "";
 }
 
-// The token endpoint's base, from the setting or Tesla's default.
+// The token endpoint's base, from the setting or Tesla's default. https:// is added if it
+// has no scheme.
 function authUrl(text) {
-    return String(text || "").trim().replace(/\/+$/, "") || AUTH_URL;
+    let url = String(text || "").trim().replace(/\/+$/, "");
+    if (!url) return AUTH_URL;
+    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) url = "https://" + url;
+    return url;
+}
+
+// Whether tokens may be sent to a URL: https, or plain http only to this machine (a local
+// proxy, or tools/fake-tesla-api.py). Anywhere else plain http would send the access or
+// refresh token unencrypted, for anyone on the way to read.
+function isSecureUrl(url) {
+    const match = /^([a-z][a-z0-9+.-]*):\/\/(?:[^\/?#@]*@)?(\[[^\]]*\]|[^\/?#:]*)/i.exec(String(url || "").trim());
+    if (!match) return false;
+    const scheme = match[1].toLowerCase();
+    if (scheme === "https") return true;
+    if (scheme !== "http") return false;
+    const host = match[2].toLowerCase().replace(/\.$/, "");
+    return host === "localhost" || host === "[::1]" || /^127(\.\d{1,3}){3}$/.test(host);
 }
 
 // A VIN as typed: spaces dropped, upper case.
@@ -359,7 +376,8 @@ function apiError(status, body) {
     let detail = "";
     try {
         const json = JSON.parse(body);
-        detail = String(json.error_description || json.error || "").trim();
+        const text = json && typeof json === "object" ? json.error_description || json.error || "" : "";
+        detail = typeof text === "string" ? text.trim() : "";
     } catch (e) {
         detail = "";
     }

@@ -1,5 +1,6 @@
 import QtQuick
 
+import "logic.js" as Logic
 import "teslaapi.js" as Api
 import "tokenhub.js" as TokenHub
 
@@ -44,6 +45,10 @@ QtObject {
         lastSerial = lastSerial + 1
         serial = lastSerial
         const id = serial
+        if (!Api.isSecureUrl(base)) {
+            failLater(id, { kind: "insecure", detail: base })
+            return true
+        }
         if (Api.needsRefresh(tokens.expiresAt, Date.now()) && canRenew()) renew(id, () => step(id))
         else step(id)
         return true
@@ -68,6 +73,11 @@ QtObject {
         if (id !== serial) return
         serial = 0
         fetch.finished(result, error ? message(error) : "")
+    }
+
+    // Ends a request that can't start, after run() has returned, as one that failed would.
+    function failLater(id, error) {
+        Qt.callLater(() => done(id, null, error))
     }
 
     function step(id) {
@@ -129,6 +139,12 @@ QtObject {
     // the request was cancelled meanwhile.
     function renew(id, then) {
         const old = tokens.refresh
+        const tokenUrl = Api.authUrl(options.authUrl)
+        // Never send the refresh token and client ID unencrypted.
+        if (!Api.isSecureUrl(tokenUrl)) {
+            failLater(id, { kind: "insecure", detail: tokenUrl })
+            return
+        }
         const shared = TokenHub.latest(old)
         if (shared) {
             adopt(shared)
@@ -140,7 +156,7 @@ QtObject {
             then()
             return
         }
-        request("POST", Api.authUrl(options.authUrl) + "/oauth2/v3/token",
+        request("POST", tokenUrl + "/oauth2/v3/token",
                 Api.refreshTokenBody(options.clientId, old), "", (status, body) => {
             let next = null
             if (status === 200) {
@@ -199,13 +215,19 @@ QtObject {
         onTriggered: if (fetch.abortPending) fetch.abortPending()
     }
 
-    function host() {
-        const match = /^[a-z][a-z0-9+.-]*:\/\/([^\/?#]+)/i.exec(options.base || "")
-        return match ? match[1] : String(options.base || "")
+    function host(url) {
+        const text = url === undefined ? String(options.base || "") : String(url)
+        const match = /^[a-z][a-z0-9+.-]*:\/\/([^\/?#]+)/i.exec(text)
+        // Without any user:password@, which a message shouldn't repeat.
+        return match ? match[1].replace(/^.*@/, "") : text
     }
 
-    // The message for an error from Api.apiError(), or "" if there was none.
+    // The message for an error from Api.apiError(), or "" if there was none. The detail is
+    // the server's own words, so it is cleaned up before it is shown.
     function message(error) {
+        error = Object.assign({}, error, { detail: Logic.plainDetail(error.detail) })
+        if (error.kind === "insecure")
+            return i18n("%1 doesn't use HTTPS, so the token would be sent unencrypted. Use an https:// address.", host(error.detail))
         if (options.service === "teslemetry") {
             switch (error.kind) {
             case "auth": return i18n("Teslemetry rejected the access token. Make a new one in the Teslemetry console.")

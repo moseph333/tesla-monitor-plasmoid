@@ -1442,6 +1442,34 @@ test("parseCars keeps a car with an empty name and handles no output", () => {
     assert.deepEqual(L.parseCars(undefined), []);
 });
 
+test("webUrl only opens http and https addresses", () => {
+    assert.equal(L.webUrl("teslamate.local:4000"), "http://teslamate.local:4000");
+    assert.equal(L.webUrl(" https://ha.example.com/lovelace "), "https://ha.example.com/lovelace");
+    assert.equal(L.webUrl("HTTP://tm.lan"), "HTTP://tm.lan");
+    for (const text of ["file:///etc/passwd", "smb://nas/share", "javascript://x%0Aalert(1)", "http://",
+                        "http://a b", "", "  ", null, undefined])
+        assert.equal(L.webUrl(text), "", String(text));
+});
+
+test("noMarkup keeps text from being read as markup", () => {
+    assert.equal(L.noMarkup("<img src=http://x/>Car"), "\u2039img src=http://x/\u203aCar");
+    assert.equal(L.noMarkup("Tom & Jerry\nline"), "Tom & Jerry\nline");
+    assert.equal(L.noMarkup(undefined), "");
+    assert.equal(L.noMarkup(7), "7");
+});
+
+test("plainDetail makes a server's words one short line without markup", () => {
+    assert.equal(L.plainDetail("  bad\r\n\ttoken\u0007 "), "bad token");
+    assert.equal(L.plainDetail("<b>no</b>"), "\u2039b\u203ano\u2039/b\u203a");
+    assert.equal(L.plainDetail(null), "");
+    assert.equal(L.plainDetail(""), "");
+    const long = L.plainDetail("x".repeat(1000));
+    assert.equal(long.length, 300);
+    assert.ok(long.endsWith("\u2026"));
+    assert.equal(L.plainDetail("abcdef", 4), "abc\u2026");
+    assert.equal(L.plainDetail("abcd", 4), "abcd");
+});
+
 test("escapeMarkup escapes &, < and > and keeps line breaks", () => {
     assert.equal(L.escapeMarkup("Tom & Jerry's <car>"), "Tom &amp; Jerry's &lt;car&gt;");
     assert.equal(L.escapeMarkup("&amp;"), "&amp;amp;");

@@ -118,9 +118,9 @@ For the Tesla Fleet API:
 
 | Setting | Value |
 | ------- | ----- |
-| Region | Where your Tesla account's data lives: North America and Asia-Pacific, Europe, Middle East and Africa, or China. **Custom URL** is for a service that offers the Fleet API's URLs |
+| Region | Where your Tesla account's data lives: North America and Asia-Pacific, Europe, Middle East and Africa, or China. **Custom URL** is for a service that offers the Fleet API's URLs, and must use HTTPS unless it's on this computer |
 | Access token | A Fleet API access token with the `vehicle_device_data` scope |
-| Refresh token, Client ID | Optional. With both, the widget renews the access token when it expires and saves the new tokens. **Token server** is Tesla's unless you change it |
+| Refresh token, Client ID | Optional. With both, the widget renews the access token when it expires and saves the new tokens. **Token server** is Tesla's unless you change it, and must use HTTPS unless it's on this computer |
 | VIN | The car to show. **Find Cars** fills it in |
 | Every (under Refresh) | 5 minutes by default, and never less than 1 |
 | While the car sleeps | 15 minutes by default. Also used while the widget lets an awake car fall asleep |
@@ -275,7 +275,7 @@ With TeslaMate, the widget only reads from the MQTT broker. It never contacts th
 - Plasma stores the password in plain text, and the widget passes it to `mosquitto_sub` on the command line, where other users of this computer can see it. Use a broker account that can only read TeslaMate's topics.
 - The widget never uses the car's position (`latitude`, `longitude`, `location`, `heading`, `elevation`) or the older `active_route_*` topics, so the account can be denied those. It shows the navigation destination (`active_route`) only when **Show the destination and arrival while driving** is on, but it still receives that topic with everything else under the prefix, so deny it too if you don't use navigation.
 - Use TLS if the broker is reachable from outside your home network.
-- Plasma stores the Tesla API's tokens in plain text too, in `~/.config/plasma-org.kde.plasma.desktop-appletsrc`. They are only sent in HTTPS headers, never on a command line. Anyone with the tokens can read the car's data until they expire, or for as long as the refresh token works.
+- Plasma stores the Tesla API's tokens in plain text too, in `~/.config/plasma-org.kde.plasma.desktop-appletsrc`. They are only sent in HTTPS headers, never on a command line: the widget refuses a custom URL or token server that uses plain HTTP, unless it's on this computer, such as a local proxy. Anyone with the tokens can read the car's data until they expire, or for as long as the refresh token works.
 - The same goes for the Teslemetry, Tessie, TeslaMate API and Home Assistant tokens. Teslemetry's and Tessie's don't expire, so revoke one you no longer use. A Home Assistant token can do anything your Home Assistant user can, so make it for a user that isn't an administrator if you can, and use HTTPS if Home Assistant is reachable from outside your home network. The TeslaMate API and Home Assistant are often reached over plain HTTP at home, where the token travels unencrypted.
 
 To report a security problem, see [SECURITY.md](SECURITY.md).

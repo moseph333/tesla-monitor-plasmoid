@@ -33,8 +33,10 @@ QtObject {
         pending = ""
     }
 
-    // The message for an error from Logic.mqttError(), or "" if there was none.
+    // The message for an error from Logic.mqttError(), or "" if there was none. The detail
+    // is mosquitto_sub's output, which can quote the broker, so it is cleaned up first.
     function message(error) {
+        error = Object.assign({}, error, { detail: Logic.plainDetail(error.detail) })
         const broker = Logic.parseBrokerHost(options.host)
         // A string, so i18n() doesn't format it as a number ("8,883").
         const port = String(broker.port || options.port || 1883)

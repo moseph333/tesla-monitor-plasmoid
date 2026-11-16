@@ -4,6 +4,19 @@ All notable changes to Tesla Monitor are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.11.1] - 2026-11-16
+
+### Security
+
+- The Tesla Fleet API source no longer sends tokens over plain HTTP. A custom URL or token server that uses `http://` is refused, with a message saying why, unless it's on this computer (`localhost`, `127.0.0.1` or `[::1]`), as a local proxy or `tools/fake-tesla-api.py` is. A token server typed without a scheme gets `https://`, as the custom URL already did.
+- Error messages that quote a server or `mosquitto_sub`, and the car names that **Find Cars** shows, can no longer be read as markup by the settings page, so a server can't make it show images or links. Such messages are also kept to one line of at most 300 characters.
+- Clicking the car's name only opens `http://` and `https://` addresses.
+- `tools/tesla-login.py` no longer gives up when its sign-in listener gets a reply that belongs to another sign-in, such as a reloaded tab from an earlier run. It turns it away and keeps waiting. A browser that connects without sending anything can't hold it past its deadline, the page it shows isn't cached, and control characters in Tesla's replies are dropped before they reach the terminal.
+
+### Fixed
+
+- A Fleet API error whose `error` field isn't text no longer shows as "[object Object]".
+
 ## [1.11.0] - 2026-11-16
 
 ### Added
@@ -161,6 +174,7 @@ All notable changes to Tesla Monitor are listed here. The format follows
 
 - First public version of the widget.
 
+[1.11.1]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.11.0...v1.11.1
 [1.11.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.10.0...v1.11.0
 [1.10.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.8.0...v1.9.0
