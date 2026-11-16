@@ -4,6 +4,23 @@ All notable changes to Tesla Monitor are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.11.0] - 2026-11-16
+
+### Added
+
+- Four more data sources, chosen under **Data source** on the Connection page:
+  - **TeslaMate API** reads TeslaMate's values from TeslaMateApi over HTTP, so the widget doesn't need `mosquitto_sub` or a way to the MQTT broker.
+  - **Teslemetry** reads the car from Teslemetry with its own long-lived token, the way the Fleet API source does, letting the car sleep.
+  - **Tessie** reads the car's latest state from Tessie, which answers from its own copy, so asking never keeps the car awake.
+  - **Home Assistant** reads the car's entities from Home Assistant's Tesla Fleet, Teslemetry or Tessie integration, and counts its zones as geofences.
+- **Test Connection** and **Find Cars** work for each new source, and fill in the car ID, VIN or car.
+- `tools/fake-tesla-api.py` also serves the scenario car as TeslaMateApi, Tessie and Home Assistant do.
+
+### Changed
+
+- Clicking the car's name, or the context menu entry, opens the data source's own page with Home Assistant, Teslemetry or Tessie. With TeslaMate it still opens TeslaMate's address from the Display settings.
+- The card's placeholder and the Display page's hints name the chosen source.
+
 ## [1.10.0] - 2026-11-16
 
 ### Added
@@ -144,6 +161,7 @@ All notable changes to Tesla Monitor are listed here. The format follows
 
 - First public version of the widget.
 
+[1.11.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.10.0...v1.11.0
 [1.10.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.8.0...v1.9.0
 [1.7.1]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.7.0...v1.7.1
