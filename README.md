@@ -270,7 +270,7 @@ make test      # run the unit tests
 make lint      # check QML syntax, metadata.json, main.xml and the tools
 ```
 
-`make reload` makes the panel and desktop blink, and it clears Plasma's notifications. `make help` lists every target. For each release, raise `Version` in `package/metadata.json`, describe the changes in [CHANGELOG.md](CHANGELOG.md), and push a matching tag such as `v1.7.0`. The release workflow then publishes the `.plasmoid` on GitHub. CI runs the tests and `make lint` on every pull request.
+`make reload` makes the panel and desktop blink, and it clears Plasma's notifications. `make help` lists every target. For each release, raise `Version` in `package/metadata.json` and describe the changes under a matching heading in [CHANGELOG.md](CHANGELOG.md). Once that reaches `master`, the release workflow tags the commit, such as `v1.10.0`, and publishes the `.plasmoid` on GitHub with those notes. Pushing a matching tag yourself does the same. CI runs the tests and `make lint` on every pull request.
 
 `make lint` uses Qt 6's `qmlformat`, `jq`, `xmllint`, `shellcheck` and Python, and skips any that aren't installed.
 
