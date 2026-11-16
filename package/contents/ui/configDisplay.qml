@@ -82,7 +82,7 @@ KCM.SimpleKCM {
             id: carModel
             Kirigami.FormData.label: i18n("Model:")
             model: [
-                i18nc("the car's model", "Automatic (from TeslaMate)"),
+                i18nc("the car's model", "Automatic (as the car reports)"),
                 i18nc("a car model", "Model S"),
                 i18nc("a car model", "Model 3"),
                 i18nc("a car model", "Model X"),
@@ -92,7 +92,7 @@ KCM.SimpleKCM {
         }
 
         Hint {
-            text: i18n("The shape of the panel icon and of the car in the card. Automatic draws the model TeslaMate reports, and a Model 3 when it reports none.")
+            text: i18n("The shape of the panel icon and of the car in the card. Automatic draws the model the car reports, and a Model 3 when none is reported.")
         }
 
         Kirigami.Separator {
@@ -130,7 +130,7 @@ KCM.SimpleKCM {
         }
 
         Hint {
-            text: i18n("TeslaMate reports doors and windows by driver and passenger side. This puts the driver on the car's right-hand side.")
+            text: i18n("Doors and windows are reported by driver and passenger side. This puts the driver on the car's right-hand side.")
         }
 
         QQC2.ComboBox {
@@ -140,7 +140,7 @@ KCM.SimpleKCM {
         }
 
         Hint {
-            text: i18n("The paint comes from TeslaMate. When it's missing or unknown, the car is drawn in theme colors.")
+            text: i18n("The paint is the one the car reports. When it's missing or unknown, the car is drawn in theme colors.")
         }
 
         QQC2.CheckBox {
@@ -150,7 +150,7 @@ KCM.SimpleKCM {
         }
 
         Hint {
-            text: i18n("Uses TeslaMate's active_route topic (TeslaMate 1.29 or newer), which includes the destination's name and location.")
+            text: i18n("Uses TeslaMate's active_route topic (TeslaMate 1.29 or newer), which includes the destination's name and location. With the Tesla Fleet API, this also asks for the car's location, which shows a location sharing icon in the car.")
         }
 
         // For owners who leave the car unlocked on purpose, such as in a locked garage.
@@ -162,7 +162,7 @@ KCM.SimpleKCM {
         }
 
         Hint {
-            text: i18n("TeslaMate geofence names, separated by commas. There, an unlocked car isn't shown as a warning or notified.")
+            text: i18n("TeslaMate geofence names, separated by commas. There, an unlocked car isn't shown as a warning or notified. The Tesla Fleet API has no geofences.")
         }
 
         // Normalized as the widget will open it, so an address typed without http:// shows
