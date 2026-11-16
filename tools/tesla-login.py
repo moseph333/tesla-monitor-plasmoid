@@ -44,6 +44,8 @@ SCOPE = "openid offline_access vehicle_device_data"
 DEFAULT_REDIRECT = "http://localhost:8585/callback"
 KEY_PATH = "/.well-known/appspecific/com.tesla.3p.public-key.pem"
 LOCAL_HOSTS = ("localhost", "127.0.0.1")
+# How long the sign-in listener waits for a connected browser to send its request.
+REQUEST_TIMEOUT = 10
 
 
 class LoginError(Exception):
@@ -249,6 +251,9 @@ def wait_for_callback(redirect_uri, state, timeout, url, open_browser):
     result = {}
 
     class Handler(http.server.BaseHTTPRequestHandler):
+        # A browser that connects but sends nothing can't hold up the deadline.
+        timeout = REQUEST_TIMEOUT
+
         def do_GET(self):
             parts = urllib.parse.urlsplit(self.path)
             if parts.path != path:
