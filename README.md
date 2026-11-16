@@ -44,6 +44,7 @@ The widget runs `mosquitto_sub` every 15 seconds by default, and every 2 minutes
 
 - Plasma 6
 - KNotifications' QML module, `org.kde.notification`. Most distributions ship it with KNotifications. Where it's a separate package, install it, or the widget won't load
+- `secret-tool`, to keep the broker password and the tokens in the wallet. Fedora and Arch include it in libsecret, which is usually installed already. On Debian and Ubuntu: `sudo apt install libsecret-tools`. Without it, they're saved in plain text. See [Security and privacy](#security-and-privacy)
 
 For TeslaMate:
 
@@ -100,6 +101,8 @@ kpackagetool6 -t Plasma/Applet -r net.moseph.teslamonitor
 
 From a source checkout, `make uninstall` does the same.
 
+Each copy of the widget leaves its secrets in the wallet. Delete the entries whose names start with "Tesla Monitor" in KWallet Manager.
+
 ## Settings
 
 **Connection**
@@ -108,7 +111,7 @@ From a source checkout, `make uninstall` does the same.
 | ------- | ----- |
 | Data source | **TeslaMate (MQTT)**, the default, **Tesla Fleet API**, **TeslaMate API**, **Teslemetry**, **Tessie** or **Home Assistant**. The page shows the settings for the one you choose |
 | Host, Port | Your MQTT broker. You can paste a URL such as `mqtts://user@broker:8883`, and the widget moves the port, TLS and username into their own fields |
-| Username, Password | A broker account, if the broker requires one. A password without a username isn't sent, since MQTT has no such login |
+| Username, Password | A broker account, if the broker requires one. The password is kept in the wallet. A password without a username isn't sent, since MQTT has no such login |
 | Use TLS, CA file | For a broker that uses TLS. See [TLS](#tls) |
 | Topic prefix | `teslamate/cars/1`, or `teslamate/<namespace>/cars/1` if TeslaMate sets `MQTT_NAMESPACE` |
 | Every (under Refresh) | 15 seconds by default |
@@ -120,7 +123,7 @@ For the Tesla Fleet API:
 | ------- | ----- |
 | Region | Where your Tesla account's data lives: North America and Asia-Pacific, Europe, Middle East and Africa, or China. **Custom URL** is for a service that offers the Fleet API's URLs, and must use HTTPS unless it's on this computer |
 | Access token | A Fleet API access token with the `vehicle_device_data` scope |
-| Refresh token, Client ID | Optional. With both, the widget renews the access token when it expires and saves the new tokens. **Token server** is Tesla's unless you change it, and must use HTTPS unless it's on this computer |
+| Refresh token, Client ID | Optional. With both, the widget renews the access token when it expires and saves the new tokens in the wallet. **Token server** is Tesla's unless you change it, and must use HTTPS unless it's on this computer |
 | VIN | The car to show. **Find Cars** fills it in |
 | Every (under Refresh) | 5 minutes by default, and never less than 1 |
 | While the car sleeps | 15 minutes by default. Also used while the widget lets an awake car fall asleep |
@@ -165,7 +168,7 @@ The TeslaMate API and Home Assistant use the TeslaMate refresh settings, in seco
 | Notify when | Charging finishes, charging stops early or the charger loses power, something is left open, the car is unlocked with nobody inside, a tire's pressure is low, or a software update is available. All are on by default. See [Notifications](#notifications) |
 | For at least | 10 minutes by default. How long something has to stay open, or the car unlocked with nobody inside, before the widget notifies |
 
-Each copy of the widget keeps its own settings. See [Security and privacy](#security-and-privacy) before you enter a broker password.
+Each copy of the widget keeps its own settings, and its own password and tokens in the wallet. See [Security and privacy](#security-and-privacy) for where they go.
 
 ## TLS
 
@@ -211,7 +214,7 @@ Tesla's [Fleet API](https://developer.tesla.com/docs/fleet-api) gives the car's 
 
    Your Tesla password only goes to Tesla's page, and the tokens are only printed, never saved. If Tesla won't take a `localhost` redirect URI, give the app another one, run `login` with `--redirect-uri <it> --manual`, and paste the address the browser ends up on. `--json` prints the result as JSON.
 
-Tesla's access tokens last 8 hours. With the refresh token and client ID, the widget renews the access token and saves the new tokens. Renewing invalidates the old refresh token, so don't use the same tokens in another program. Copies of the widget share renewals. A refresh token expires after 3 months unused, so a widget that has been off that long needs a new sign-in.
+Tesla's access tokens last 8 hours. With the refresh token and client ID, the widget renews the access token and saves the new tokens in the wallet. Renewing invalidates the old refresh token, so don't use the same tokens in another program. Copies of the widget share renewals. A refresh token expires after 3 months unused, so a widget that has been off that long needs a new sign-in.
 
 **Cost.** Tesla bills each request, roughly $1 for every 500 data requests (the rate varies by region), with a $10 monthly credit for individual developers. Every request counts, including the replies for a sleeping car. With the default settings, a car that's awake 3 hours a day costs about 4,000 requests a month. Services that offer the same API have their own prices.
 
@@ -272,11 +275,16 @@ If you leave the car unlocked on purpose somewhere, such as in your garage at ho
 
 With TeslaMate, the widget only reads from the MQTT broker. It never contacts the car or Tesla's servers, and sends nothing anywhere else. With the Tesla Fleet API, it only contacts the API's URL and the token server, and only reads from them. With the other sources, it only reads from TeslaMateApi, Teslemetry, Tessie or Home Assistant.
 
-- Plasma stores the password in plain text, and the widget passes it to `mosquitto_sub` on the command line, where other users of this computer can see it. Use a broker account that can only read TeslaMate's topics.
+- The broker password is kept in the wallet: KWallet on Plasma, or another Secret Service such as GNOME Keyring or KeePassXC. The widget reaches it through `secret-tool` and hands it to `mosquitto_sub` through a pipe, so it's neither in Plasma's settings file nor on a command line, where other users of this computer could see it in the process list. Each copy of the widget has an entry of its own, called "Tesla Monitor MQTT password".
+- The password is on a command line only briefly: while `secret-tool` saves a new one when you apply it, and while **Test Connection** or **Find Cars** tries one you've typed but not applied. A password over 1000 bytes is too long for the pipe, so it goes on `mosquitto_sub`'s command line at every poll.
+- Without `secret-tool` or a wallet, Plasma stores the password and the tokens in plain text, and the widget passes the password to `mosquitto_sub` on the command line. The Connection page says when that's the case.
+- A password and tokens that versions before 1.12 saved in plain text move into the wallet the first time the widget starts with one. If you keep the wallet locked then, the Connection page offers to move them later.
+- Use a broker account that can only read TeslaMate's topics, wherever the password is kept.
 - The widget never uses the car's position (`latitude`, `longitude`, `location`, `heading`, `elevation`) or the older `active_route_*` topics, so the account can be denied those. It shows the navigation destination (`active_route`) only when **Show the destination and arrival while driving** is on, but it still receives that topic with everything else under the prefix, so deny it too if you don't use navigation.
 - Use TLS if the broker is reachable from outside your home network.
-- Plasma stores the Tesla API's tokens in plain text too, in `~/.config/plasma-org.kde.plasma.desktop-appletsrc`. They are only sent in HTTPS headers, never on a command line: the widget refuses a custom URL or token server that uses plain HTTP, unless it's on this computer, such as a local proxy. Anyone with the tokens can read the car's data until they expire, or for as long as the refresh token works.
-- The same goes for the Teslemetry, Tessie, TeslaMate API and Home Assistant tokens. Teslemetry's and Tessie's don't expire, so revoke one you no longer use. A Home Assistant token can do anything your Home Assistant user can, so make it for a user that isn't an administrator if you can, and use HTTPS if Home Assistant is reachable from outside your home network. The TeslaMate API and Home Assistant are often reached over plain HTTP at home, where the token travels unencrypted.
+- The tokens of every source, the Fleet API's access and refresh tokens and the Teslemetry, Tessie, TeslaMate API and Home Assistant tokens, are kept in the wallet too, all in one entry called "Tesla Monitor tokens". They're on a command line only while `secret-tool` saves them: when you apply new ones, and when the widget renews the Fleet API's, about every 8 hours. If the wallet refuses renewed tokens, the widget keeps the tokens in the settings in plain text rather than lose them, since the old ones no longer work.
+- The Fleet API's tokens are only sent in HTTPS headers: the widget refuses a custom URL or token server that uses plain HTTP, unless it's on this computer, such as a local proxy. Anyone with the tokens can read the car's data until they expire, or for as long as the refresh token works.
+- The other sources' tokens are only sent in their requests' headers too. Teslemetry's and Tessie's don't expire, so revoke one you no longer use. A Home Assistant token can do anything your Home Assistant user can, so make it for a user that isn't an administrator if you can, and use HTTPS if Home Assistant is reachable from outside your home network. The TeslaMate API and Home Assistant are often reached over plain HTTP at home, where the token travels unencrypted.
 
 To report a security problem, see [SECURITY.md](SECURITY.md).
 
@@ -297,6 +305,8 @@ To report a security problem, see [SECURITY.md](SECURITY.md).
 **The card stays empty or says it's waiting for data.** Press **Test Connection** in the settings, which says what went wrong. If the broker answers but has nothing under the prefix, use **Find Cars** to fill in the right topic prefix. TeslaMate only publishes cars that existed when it started, so restart it after adding a car, and some values only appear once the car wakes up.
 
 **The widget won't load, or shows an error instead of the card.** Install KNotifications' QML module, `org.kde.notification`, if your distribution packages it separately, then run `make reload` or log out and back in.
+
+**It couldn't get the broker password or the tokens from the wallet.** The wallet is closed, or the secret isn't in it any more. Open the wallet when it asks, then press **Refresh** or open the popup. Until then the widget doesn't poll, so a closed wallet doesn't ask to be opened every few seconds. If that doesn't help, enter the password or the token again in the settings.
 
 **It says `mosquitto_sub` isn't installed.** Install it from your distribution's packages, as listed under [Requirements](#requirements). The snap isn't supported.
 
@@ -327,7 +337,7 @@ make lint      # check QML syntax, metadata.json, main.xml and the tools
 
 `make lint` uses Qt 6's `qmlformat`, `jq`, `xmllint`, `shellcheck` and Python, and skips any that aren't installed.
 
-The tests in `tests/` cover `logic.js`, `models.js`, `notifyhub.js`, `sources.js`, `rest.js`, `teslaapi.js`, `tokenhub.js`, `teslamateapi.js`, `tessie.js` and `homeassistant.js`, which need only Node.js 18 or newer, and `tools/tesla-login.py`, which needs Python 3.9 or newer and runs against the fake Fleet API below. `logic.js` holds the widget's decisions and never calls `Qt` or `i18n()`, so Node can run it; the QML turns its results into words. Qt 6's `qmllint` catches QML syntax errors:
+The tests in `tests/` cover `logic.js`, `models.js`, `notifyhub.js`, `sources.js`, `rest.js`, `teslaapi.js`, `tokenhub.js`, `teslamateapi.js`, `tessie.js` and `homeassistant.js`, which need only Node.js 18 or newer, and `tools/tesla-login.py`, which needs Python 3.9 or newer and runs against the fake Fleet API below. Some of the `logic.js` tests run the wallet commands in `/bin/sh`, with stand-ins for `secret-tool` and `mosquitto_sub`, and are skipped where there's no `/bin/sh` or coreutils. `logic.js` holds the widget's decisions and never calls `Qt` or `i18n()`, so Node can run it; the QML turns its results into words. Qt 6's `qmllint` catches QML syntax errors:
 
 ```bash
 qmllint package/contents/ui/*.qml package/contents/config/*.qml

@@ -4,6 +4,22 @@ All notable changes to Tesla Monitor are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.12.0] - 2026-11-16
+
+### Security
+
+- The broker password is kept in the wallet, KWallet on Plasma or another Secret Service such as GNOME Keyring, through `secret-tool`, instead of in plain text in Plasma's settings. The widget hands it to `mosquitto_sub` through a pipe rather than on the command line, where other users of the computer could see it. Without `secret-tool` or a wallet, the password is kept as before, and the Connection page says so.
+- The tokens are kept in the wallet too: the Fleet API's access and refresh tokens, including the ones the widget renews, and the Teslemetry, Tessie, TeslaMate API and Home Assistant tokens. If the wallet refuses renewed tokens, they're kept in the settings instead, since the old ones no longer work.
+
+### Added
+
+- A password and tokens that earlier versions saved in plain text move into the wallet the first time the widget starts with one. If the wallet stays locked, they stay where they are, and the Connection page offers to move them.
+- When the wallet doesn't give the password or the tokens, the widget stops polling until you press Refresh or open the popup, so a closed wallet doesn't ask to be opened at every poll. Right after the settings change it tries once more first.
+
+### Changed
+
+- With the password in the wallet, the widget's `mosquitto_sub` no longer reads your own `~/.config/mosquitto_sub`.
+
 ## [1.11.1] - 2026-11-16
 
 ### Security
@@ -174,6 +190,7 @@ All notable changes to Tesla Monitor are listed here. The format follows
 
 - First public version of the widget.
 
+[1.12.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.11.1...v1.12.0
 [1.11.1]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.11.0...v1.11.1
 [1.11.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.10.0...v1.11.0
 [1.10.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.9.0...v1.10.0
