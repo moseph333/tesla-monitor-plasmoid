@@ -7,7 +7,7 @@
 
 > An unofficial community project. It isn't affiliated with or endorsed by Tesla, Inc. or the TeslaMate project. See [Disclaimer](#disclaimer).
 
-A KDE Plasma 6 widget that shows a Tesla's status from [TeslaMate](https://docs.teslamate.org) over MQTT. On the desktop it's a full card. In a panel it's a battery icon in the shape of your car, a Model S, 3, X, Y or Cybertruck, with the battery percentage or the range beside it, that opens the card when clicked. It's drawn like Plasma's battery icon: a thin outline with a solid fill that grows from left to right, and a bolt while charging. The panel icon also works from the keyboard, where Space or Enter opens the card, and screen readers read out the same status as its tooltip.
+A KDE Plasma 6 widget that shows a Tesla's status from [TeslaMate](https://docs.teslamate.org) over MQTT, or straight from the [Tesla Fleet API](https://developer.tesla.com/docs/fleet-api). On the desktop it's a full card. In a panel it's a battery icon in the shape of your car, a Model S, 3, X, Y or Cybertruck, with the battery percentage or the range beside it, that opens the card when clicked. It's drawn like Plasma's battery icon: a thin outline with a solid fill that grows from left to right, and a bolt while charging. The panel icon also works from the keyboard, where Space or Enter opens the card, and screen readers read out the same status as its tooltip.
 
 <p>
 <img src="screenshots/parked.png" width="270" alt="The card of a parked Model 3 in Breeze Dark: battery ring at 72%, temperatures, and the car in its blue paint">
@@ -36,21 +36,26 @@ The card shows:
 
 It can also send desktop notifications when charging finishes or stops early, when something is left open or the car is unlocked with nobody inside, when a tire's pressure is low, and when a software update is available. See [Notifications](#notifications).
 
-The widget runs `mosquitto_sub` every 15 seconds by default, and every 2 minutes while the car sleeps and the popup is closed, to read TeslaMate's retained messages from the broker. It never talks to the car. Opening the popup, or pressing the refresh button in its header, updates right away. If the broker stops answering, the card keeps the last data and fades it, the panel icon dims, and the card's footer and the icon's tooltip say when the data was last updated, with the day once that wasn't today.
+The widget runs `mosquitto_sub` every 15 seconds by default, and every 2 minutes while the car sleeps and the popup is closed, to read TeslaMate's retained messages from the broker. It never talks to the car. Opening the popup, or pressing the refresh button in its header, updates right away. With the Tesla Fleet API, it asks every 5 minutes by default, lets the car fall asleep, and only asks whether it's still asleep every 15 minutes. See [Tesla Fleet API](#tesla-fleet-api). If the broker or the API stops answering, the card keeps the last data and fades it, the panel icon dims, and the card's footer and the icon's tooltip say when the data was last updated, with the day once that wasn't today.
 
-**Contents:** [Requirements](#requirements) · [Install](#install) · [Settings](#settings) · [TLS](#tls) · [Notifications](#notifications) · [Security and privacy](#security-and-privacy) · [TeslaMate behavior](#teslamate-behavior) · [Troubleshooting](#troubleshooting) · [Development](#development) · [Contributing](#contributing)
+**Contents:** [Requirements](#requirements) · [Install](#install) · [Settings](#settings) · [TLS](#tls) · [Tesla Fleet API](#tesla-fleet-api) · [Notifications](#notifications) · [Security and privacy](#security-and-privacy) · [TeslaMate behavior](#teslamate-behavior) · [Troubleshooting](#troubleshooting) · [Development](#development) · [Contributing](#contributing)
 
 ## Requirements
 
 - Plasma 6
+- KNotifications' QML module, `org.kde.notification`. Most distributions ship it with KNotifications. Where it's a separate package, install it, or the widget won't load
+
+For TeslaMate:
+
 - `mosquitto_sub`:
   - Fedora: `sudo dnf install mosquitto`
   - Debian and Ubuntu: `sudo apt install mosquitto-clients`
   - Arch: `sudo pacman -S mosquitto`
   - The snap isn't supported. It only provides `mosquitto.sub`, which the widget can't find.
   - TLS with the system's certificates needs mosquitto 2.0 or newer.
-- KNotifications' QML module, `org.kde.notification`. Most distributions ship it with KNotifications. Where it's a separate package, install it, or the widget won't load
 - TeslaMate with MQTT enabled, and a broker this machine can reach
+
+For the Tesla Fleet API, nothing to install: an access token for it (see [Tesla Fleet API](#tesla-fleet-api)), or for a service that offers the same API.
 
 ## Install
 
@@ -95,6 +100,7 @@ From a source checkout, `make uninstall` does the same.
 
 | Setting | Value |
 | ------- | ----- |
+| Data source | **TeslaMate (MQTT)**, the default, or **Tesla Fleet API**. The page shows the settings for the one you choose |
 | Host, Port | Your MQTT broker. You can paste a URL such as `mqtts://user@broker:8883`, and the widget moves the port, TLS and username into their own fields |
 | Username, Password | A broker account, if the broker requires one. A password without a username isn't sent, since MQTT has no such login |
 | Use TLS, CA file | For a broker that uses TLS. See [TLS](#tls) |
@@ -102,7 +108,18 @@ From a source checkout, `make uninstall` does the same.
 | Every (under Refresh) | 15 seconds by default |
 | While the car sleeps | 2 minutes by default. Used while the car is asleep or offline and the popup is closed. A widget on the desktop has no popup, so it uses this whenever the car sleeps. It never polls faster than **Every** |
 
-**Test Connection** tries the values on the page before you apply them, and says what went wrong if it can't read TeslaMate's data. **Find Cars** lists the cars TeslaMate publishes on the broker and fills in the topic prefix, or lets you choose when there are several.
+For the Tesla Fleet API:
+
+| Setting | Value |
+| ------- | ----- |
+| Region | Where your Tesla account's data lives: North America and Asia-Pacific, Europe, Middle East and Africa, or China. **Custom URL** is for a service that offers the Fleet API's URLs |
+| Access token | A Fleet API access token with the `vehicle_device_data` scope |
+| Refresh token, Client ID | Optional. With both, the widget renews the access token when it expires and saves the new tokens. **Token server** is Tesla's unless you change it |
+| VIN | The car to show. **Find Cars** fills it in |
+| Every (under Refresh) | 5 minutes by default, and never less than 1 |
+| While the car sleeps | 15 minutes by default. Also used while the widget lets an awake car fall asleep |
+
+**Test Connection** tries the values on the page before you apply them, and says what went wrong if it can't read the car's data. **Find Cars** lists the cars TeslaMate publishes on the broker, or the cars on the Tesla account, and fills in the topic prefix or VIN, or lets you choose when there are several.
 
 **Display**
 
@@ -137,6 +154,23 @@ Turn on **Use TLS** for a broker that encrypts its connections. TLS brokers usua
 - For a broker with a self-signed certificate or one from a private CA, choose that CA's certificate, usually a `.pem` or `.crt` file, as the CA file.
 - **Host** must be a name the broker's certificate lists, which is usually its host name rather than its IP address.
 
+## Tesla Fleet API
+
+Tesla's [Fleet API](https://developer.tesla.com/docs/fleet-api) gives the car's data without TeslaMate. The widget reads it with pasted tokens. It has no Tesla login of its own.
+
+**Tokens.** Tesla only issues Fleet API tokens to a registered app. Either register your own at [developer.tesla.com](https://developer.tesla.com), with the `vehicle_device_data` scope, and get tokens through its OAuth flow, or use a service that offers the same API with its own token, and choose **Custom URL**. Tesla's access tokens last 8 hours. Paste the refresh token and your app's client ID too, and the widget renews the access token and saves the new tokens. Renewing invalidates the old refresh token, so don't use the same tokens in another program. Copies of the widget share renewals.
+
+**Cost.** Tesla bills each request, roughly $1 for every 500 data requests (the rate varies by region), with a $10 monthly credit for individual developers. Every request counts, including the replies for a sleeping car. With the default settings, a car that's awake 3 hours a day costs about 4,000 requests a month. Services that offer the same API have their own prices.
+
+**Sleep.** Asking an awake car for its data keeps it awake, which drains the battery. The widget never wakes the car. While the car sleeps it only asks for the car's state, which doesn't reach the car. Once an awake car has been parked with nothing going on for 15 minutes, the widget only asks for its state for 21 minutes, as TeslaMate does, and the card says "Falling asleep". Then it looks once more. Driving, charging, climate, an update, someone inside or an open door, frunk or trunk keep it asking. Opening the popup or pressing refresh fetches the data, at most once a minute, but never wakes a sleeping car. While the car sleeps the card keeps the last data.
+
+**Differences from TeslaMate.**
+
+- There are no geofences, so **Unlocked is OK at** doesn't apply, and the card doesn't name a place.
+- There is no warning that TeslaMate is having trouble reaching the car.
+- How long the car has been in its state ("Parked · 3h") only counts from a change the widget saw.
+- With navigation on, the widget also asks for the car's location, which on recent software shows a location sharing icon in the car.
+
 ## Notifications
 
 The widget sends a notification when:
@@ -152,11 +186,12 @@ If you leave the car unlocked on purpose somewhere, such as in your garage at ho
 
 ## Security and privacy
 
-The widget only reads from the MQTT broker. It never contacts the car or Tesla's servers, and sends nothing anywhere else.
+With TeslaMate, the widget only reads from the MQTT broker. It never contacts the car or Tesla's servers, and sends nothing anywhere else. With the Tesla Fleet API, it only contacts the API's URL and the token server, and only reads from them.
 
 - Plasma stores the password in plain text, and the widget passes it to `mosquitto_sub` on the command line, where other users of this computer can see it. Use a broker account that can only read TeslaMate's topics.
 - The widget never uses the car's position (`latitude`, `longitude`, `location`, `heading`, `elevation`) or the older `active_route_*` topics, so the account can be denied those. It shows the navigation destination (`active_route`) only when **Show the destination and arrival while driving** is on, but it still receives that topic with everything else under the prefix, so deny it too if you don't use navigation.
 - Use TLS if the broker is reachable from outside your home network.
+- Plasma stores the Tesla API's tokens in plain text too, in `~/.config/plasma-org.kde.plasma.desktop-appletsrc`. They are only sent in HTTPS headers, never on a command line. Anyone with the tokens can read the car's data until they expire, or for as long as the refresh token works.
 
 To report a security problem, see [SECURITY.md](SECURITY.md).
 
@@ -207,7 +242,7 @@ make lint      # check QML syntax, metadata.json, main.xml and the shell script
 
 `make lint` uses Qt 6's `qmlformat`, `jq`, `xmllint` and `shellcheck`, and skips any that aren't installed.
 
-The tests in `tests/` cover `logic.js`, `models.js` and `notifyhub.js` and need only Node.js 18 or newer. `logic.js` holds the widget's decisions and never calls `Qt` or `i18n()`, so Node can run it; the QML turns its results into words. Qt 6's `qmllint` catches QML syntax errors:
+The tests in `tests/` cover `logic.js`, `models.js`, `notifyhub.js`, `teslaapi.js` and `tokenhub.js` and need only Node.js 18 or newer. `logic.js` holds the widget's decisions and never calls `Qt` or `i18n()`, so Node can run it; the QML turns its results into words. Qt 6's `qmllint` catches QML syntax errors:
 
 ```bash
 qmllint package/contents/ui/*.qml package/contents/config/*.qml
@@ -254,6 +289,22 @@ The shapes are in `models.js`, which is as free of `Qt` as `logic.js` and tested
 
 The card draws its own lock, Sentry and bolt signs instead of taking them from the icon theme, so they look the same in every theme. If you add a theme icon with `isMask: true`, use a `-symbolic` name. Some icon themes, such as WhiteSur, map plain names to full-color icons, which then render as a solid block.
 
+### Fake Tesla Fleet API
+
+`tools/fake-tesla-api.py` serves made-up Fleet API replies on `localhost`, so you can try the API source without a car, an account or a bill. It needs only Python 3.9 or newer:
+
+```bash
+tools/fake-tesla-api.py --expire-first
+```
+
+Choose **Tesla Fleet API**, set the Region to **Custom URL** with `http://localhost:8765`, paste `access-1` as the access token, `refresh-1` as the refresh token, `fake` as the client ID and `http://localhost:8765` as the token server, then use **Find Cars**. `--expire-first` refuses the first access token once, so the widget has to renew it. Switch the car's state while it runs:
+
+```bash
+curl http://localhost:8765/_scenario/charging
+```
+
+The scenarios are `parked`, `charging`, `complete`, `driving`, `open`, `unlocked`, `update`, `asleep` and `offline`.
+
 ## Contributing
 
 Bug reports and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md), and [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
@@ -264,4 +315,4 @@ Bug reports and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md
 
 ## Disclaimer
 
-Tesla Monitor is an independent, unofficial project. It isn't affiliated with, endorsed by or sponsored by Tesla, Inc. or the TeslaMate project. Tesla, Model S, Model 3, Model X, Model Y and Cybertruck are trademarks of Tesla, Inc., used here only to describe what the widget works with. The widget only reads data that your own TeslaMate publishes to your own MQTT broker, and is provided as is, without warranty.
+Tesla Monitor is an independent, unofficial project. It isn't affiliated with, endorsed by or sponsored by Tesla, Inc. or the TeslaMate project. Tesla, Model S, Model 3, Model X, Model Y and Cybertruck are trademarks of Tesla, Inc., used here only to describe what the widget works with. The widget only reads data that your own TeslaMate publishes to your own MQTT broker, or that the Tesla Fleet API gives your own tokens, and is provided as is, without warranty.
