@@ -50,8 +50,8 @@ Item {
         width: parent.width - Kirigami.Units.gridUnit * 2
         visible: !widget.configured
         iconName: "battery-080"
-        text: widget.useApi ? i18n("Connect to Tesla") : i18n("Connect to TeslaMate")
-        explanation: widget.useApi
+        text: widget.source.kind === "fleet" ? i18n("Connect to Tesla") : i18n("Connect to TeslaMate")
+        explanation: widget.source.kind === "fleet"
             ? i18n("Add your Tesla API access token and your car's VIN in the widget settings.")
             : widget.cfg.brokerHost.trim() !== ""
             ? i18n("The broker host isn't valid. Check it in the widget settings.")

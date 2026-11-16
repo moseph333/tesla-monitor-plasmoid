@@ -5,19 +5,25 @@ import org.kde.plasma.core as PlasmaCore
 import "logic.js" as Logic
 import "models.js" as Models
 import "teslaapi.js" as Api
+import "sources.js" as Sources
 
 PlasmoidItem {
     id: root
 
     readonly property var cfg: Plasmoid.configuration
-    // 0 TeslaMate over MQTT, 1 the Tesla Fleet API.
-    readonly property bool useApi: cfg.dataSource === 1
+    // Where the data comes from: see sources.js.
+    readonly property var source: Sources.byId(cfg.dataSource)
     // For MQTT, uses the command builder's own test, so a host like "mqtt://" counts as not
     // configured.
-    readonly property bool configured: useApi
-        ? Api.baseUrl(cfg.apiRegion, cfg.apiBaseUrl) !== "" && cfg.apiAccessToken.trim() !== ""
-          && Api.cleanVin(cfg.apiVin) !== ""
-        : Logic.parseBrokerHost(cfg.brokerHost).host !== ""
+    readonly property bool configured: {
+        switch (source.kind) {
+        case "fleet":
+            return Api.baseUrl(cfg.apiRegion, cfg.apiBaseUrl) !== "" && cfg.apiAccessToken.trim() !== ""
+                && Api.cleanVin(cfg.apiVin) !== ""
+        default:
+            return Logic.parseBrokerHost(cfg.brokerHost).host !== ""
+        }
+    }
     // Used for both subscribing and stripping topics.
     readonly property string prefix: Logic.topicPrefix(cfg.topicPrefix)
     // Automatic follows the locale's measurement system.
@@ -40,12 +46,9 @@ PlasmoidItem {
     readonly property bool onDesktop: Plasmoid.formFactor === PlasmaCore.Types.Planar
     // A desktop card counts as closed, so it polls at the idle rate while the car sleeps.
     readonly property bool popupOpen: expanded && !onDesktop
-    // The API bills each request, so it has its own, slower rates, and never polls more
-    // than once a minute.
-    readonly property int pollMs: useApi
-        ? Logic.pollIntervalMs(Math.max(60, cfg.apiRefreshSeconds), Math.max(60, cfg.apiIdleRefreshSeconds),
-                               carState, hasData, popupOpen)
-        : Logic.pollIntervalMs(cfg.refreshSeconds, cfg.idleRefreshSeconds, carState, hasData, popupOpen)
+    // Online services have their own, slower rates, and never poll more than once a minute.
+    readonly property var rates: Sources.refreshSeconds(source, cfg)
+    readonly property int pollMs: Logic.pollIntervalMs(rates.active, rates.idle, carState, hasData, popupOpen)
     // The last poll failed and the data is over a minute old (or two intervals, when polling
     // slowly), so one missed poll doesn't count.
     readonly property bool stale: hasData && errorText !== "" && lastUpdated !== null
@@ -257,7 +260,7 @@ PlasmoidItem {
     function refresh(manual) {
         if (!configured) return
         if (manual) userRefreshing = true
-        if (useApi) {
+        if (source.kind === "fleet") {
             if (apiFetch.busy) return
             const plan = Api.pollPlan(apiPlan, car, Date.now(), { forced: manual })
             apiPlan = plan.state
@@ -348,12 +351,12 @@ PlasmoidItem {
         onTriggered: root.refresh(false)
     }
 
-    // Refresh when the popup opens: for the API, which bills each request, at most once a
-    // minute. Bindings on expanded (such as popupOpen) may not have updated yet inside this
-    // handler, so it uses the signal's argument.
+    // Refresh when the popup opens: for an online service, which may bill each request, at
+    // most once a minute. Bindings on expanded (such as popupOpen) may not have updated yet
+    // inside this handler, so it uses the signal's argument.
     onExpandedChanged: (expanded) => {
         if (expanded && !onDesktop && configured
-            && (!lastUpdated || Date.now() - lastUpdated.getTime() > (useApi ? 60 * 1000 : 5000)))
+            && (!lastUpdated || Date.now() - lastUpdated.getTime() > Sources.popupRefreshMs(source)))
             refresh(false)
     }
 

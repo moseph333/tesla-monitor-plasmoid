@@ -7,6 +7,7 @@ import org.kde.kcmutils as KCM
 
 import "logic.js" as Logic
 import "teslaapi.js" as Api
+import "sources.js" as Sources
 
 KCM.SimpleKCM {
     id: page
@@ -33,14 +34,16 @@ KCM.SimpleKCM {
     property alias cfg_refreshSeconds: refreshSeconds.value
     property alias cfg_idleRefreshSeconds: idleRefreshSeconds.value
 
-    readonly property bool useApi: dataSource.currentIndex === 1
+    readonly property var source: Sources.byId(dataSource.currentIndex)
+    readonly property bool mqtt: source.kind === "mqtt"
+    readonly property bool fleet: source.kind === "fleet"
     // The cars the last Find Cars found, for the picker: [{prefix, name}] from MQTT, or
     // [{vin, name, state}] from the API.
     property var cars: []
     // Which button started the running check: "test" or "find".
     property string pendingCheck: ""
     readonly property bool checking: fetch.busy || apiFetch.busy
-    readonly property bool canCheck: !checking && (useApi
+    readonly property bool canCheck: !checking && (fleet
         ? Api.baseUrl(apiRegion.currentIndex, apiBaseUrl.text) !== "" && apiAccessToken.text.trim() !== ""
         : Logic.parseBrokerHost(brokerHost.text).host !== "")
     // True while tokens renewed by a check are put in their fields, which isn't an edit.
@@ -79,7 +82,7 @@ KCM.SimpleKCM {
     function runCheck(kind) {
         result.visible = false
         pendingCheck = kind
-        if (useApi) {
+        if (fleet) {
             runApiCheck(kind)
             return
         }
@@ -210,13 +213,13 @@ KCM.SimpleKCM {
         }
 
         Hint {
-            text: page.useApi
+            text: page.fleet
                 ? i18n("Reads the car straight from Tesla, or from a service with the same API. Tesla bills each request, so the widget asks sparingly and lets the car sleep.")
                 : i18n("Reads the values TeslaMate publishes to an MQTT broker.")
         }
 
         Kirigami.Separator {
-            visible: page.useApi
+            visible: page.fleet
             Kirigami.FormData.isSection: true
             Kirigami.FormData.label: i18n("Tesla Fleet API")
         }
@@ -224,7 +227,7 @@ KCM.SimpleKCM {
         // In the order of Api.REGIONS, then a custom URL.
         QQC2.ComboBox {
             id: apiRegion
-            visible: page.useApi
+            visible: page.fleet
             Kirigami.FormData.label: i18n("Region:")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
             model: [
@@ -238,7 +241,7 @@ KCM.SimpleKCM {
 
         QQC2.TextField {
             id: apiBaseUrl
-            visible: page.useApi && apiRegion.currentIndex === 3
+            visible: page.fleet && apiRegion.currentIndex === 3
             Kirigami.FormData.label: i18n("URL:")
             placeholderText: i18nc("example web address", "https://api.example.com")
             inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoAutoUppercase
@@ -247,13 +250,13 @@ KCM.SimpleKCM {
         }
 
         Hint {
-            visible: page.useApi
+            visible: page.fleet
             text: i18n("The region your Tesla account belongs to. Choose Custom URL for a service that offers the Fleet API's URLs with its own token.")
         }
 
         Kirigami.PasswordField {
             id: apiAccessToken
-            visible: page.useApi
+            visible: page.fleet
             Kirigami.FormData.label: i18n("Access token:")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
             onTextChanged: {
@@ -264,7 +267,7 @@ KCM.SimpleKCM {
 
         Kirigami.PasswordField {
             id: apiRefreshToken
-            visible: page.useApi
+            visible: page.fleet
             Kirigami.FormData.label: i18n("Refresh token:")
             placeholderText: i18n("Optional")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
@@ -273,7 +276,7 @@ KCM.SimpleKCM {
 
         QQC2.TextField {
             id: apiClientId
-            visible: page.useApi
+            visible: page.fleet
             Kirigami.FormData.label: i18n("Client ID:")
             placeholderText: i18n("Optional")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
@@ -282,7 +285,7 @@ KCM.SimpleKCM {
 
         QQC2.TextField {
             id: apiAuthUrl
-            visible: page.useApi && apiRefreshToken.text.trim() !== ""
+            visible: page.fleet && apiRefreshToken.text.trim() !== ""
             Kirigami.FormData.label: i18n("Token server:")
             placeholderText: "https://fleet-auth.prd.vn.cloud.tesla.com"
             inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoAutoUppercase
@@ -291,13 +294,13 @@ KCM.SimpleKCM {
         }
 
         Hint {
-            visible: page.useApi
+            visible: page.fleet
             text: i18n("tools/tesla-login.py in the widget's source gets these for your own Fleet API app. Tesla's access tokens last 8 hours. With the refresh token and the app's client ID, the widget renews the access token itself and saves the new tokens. The token needs the vehicle_device_data scope. Tokens are stored unencrypted in Plasma's configuration.")
         }
 
         QQC2.TextField {
             id: apiVin
-            visible: page.useApi
+            visible: page.fleet
             Kirigami.FormData.label: i18n("VIN:")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
             inputMethodHints: Qt.ImhPreferUppercase | Qt.ImhNoPredictiveText
@@ -306,14 +309,14 @@ KCM.SimpleKCM {
         }
 
         Kirigami.Separator {
-            visible: !page.useApi
+            visible: page.mqtt
             Kirigami.FormData.isSection: true
             Kirigami.FormData.label: i18n("MQTT broker")
         }
 
         QQC2.TextField {
             id: brokerHost
-            visible: !page.useApi
+            visible: page.mqtt
             Kirigami.FormData.label: i18n("Host:")
             placeholderText: i18nc("example broker addresses", "192.168.1.x or mqtt.example.com")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
@@ -336,7 +339,7 @@ KCM.SimpleKCM {
 
         QQC2.SpinBox {
             id: brokerPort
-            visible: !page.useApi
+            visible: page.mqtt
             Kirigami.FormData.label: i18n("Port:")
             from: 1
             to: 65535
@@ -348,7 +351,7 @@ KCM.SimpleKCM {
 
         QQC2.TextField {
             id: brokerUser
-            visible: !page.useApi
+            visible: page.mqtt
             Kirigami.FormData.label: i18n("Username:")
             placeholderText: i18n("Optional")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
@@ -357,7 +360,7 @@ KCM.SimpleKCM {
 
         Kirigami.PasswordField {
             id: brokerPassword
-            visible: !page.useApi
+            visible: page.mqtt
             Kirigami.FormData.label: i18n("Password:")
             placeholderText: i18n("Optional")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
@@ -366,7 +369,7 @@ KCM.SimpleKCM {
 
         QQC2.CheckBox {
             id: useTls
-            visible: !page.useApi
+            visible: page.mqtt
             Kirigami.FormData.label: i18n("Security:")
             text: i18n("Use TLS")
             onToggled: {
@@ -376,7 +379,7 @@ KCM.SimpleKCM {
         }
 
         RowLayout {
-            visible: !page.useApi
+            visible: page.mqtt
             Kirigami.FormData.label: i18n("CA file:")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
             enabled: useTls.checked
@@ -406,19 +409,19 @@ KCM.SimpleKCM {
         }
 
         Hint {
-            visible: !page.useApi
+            visible: page.mqtt
             text: i18n("Leave the CA file empty to use the system's certificates (needs mosquitto 2.0 or newer). TLS brokers usually listen on port 8883; with mosquitto 2.0, port 8883 always uses TLS. Host must match the name on the broker's certificate.")
         }
 
         Kirigami.Separator {
-            visible: !page.useApi
+            visible: page.mqtt
             Kirigami.FormData.isSection: true
             Kirigami.FormData.label: i18n("TeslaMate")
         }
 
         QQC2.TextField {
             id: topicPrefix
-            visible: !page.useApi
+            visible: page.mqtt
             Kirigami.FormData.label: i18n("Topic prefix:")
             placeholderText: "teslamate/cars/1"
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
@@ -426,7 +429,7 @@ KCM.SimpleKCM {
         }
 
         Hint {
-            visible: !page.useApi
+            visible: page.mqtt
             text: i18n("If TeslaMate sets MQTT_NAMESPACE, use teslamate/<namespace>/cars/1.")
         }
 
@@ -500,7 +503,7 @@ KCM.SimpleKCM {
         // the text the first digit would be saved and the rest land after the unit. i18np()
         // would also add digit grouping or locale digits that parseInt() can't read back.
         RowLayout {
-            visible: !page.useApi
+            visible: !page.source.cloud
             Kirigami.FormData.label: i18n("Every:")
             spacing: Kirigami.Units.smallSpacing
 
@@ -516,7 +519,7 @@ KCM.SimpleKCM {
         }
 
         RowLayout {
-            visible: !page.useApi
+            visible: !page.source.cloud
             Kirigami.FormData.label: i18n("While the car sleeps:")
             spacing: Kirigami.Units.smallSpacing
 
@@ -534,7 +537,7 @@ KCM.SimpleKCM {
 
         // The API's own rates, in minutes: each request is billed.
         RowLayout {
-            visible: page.useApi
+            visible: page.source.cloud
             Kirigami.FormData.label: i18n("Every:")
             spacing: Kirigami.Units.smallSpacing
 
@@ -560,7 +563,7 @@ KCM.SimpleKCM {
         }
 
         RowLayout {
-            visible: page.useApi
+            visible: page.source.cloud
             Kirigami.FormData.label: i18n("While the car sleeps:")
             spacing: Kirigami.Units.smallSpacing
 
@@ -585,13 +588,14 @@ KCM.SimpleKCM {
         }
 
         Hint {
-            text: page.useApi
+            text: page.source.sleepAware
                 ? i18n("Used while the car is asleep, offline or falling asleep and the popup is closed, and always for a widget on the desktop. Opening the popup or pressing Refresh updates right away, at most once a minute. Asking an awake car keeps it awake, so after 15 idle minutes the widget stops asking for 21 minutes to let it sleep, as TeslaMate does.")
                 : i18n("Used while the car is asleep or offline and the popup is closed, and always for a widget on the desktop. Opening the popup or pressing Refresh updates right away.")
         }
 
+        // Tesla's own prices, for the Fleet API itself.
         Hint {
-            visible: page.useApi
+            visible: dataSource.currentIndex === 1
             text: i18n("Tesla bills roughly $1 for every 500 data requests (the rate varies by region), with a $10 monthly credit for individual developers. Checking every 5 minutes while a car is awake 3 hours a day, and every 15 minutes while it sleeps, comes to about 4,000 requests a month. Services with the same API have their own prices.")
         }
     }
