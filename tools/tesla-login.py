@@ -265,6 +265,9 @@ def wait_for_callback(redirect_uri, state, timeout, url, open_browser):
             self.send_response(status)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(page)))
+            # The address holds the sign-in code, so the page isn't kept or passed on.
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Referrer-Policy", "no-referrer")
             self.end_headers()
             self.wfile.write(page)
 
