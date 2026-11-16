@@ -150,7 +150,7 @@ KCM.SimpleKCM {
         }
 
         Hint {
-            text: i18n("Uses TeslaMate's active_route topic (TeslaMate 1.29 or newer), which includes the destination's name and location. With the Tesla Fleet API, this also asks for the car's location, which shows a location sharing icon in the car.")
+            text: i18n("Uses TeslaMate's active_route topic (TeslaMate 1.29 or newer), which includes the destination's name and location, or the route the other data sources report. With the Tesla Fleet API or Teslemetry, this also asks for the car's location, which shows a location sharing icon in the car.")
         }
 
         // For owners who leave the car unlocked on purpose, such as in a locked garage.
@@ -162,7 +162,7 @@ KCM.SimpleKCM {
         }
 
         Hint {
-            text: i18n("TeslaMate geofence names, separated by commas. There, an unlocked car isn't shown as a warning or notified. The Tesla Fleet API has no geofences.")
+            text: i18n("TeslaMate geofence names, or Home Assistant zone names, separated by commas. There, an unlocked car isn't shown as a warning or notified. The Tesla Fleet API, Teslemetry and Tessie have no geofences.")
         }
 
         // Normalized as the widget will open it, so an address typed without http:// shows

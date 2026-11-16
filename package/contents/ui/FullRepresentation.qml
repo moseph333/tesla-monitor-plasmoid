@@ -50,18 +50,19 @@ Item {
         width: parent.width - Kirigami.Units.gridUnit * 2
         visible: !widget.configured
         iconName: "battery-080"
-        text: widget.source.kind === "fleet" ? i18n("Connect to Tesla") : i18n("Connect to TeslaMate")
-        explanation: widget.source.kind === "fleet"
-            ? i18n("Add your Tesla API access token and your car's VIN in the widget settings.")
-            : widget.source.key === "tessie"
-            ? i18n("Add your Tessie access token and your car's VIN in the widget settings.")
-            : widget.source.key === "homeAssistant"
-            ? i18n("Add your Home Assistant's address, an access token and the car in the widget settings.")
-            : widget.source.key === "teslamateApi"
-            ? i18n("Add the TeslaMate API's address in the widget settings.")
-            : widget.cfg.brokerHost.trim() !== ""
-            ? i18n("The broker host isn't valid. Check it in the widget settings.")
-            : i18n("Add your MQTT broker in the widget settings.")
+        text: widget.source.key === "fleet" ? i18n("Connect to Tesla") : i18n("Connect to %1", widget.source.name)
+        explanation: {
+            switch (widget.source.key) {
+            case "fleet": return i18n("Add your Tesla API access token and your car's VIN in the widget settings.")
+            case "teslemetry": return i18n("Add your Teslemetry access token and your car's VIN in the widget settings.")
+            case "tessie": return i18n("Add your Tessie access token and your car's VIN in the widget settings.")
+            case "homeAssistant": return i18n("Add your Home Assistant's address, an access token and the car in the widget settings.")
+            case "teslamateApi": return i18n("Add the TeslaMate API's address in the widget settings.")
+            default: return widget.cfg.brokerHost.trim() !== ""
+                ? i18n("The broker host isn't valid. Check it in the widget settings.")
+                : i18n("Add your MQTT broker in the widget settings.")
+            }
+        }
         helpfulAction: QQC2.Action {
             text: i18n("Configure…")
             icon.name: "configure"
