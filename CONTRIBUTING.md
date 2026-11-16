@@ -33,9 +33,9 @@ Before opening a pull request:
 
 ## Releases
 
-Maintainers release by pushing a tag that matches `Version`, such as `v1.7.0`. The release
-workflow checks the tag, runs the tests, and publishes the `.plasmoid` with the notes from
-the changelog.
+A release happens when a new `Version` reaches `master`: the release workflow runs the
+tests, tags the commit (such as `v1.10.0`), and publishes the `.plasmoid` with the notes
+from the changelog. Maintainers can also push a tag that matches `Version`.
 
 ## License
 

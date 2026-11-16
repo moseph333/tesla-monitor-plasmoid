@@ -292,7 +292,7 @@ KCM.SimpleKCM {
 
         Hint {
             visible: page.useApi
-            text: i18n("Tesla's access tokens last 8 hours. With the refresh token and the client ID of the Fleet API app that issued them, the widget renews the access token itself and saves the new tokens. The token needs the vehicle_device_data scope. Tokens are stored unencrypted in Plasma's configuration.")
+            text: i18n("tools/tesla-login.py in the widget's source gets these for your own Fleet API app. Tesla's access tokens last 8 hours. With the refresh token and the app's client ID, the widget renews the access token itself and saves the new tokens. The token needs the vehicle_device_data scope. Tokens are stored unencrypted in Plasma's configuration.")
         }
 
         QQC2.TextField {

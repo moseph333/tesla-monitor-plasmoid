@@ -1,40 +1,70 @@
 name: Release
 
-# Push a tag such as v1.7.0 to publish a release. The tag must match Version in
-# package/metadata.json, and CHANGELOG.md should have a "## [1.7.0]" section.
+# Publishes a GitHub release for the Version in package/metadata.json:
+# - on a push to master, if there is no release for v<Version> yet, it tags that commit
+#   and publishes the release, so merging a version bump releases it;
+# - on a pushed tag such as v1.10.0, which must match Version, it publishes that tag.
+# CHANGELOG.md should have a "## [<Version>]" section, which becomes the release notes.
+# The tag is made in this job, by `gh release create`: a tag pushed with the workflow's
+# own token wouldn't start another workflow.
 on:
   push:
+    branches: [master]
     tags: ["v*"]
 
 permissions:
   contents: write
+
+# A version bump and its tag pushed together run one after the other, and the second
+# finds the release already made.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-      - run: make test
 
-      - name: Check the tag matches metadata.json
+      - name: Decide whether to release
         id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           version=$(jq -r .KPlugin.Version package/metadata.json)
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+          tag="v$version"
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$tag" != "$GITHUB_REF_NAME" ]; then
             echo "::error::Tag $GITHUB_REF_NAME does not match Version $version in package/metadata.json"
             exit 1
           fi
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists, so there is nothing to publish."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v7
+        if: steps.version.outputs.release == 'true'
+        with:
+          node-version: 22
+
+      - if: steps.version.outputs.release == 'true'
+        run: make test
 
       - name: Build
+        if: steps.version.outputs.release == 'true'
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
           make build
-          cp dist/tesla-monitor.plasmoid "dist/tesla-monitor-$GITHUB_REF_NAME.plasmoid"
+          cp dist/tesla-monitor.plasmoid "dist/tesla-monitor-$TAG.plasmoid"
 
       - name: Extract release notes
+        if: steps.version.outputs.release == 'true'
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
@@ -47,11 +77,15 @@ jobs:
             echo "See [CHANGELOG.md](CHANGELOG.md)." > notes.md
           fi
 
+      # --target tags this commit when the tag doesn't exist yet; a pushed tag is kept.
       - name: Publish
+        if: steps.version.outputs.release == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            --title "Tesla Monitor $GITHUB_REF_NAME" \
+          gh release create "$TAG" \
+            --target "$GITHUB_SHA" \
+            --title "Tesla Monitor $TAG" \
             --notes-file notes.md \
-            "dist/tesla-monitor-$GITHUB_REF_NAME.plasmoid"
+            "dist/tesla-monitor-$TAG.plasmoid"
