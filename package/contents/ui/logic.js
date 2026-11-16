@@ -731,3 +731,21 @@ function parseCars(out) {
 function escapeMarkup(s) {
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
+
+// Replaces < and > with look-alikes, so a label that guesses whether text is markup
+// (Text.AutoText, as message boxes and combo boxes use) can never take a car's name or a
+// server's reply for HTML, which could load images from anywhere or show fake links.
+function noMarkup(s) {
+    return String(s === undefined || s === null ? "" : s).replace(/</g, "\u2039").replace(/>/g, "\u203a");
+}
+
+// Text a server or mosquitto_sub sent, as a detail in a message: on one line, without
+// control characters or markup, and cut to max characters (300 by default) so a long
+// error page can't fill the screen.
+function plainDetail(s, max) {
+    const limit = max > 1 ? max : 300;
+    let text = noMarkup(s).replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, " ")
+        .replace(/\s+/g, " ").trim();
+    if (text.length > limit) text = text.slice(0, limit - 1).replace(/\s+$/, "") + "\u2026";
+    return text;
+}

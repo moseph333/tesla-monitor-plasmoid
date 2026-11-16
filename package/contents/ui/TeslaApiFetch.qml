@@ -1,5 +1,6 @@
 import QtQuick
 
+import "logic.js" as Logic
 import "teslaapi.js" as Api
 import "tokenhub.js" as TokenHub
 
@@ -221,8 +222,10 @@ QtObject {
         return match ? match[1].replace(/^.*@/, "") : text
     }
 
-    // The message for an error from Api.apiError(), or "" if there was none.
+    // The message for an error from Api.apiError(), or "" if there was none. The detail is
+    // the server's own words, so it is cleaned up before it is shown.
     function message(error) {
+        error = Object.assign({}, error, { detail: Logic.plainDetail(error.detail) })
         if (error.kind === "insecure")
             return i18n("%1 doesn't use HTTPS, so the token would be sent unencrypted. Use an https:// address.", host(error.detail))
         if (options.service === "teslemetry") {

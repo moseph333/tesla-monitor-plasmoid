@@ -1,5 +1,6 @@
 import QtQuick
 
+import "logic.js" as Logic
 import "rest.js" as Rest
 import "teslamateapi.js" as TeslaMateApi
 import "tessie.js" as Tessie
@@ -139,8 +140,10 @@ QtObject {
         onTriggered: if (fetch.abortPending) fetch.abortPending()
     }
 
-    // The message for an error, or "" if there was none.
+    // The message for an error, or "" if there was none. The detail is the server's own
+    // words, so it is cleaned up before it is shown.
     function message(error) {
+        error = Object.assign({}, error, { detail: Logic.plainDetail(error.detail) })
         const name = options.source ? options.source.name : ""
         const host = Rest.host(options.base)
         switch (error.kind) {

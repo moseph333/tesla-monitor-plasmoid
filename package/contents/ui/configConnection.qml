@@ -96,9 +96,11 @@ KCM.SimpleKCM {
         else if (!tls && brokerPort.value === 8883) brokerPort.value = 1883
     }
 
+    // The message box guesses whether text is markup, and results quote car names and
+    // servers, so they never get to be read as markup.
     function showResult(type, text) {
         result.type = type
-        result.text = text
+        result.text = Logic.noMarkup(text)
         result.visible = true
     }
 
@@ -799,7 +801,9 @@ KCM.SimpleKCM {
             visible: page.cars.length > 1
             model: page.cars.map(c => {
                 const id = page.carKey(c)
-                return c.name ? i18nc("car name (topic prefix, VIN or car ID)", "%1 (%2)", c.name, id) : id
+                const text = c.name ? i18nc("car name (topic prefix, VIN or car ID)", "%1 (%2)", c.name, id) : id
+                // The names come from the server, and the list guesses whether text is markup.
+                return Logic.noMarkup(text)
             })
             displayText: currentIndex < 0 ? i18n("Choose a car…") : currentText
             onActivated: (index) => page.pickCar(page.cars[index])
