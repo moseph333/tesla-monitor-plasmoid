@@ -69,6 +69,15 @@ class PureTests(unittest.TestCase):
         with self.assertRaisesRegex(login.LoginError, "no sign-in code"):
             login.parse_callback("?state=st", "st")
 
+    def test_ends_sign_in_only_for_this_state_or_a_refusal(self):
+        self.assertTrue(login.ends_sign_in({"state": "st", "code": "abc"}, "st"))
+        self.assertTrue(login.ends_sign_in({"state": "st", "error": "access_denied"}, "st"))
+        self.assertTrue(login.ends_sign_in({"error": "access_denied"}, "st"))
+        self.assertFalse(login.ends_sign_in({"state": "old", "code": "abc"}, "st"))
+        self.assertFalse(login.ends_sign_in({"state": "old", "error": "access_denied"}, "st"))
+        self.assertFalse(login.ends_sign_in({"code": "abc"}, "st"))
+        self.assertFalse(login.ends_sign_in({}, "st"))
+
     def test_printable_drops_terminal_control_characters(self):
         self.assertEqual(login.printable("bad\x1b[2J\x1b]0;title\x07thing\r\n"), "bad [2J ]0;title thing")
         self.assertEqual(login.printable("Blue Thunder"), "Blue Thunder")
@@ -210,6 +219,20 @@ class EndToEndTests(unittest.TestCase):
         base = self.start_fake()
         proc, url = self.start_login(base, "--no-browser")
         # The browser's part: the fake signs in at once and redirects to the helper.
+        with DIRECT.open(url, timeout=10) as page:
+            self.assertIn("Signed in", page.read().decode())
+        self.check_signed_in(proc, base)
+
+    def test_login_turns_away_a_reply_from_another_sign_in(self):
+        base = self.start_fake()
+        proc, url = self.start_login(base, "--no-browser")
+        redirect = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(url).query))["redirect_uri"]
+        # Such as a tab from an earlier sign-in reloaded: refused, and the sign-in still waits.
+        with self.assertRaises(urllib.error.HTTPError) as stale:
+            DIRECT.open(redirect + "?code=old&state=old", timeout=10)
+        self.assertEqual(stale.exception.code, 400)
+        self.assertEqual(stale.exception.headers["Cache-Control"], "no-store")
+        self.assertIsNone(proc.poll())
         with DIRECT.open(url, timeout=10) as page:
             self.assertIn("Signed in", page.read().decode())
         self.check_signed_in(proc, base)
