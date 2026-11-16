@@ -12,13 +12,18 @@
 const MQTT = 0;
 const FLEET = 1;
 const TESLAMATE_API = 2;
+const TESLEMETRY = 3;
 
 const SOURCES = [
     { id: MQTT, key: "mqtt", kind: "mqtt", name: "TeslaMate", cloud: false, sleepAware: false, geofences: true },
     { id: FLEET, key: "fleet", kind: "fleet", name: "Tesla Fleet API", cloud: true, sleepAware: true,
       geofences: false },
     { id: TESLAMATE_API, key: "teslamateApi", kind: "rest", name: "TeslaMate API", cloud: false, sleepAware: false,
-      geofences: true }
+      geofences: true },
+    // Whether Teslemetry's cache ever reaches a sleeping car isn't documented, so it is
+    // polled as carefully as the Fleet API.
+    { id: TESLEMETRY, key: "teslemetry", kind: "fleet", name: "Teslemetry", cloud: true, sleepAware: true,
+      geofences: false }
 ];
 
 // The source for a dataSource value. An unknown value reads as TeslaMate over MQTT, the

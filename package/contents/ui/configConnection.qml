@@ -24,6 +24,8 @@ KCM.SimpleKCM {
     property alias cfg_apiIdleRefreshSeconds: apiIdleRefreshSeconds.value
     // Not shown. Unknown (0) once a new access token is typed in; known after a renewal.
     property real cfg_apiTokenExpiry: 0
+    property alias cfg_teslemetryToken: teslemetryToken.text
+    property alias cfg_teslemetryVin: teslemetryVin.text
     property alias cfg_teslamateApiUrl: teslamateApiUrl.text
     property alias cfg_teslamateApiToken: teslamateApiToken.text
     property alias cfg_teslamateApiCarId: teslamateApiCarId.value
@@ -50,8 +52,10 @@ KCM.SimpleKCM {
     readonly property bool canCheck: {
         if (checking) return false
         switch (source.kind) {
-        case "fleet":
-            return Api.baseUrl(apiRegion.currentIndex, apiBaseUrl.text) !== "" && apiAccessToken.text.trim() !== ""
+        case "fleet": {
+            const o = fleetOptions()
+            return Api.baseUrl(o.region, o.customUrl) !== "" && o.accessToken.trim() !== ""
+        }
         case "rest":
             return restFetch.canRun(restOptions("cars"))
         default:
@@ -121,22 +125,31 @@ KCM.SimpleKCM {
     // Test Connection asks for the car's summary, which never wakes it; Find Cars for the
     // account's cars.
     function runApiCheck(kind) {
-        if (kind === "test" && Api.cleanVin(apiVin.text) === "") {
+        const options = fleetOptions()
+        if (kind === "test" && Api.cleanVin(options.vin) === "") {
             showResult(Kirigami.MessageType.Error, i18n("Enter the car's VIN, or use Find Cars."))
             return
         }
-        const started = apiFetch.run({
-            region: apiRegion.currentIndex,
-            customUrl: apiBaseUrl.text,
-            accessToken: apiAccessToken.text,
-            refreshToken: apiRefreshToken.text,
-            clientId: apiClientId.text,
-            authUrl: apiAuthUrl.text,
-            tokenExpiry: page.cfg_apiTokenExpiry,
-            vin: apiVin.text,
-            request: kind === "find" ? "vehicles" : "summary"
+        const started = apiFetch.run(Object.assign(options, { request: kind === "find" ? "vehicles" : "summary" }))
+        if (!started) showResult(Kirigami.MessageType.Error, source.key === "teslemetry"
+            ? i18n("Paste your Teslemetry access token.")
+            : i18n("Choose a region or enter the API's URL, and paste an access token."))
+    }
+
+    // The values on the page for TeslaApiFetch.run(), for the Fleet API or Teslemetry.
+    function fleetOptions() {
+        return Api.fleetOptions(source.key, {
+            apiRegion: apiRegion.currentIndex,
+            apiBaseUrl: apiBaseUrl.text,
+            apiAccessToken: apiAccessToken.text,
+            apiRefreshToken: apiRefreshToken.text,
+            apiClientId: apiClientId.text,
+            apiAuthUrl: apiAuthUrl.text,
+            apiTokenExpiry: page.cfg_apiTokenExpiry,
+            apiVin: apiVin.text,
+            teslemetryToken: teslemetryToken.text,
+            teslemetryVin: teslemetryVin.text
         })
-        if (!started) showResult(Kirigami.MessageType.Error, i18n("Choose a region or enter the API's URL, and paste an access token."))
     }
 
     // The values on the page for RestFetch.run(), asking for request.
@@ -197,7 +210,9 @@ KCM.SimpleKCM {
     // What the car picker shows to tell cars apart, and what choosing one sets.
     function carKey(car) {
         switch (source.key) {
-        case "fleet": return car.vin
+        case "fleet":
+        case "teslemetry":
+            return car.vin
         case "teslamateApi": return String(car.id)
         default: return car.prefix
         }
@@ -207,6 +222,9 @@ KCM.SimpleKCM {
         switch (source.key) {
         case "fleet":
             apiVin.text = car.vin
+            break
+        case "teslemetry":
+            teslemetryVin.text = car.vin
             break
         case "teslamateApi":
             teslamateApiCarId.value = car.id
@@ -242,7 +260,7 @@ KCM.SimpleKCM {
         cars = found
         if (found.length === 1) {
             // Set before showing the message, since editing the VIN hides it.
-            apiVin.text = found[0].vin
+            pickCar(found[0])
             showResult(Kirigami.MessageType.Positive, found[0].name
                 ? i18n("Found %1. VIN set to %2.", found[0].name, found[0].vin)
                 : i18n("Found a car. VIN set to %1.", found[0].vin))
@@ -298,7 +316,7 @@ KCM.SimpleKCM {
             id: dataSource
             Kirigami.FormData.label: i18n("Data source:")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            model: [i18n("TeslaMate (MQTT)"), i18n("Tesla Fleet API"), i18n("TeslaMate API")]
+            model: [i18n("TeslaMate (MQTT)"), i18n("Tesla Fleet API"), i18n("TeslaMate API"), i18n("Teslemetry")]
             onActivated: page.brokerEdited()
         }
 
@@ -306,10 +324,40 @@ KCM.SimpleKCM {
             text: {
                 switch (page.source.key) {
                 case "fleet": return i18n("Reads the car straight from Tesla, or from a service with the same API. Tesla bills each request, so the widget asks sparingly and lets the car sleep.")
+                case "teslemetry": return i18n("Reads the car from Teslemetry, a service that offers the Tesla Fleet API with its own token and keeps the car's data in a cache.")
                 case "teslamateApi": return i18n("Reads TeslaMate's values from TeslaMateApi, a small web service that runs next to TeslaMate, so this computer doesn't need mosquitto_sub or a way to the MQTT broker.")
                 default: return i18n("Reads the values TeslaMate publishes to an MQTT broker.")
                 }
             }
+        }
+
+        Kirigami.Separator {
+            visible: page.source.key === "teslemetry"
+            Kirigami.FormData.isSection: true
+            Kirigami.FormData.label: i18n("Teslemetry")
+        }
+
+        Kirigami.PasswordField {
+            id: teslemetryToken
+            visible: page.source.key === "teslemetry"
+            Kirigami.FormData.label: i18n("Access token:")
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            onTextChanged: page.brokerEdited()
+        }
+
+        QQC2.TextField {
+            id: teslemetryVin
+            visible: page.source.key === "teslemetry"
+            Kirigami.FormData.label: i18n("VIN:")
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            inputMethodHints: Qt.ImhPreferUppercase | Qt.ImhNoPredictiveText
+            onTextChanged: page.formEdited()
+            onEditingFinished: if (text !== Api.cleanVin(text)) text = Api.cleanVin(text)
+        }
+
+        Hint {
+            visible: page.source.key === "teslemetry"
+            text: i18n("Make an access token in the Teslemetry console, at teslemetry.com, with access to the car's data. It doesn't expire, so there is nothing to renew. Teslemetry answers from its cache for free while the data is fresh, and charges credits when it has to ask the car. Find Cars fills in the VIN. The token is stored unencrypted in Plasma's configuration.")
         }
 
         Kirigami.Separator {
@@ -355,7 +403,7 @@ KCM.SimpleKCM {
         }
 
         Kirigami.Separator {
-            visible: page.fleet
+            visible: page.source.key === "fleet"
             Kirigami.FormData.isSection: true
             Kirigami.FormData.label: i18n("Tesla Fleet API")
         }
@@ -363,7 +411,7 @@ KCM.SimpleKCM {
         // In the order of Api.REGIONS, then a custom URL.
         QQC2.ComboBox {
             id: apiRegion
-            visible: page.fleet
+            visible: page.source.key === "fleet"
             Kirigami.FormData.label: i18n("Region:")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
             model: [
@@ -377,7 +425,7 @@ KCM.SimpleKCM {
 
         QQC2.TextField {
             id: apiBaseUrl
-            visible: page.fleet && apiRegion.currentIndex === 3
+            visible: page.source.key === "fleet" && apiRegion.currentIndex === 3
             Kirigami.FormData.label: i18n("URL:")
             placeholderText: i18nc("example web address", "https://api.example.com")
             inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoAutoUppercase
@@ -386,13 +434,13 @@ KCM.SimpleKCM {
         }
 
         Hint {
-            visible: page.fleet
+            visible: page.source.key === "fleet"
             text: i18n("The region your Tesla account belongs to. Choose Custom URL for a service that offers the Fleet API's URLs with its own token.")
         }
 
         Kirigami.PasswordField {
             id: apiAccessToken
-            visible: page.fleet
+            visible: page.source.key === "fleet"
             Kirigami.FormData.label: i18n("Access token:")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
             onTextChanged: {
@@ -403,7 +451,7 @@ KCM.SimpleKCM {
 
         Kirigami.PasswordField {
             id: apiRefreshToken
-            visible: page.fleet
+            visible: page.source.key === "fleet"
             Kirigami.FormData.label: i18n("Refresh token:")
             placeholderText: i18n("Optional")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
@@ -412,7 +460,7 @@ KCM.SimpleKCM {
 
         QQC2.TextField {
             id: apiClientId
-            visible: page.fleet
+            visible: page.source.key === "fleet"
             Kirigami.FormData.label: i18n("Client ID:")
             placeholderText: i18n("Optional")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
@@ -421,7 +469,7 @@ KCM.SimpleKCM {
 
         QQC2.TextField {
             id: apiAuthUrl
-            visible: page.fleet && apiRefreshToken.text.trim() !== ""
+            visible: page.source.key === "fleet" && apiRefreshToken.text.trim() !== ""
             Kirigami.FormData.label: i18n("Token server:")
             placeholderText: "https://fleet-auth.prd.vn.cloud.tesla.com"
             inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoAutoUppercase
@@ -430,13 +478,13 @@ KCM.SimpleKCM {
         }
 
         Hint {
-            visible: page.fleet
+            visible: page.source.key === "fleet"
             text: i18n("tools/tesla-login.py in the widget's source gets these for your own Fleet API app. Tesla's access tokens last 8 hours. With the refresh token and the app's client ID, the widget renews the access token itself and saves the new tokens. The token needs the vehicle_device_data scope. Tokens are stored unencrypted in Plasma's configuration.")
         }
 
         QQC2.TextField {
             id: apiVin
-            visible: page.fleet
+            visible: page.source.key === "fleet"
             Kirigami.FormData.label: i18n("VIN:")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
             inputMethodHints: Qt.ImhPreferUppercase | Qt.ImhNoPredictiveText

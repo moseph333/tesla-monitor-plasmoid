@@ -18,8 +18,7 @@ PlasmoidItem {
     readonly property bool configured: {
         switch (source.kind) {
         case "fleet":
-            return Api.baseUrl(cfg.apiRegion, cfg.apiBaseUrl) !== "" && cfg.apiAccessToken.trim() !== ""
-                && Api.cleanVin(cfg.apiVin) !== ""
+            return Api.fleetConfigured(Api.fleetOptions(source.key, cfg))
         case "rest":
             return restFetch.canRun(restOptions("data"))
         default:
@@ -235,21 +234,13 @@ PlasmoidItem {
         }
     }
 
-    // The API settings for TeslaApiFetch.run(), asking for request.
+    // The settings for TeslaApiFetch.run() (the Fleet API or Teslemetry), asking for request.
     function apiOptions(request) {
-        return {
-            region: cfg.apiRegion,
-            customUrl: cfg.apiBaseUrl,
-            accessToken: cfg.apiAccessToken,
-            refreshToken: cfg.apiRefreshToken,
-            clientId: cfg.apiClientId,
-            authUrl: cfg.apiAuthUrl,
-            tokenExpiry: cfg.apiTokenExpiry,
-            vin: cfg.apiVin,
+        return Object.assign(Api.fleetOptions(source.key, cfg), {
             // Only for navigation, which is opt-in: asking for it shows an icon in the car.
             withLocation: cfg.showNavigation,
             request: request
-        }
+        })
     }
 
     // The settings for RestFetch.run(), asking for request.
@@ -406,7 +397,7 @@ PlasmoidItem {
                                            "topicPrefix", "useTls", "caFile", "apiRegion", "apiBaseUrl",
                                            "apiVin", "apiAccessToken", "apiRefreshToken", "apiClientId",
                                            "apiAuthUrl", "teslamateApiUrl", "teslamateApiToken",
-                                           "teslamateApiCarId"]
+                                           "teslamateApiCarId", "teslemetryToken", "teslemetryVin"]
     property string connectionSeen: ""
     // True while the widget saves tokens it renewed, which isn't a change of settings.
     property bool savingTokens: false

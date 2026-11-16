@@ -39,6 +39,31 @@ test("baseUrl picks a region, or cleans up a custom URL", () => {
     assert.equal(Api.baseUrl(3, "  "), "");
 });
 
+test("fleetOptions reads the Fleet API's settings", () => {
+    const o = Api.fleetOptions("fleet", { apiRegion: 1, apiBaseUrl: "", apiAccessToken: " a ", apiRefreshToken: "r",
+                                          apiClientId: "c", apiAuthUrl: "", apiTokenExpiry: 5, apiVin: "vin",
+                                          teslemetryToken: "t", teslemetryVin: "tv" });
+    assert.deepEqual(o, { service: "fleet", region: 1, customUrl: "", accessToken: " a ", refreshToken: "r",
+                          clientId: "c", authUrl: "", tokenExpiry: 5, vin: "vin" });
+    assert.equal(Api.fleetConfigured(o), true);
+    assert.equal(Api.fleetConfigured(Object.assign({}, o, { accessToken: " " })), false);
+    assert.equal(Api.fleetConfigured(Object.assign({}, o, { vin: "" })), false);
+});
+
+test("fleetOptions gives Teslemetry its URL and nothing to renew", () => {
+    const o = Api.fleetOptions("teslemetry", { apiRegion: 0, apiAccessToken: "a", apiRefreshToken: "r",
+                                               apiClientId: "c", apiVin: "vin", teslemetryToken: "t",
+                                               teslemetryVin: "5yj3 e1ea" });
+    assert.equal(o.service, "teslemetry");
+    assert.equal(Api.baseUrl(o.region, o.customUrl), "https://api.teslemetry.com");
+    assert.equal(o.accessToken, "t");
+    assert.equal(o.refreshToken, "");
+    assert.equal(o.clientId, "");
+    assert.equal(Api.cleanVin(o.vin), "5YJ3E1EA");
+    assert.equal(Api.fleetConfigured(o), true);
+    assert.equal(Api.fleetConfigured(Api.fleetOptions("teslemetry", {})), false);
+});
+
 test("authUrl defaults to Tesla's token server", () => {
     assert.equal(Api.authUrl(""), "https://fleet-auth.prd.vn.cloud.tesla.com");
     assert.equal(Api.authUrl(" http://localhost:9/ "), "http://localhost:9");
@@ -363,6 +388,7 @@ test("apiError classifies HTTP results", () => {
     assert.deepEqual(Api.apiError(0, ""), { kind: "network", detail: "" });
     assert.deepEqual(Api.apiError(401, '{"error":"invalid bearer token"}'),
                      { kind: "auth", detail: "invalid bearer token" });
+    assert.equal(Api.apiError(402, "").kind, "payment");
     assert.equal(Api.apiError(403, "").kind, "forbidden");
     assert.equal(Api.apiError(404, "").kind, "notFound");
     assert.deepEqual(Api.apiError(408, '{"response":null,"error":"vehicle unavailable"}'),
