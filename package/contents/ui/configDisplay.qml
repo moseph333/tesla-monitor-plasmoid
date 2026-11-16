@@ -177,7 +177,7 @@ KCM.SimpleKCM {
         }
 
         Hint {
-            text: i18n("Click the car's name in the popup, or use the widget's context menu, to open it.")
+            text: i18n("Click the car's name in the popup, or use the widget's context menu, to open it. With Home Assistant, Teslemetry or Tessie as the data source, they open their own pages instead.")
         }
     }
 }

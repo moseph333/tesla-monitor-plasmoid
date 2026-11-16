@@ -81,8 +81,10 @@ PlasmoidItem {
     readonly property var usableCold: Logic.usableIfCold(car)
     // Not named "update": that would hide Item's update() method.
     readonly property var softwareUpdate: Logic.updateProgress(car)
-    // "" when unset, which hides the link and the context menu entry.
-    readonly property string teslamateUrl: Logic.normalizeUrl(cfg.teslamateUrl)
+    // The data source's web page, which the car's name and the context menu open: {url, name}.
+    readonly property var webLink: Sources.webLink(source, cfg)
+    // "" when there is none, which hides the link and the context menu entry.
+    readonly property string webUrl: Logic.normalizeUrl(webLink.url)
     // The car drawing's body color, or "" for theme colors (by setting, or unknown paint).
     readonly property string paint: cfg.carColor === 0 ? Logic.paintColor(car.exterior_color) : ""
     // Which model to draw: the setting's choice, or what TeslaMate reports.
@@ -173,9 +175,9 @@ PlasmoidItem {
     }
 
     // Closes the popup too, so it doesn't stay open behind the browser.
-    function openTeslaMate() {
-        if (!teslamateUrl) return
-        Qt.openUrlExternally(teslamateUrl)
+    function openWebPage() {
+        if (!webUrl) return
+        Qt.openUrlExternally(webUrl)
         expanded = false
     }
 
@@ -209,10 +211,10 @@ PlasmoidItem {
             onTriggered: root.refresh(true)
         },
         PlasmaCore.Action {
-            text: i18n("Open TeslaMate")
+            text: i18nc("open a web site such as TeslaMate", "Open %1", root.webLink.name)
             icon.name: "internet-web-browser"
-            visible: root.teslamateUrl !== ""
-            onTriggered: root.openTeslaMate()
+            visible: root.webUrl !== ""
+            onTriggered: root.openWebPage()
         }
     ]
 

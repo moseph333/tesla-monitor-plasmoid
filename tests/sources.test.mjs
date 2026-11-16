@@ -76,6 +76,17 @@ test("a cloud source never polls more than once a minute", () => {
     assert.deepEqual(S.refreshSeconds(S.byId(1), fast), { active: 60, idle: 60 });
 });
 
+test("webLink opens each source's own page", () => {
+    const c = { teslamateUrl: "teslamate.local:4000", haUrl: "http://ha.local:8123" };
+    assert.deepEqual(S.webLink(S.byId(0), c), { url: "teslamate.local:4000", name: "TeslaMate" });
+    assert.deepEqual(S.webLink(S.byId(1), c), { url: "", name: "" });
+    assert.deepEqual(S.webLink(S.byId(2), c), { url: "teslamate.local:4000", name: "TeslaMate" });
+    assert.equal(S.webLink(S.byId(3), c).name, "Teslemetry");
+    assert.equal(S.webLink(S.byId(4), c).url, "https://my.tessie.com");
+    assert.deepEqual(S.webLink(S.byId(5), c), { url: "http://ha.local:8123", name: "Home Assistant" });
+    assert.deepEqual(S.webLink(S.byId(0), {}), { url: "", name: "TeslaMate" });
+});
+
 test("popupRefreshMs is a minute for a cloud source", () => {
     assert.equal(S.popupRefreshMs(S.byId(0)), 5000);
     assert.equal(S.popupRefreshMs(S.byId(1)), 60000);

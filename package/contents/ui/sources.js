@@ -39,6 +39,26 @@ function byId(id) {
     return SOURCES[Math.round(Number(id))] || SOURCES[MQTT];
 }
 
+// The web page the car's name opens, as {url, name}: TeslaMate's address from the Display
+// settings for the TeslaMate sources, Home Assistant's own address, or the service's site.
+// The Fleet API has no page of its own, so its url is "". The url is as typed; main.qml
+// normalizes it.
+function webLink(source, cfg) {
+    switch (source.key) {
+    case "mqtt":
+    case "teslamateApi":
+        return { url: String(cfg.teslamateUrl || ""), name: "TeslaMate" };
+    case "homeAssistant":
+        return { url: String(cfg.haUrl || ""), name: "Home Assistant" };
+    case "tessie":
+        return { url: "https://my.tessie.com", name: "Tessie" };
+    case "teslemetry":
+        return { url: "https://teslemetry.com/console", name: "Teslemetry" };
+    default:
+        return { url: "", name: "" };
+    }
+}
+
 // The poll rates for a source in seconds, as {active, idle}. Cloud sources have their own
 // settings, in minutes on the settings page, and never poll more than once a minute.
 function refreshSeconds(source, cfg) {
