@@ -736,6 +736,45 @@ function keyringResult(code, stdout, stderr) {
     return result("error", "", message || String(code));
 }
 
+// The settings that hold the online services' tokens. They're kept together, as one
+// secret in the wallet.
+function tokenSettings() {
+    return ["apiAccessToken", "apiRefreshToken", "teslemetryToken", "tessieToken", "teslamateApiToken", "haToken"];
+}
+
+// Several secrets as one text for the wallet: the non-empty ones of values under their
+// keys, in the order of keys, so the same values always give the same text. "" if all are
+// empty.
+function packSecrets(values, keys) {
+    const packed = {};
+    let any = false;
+    for (const key of keys) {
+        const value = String((values || {})[key] || "").trim();
+        if (!value) continue;
+        packed[key] = value;
+        any = true;
+    }
+    return any ? JSON.stringify(packed) : "";
+}
+
+// packSecrets()'s text back as {key: value} for every one of keys, "" for a missing one,
+// or null if it isn't such a text.
+function unpackSecrets(text, keys) {
+    let json;
+    try {
+        json = JSON.parse(text);
+    } catch (e) {
+        return null;
+    }
+    if (!json || typeof json !== "object" || Array.isArray(json)) return null;
+    const values = {};
+    for (const key of keys) {
+        if (json[key] !== undefined && typeof json[key] !== "string") return null;
+        values[key] = json[key] || "";
+    }
+    return values;
+}
+
 // Runs a mosquitto_sub command with the password from the wallet, off every command line:
 // the shell reads it into a variable, and printf pipes it into mosquitto_sub's default
 // options file ($XDG_CONFIG_HOME/mosquitto_sub, read since mosquitto 1.4), which is a link

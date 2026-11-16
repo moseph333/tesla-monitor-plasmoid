@@ -18,12 +18,16 @@ a security advisory with credit to you, unless you'd rather stay anonymous.
 These are known and documented, so they aren't treated as vulnerabilities:
 
 - Without `secret-tool` or a Secret Service such as KWallet, Plasma stores the broker
-  password in plain text in `~/.config/plasma-org.kde.plasma.desktop-appletsrc`, and the
+  password and the data sources' tokens in plain text in `~/.config/plasma-org.kde.plasma.desktop-appletsrc`, and the
   widget passes it to `mosquitto_sub` on the command line, where other users on the same
   machine can see it in the process list.
 - With a wallet, the password is still on a command line briefly: while a new one is
   saved, and while Test Connection or Find Cars tries one that hasn't been applied. One
   longer than 1000 bytes is on `mosquitto_sub`'s command line at every poll.
+- The tokens are on a command line briefly while they're saved in the wallet: when new
+  ones are applied, and when the widget renews the Fleet API's, about every 8 hours. If
+  the wallet refuses renewed tokens, they're saved in plain text instead, so they aren't
+  lost.
 - Removing the widget leaves its secrets in the wallet.
 
 Use a broker account that can only read TeslaMate's topics, and deny it the car's

@@ -1400,6 +1400,31 @@ test("keyringResult sorts secret-tool's exits", () => {
     assert.deepEqual(L.keyringResult(2, "", ""), { status: "error", value: "", detail: "2" });
 });
 
+test("packSecrets keeps the non-empty secrets, in the order given, the same way every time", () => {
+    const keys = ["a", "b", "c"];
+    assert.equal(L.packSecrets({ c: "3", a: " 1\n" }, keys), '{"a":"1","c":"3"}');
+    assert.equal(L.packSecrets({ a: "1", b: "", c: "3", d: "4" }, keys), '{"a":"1","c":"3"}');
+    assert.equal(L.packSecrets({ a: "", b: "  " }, keys), "");
+    assert.equal(L.packSecrets(undefined, keys), "");
+});
+
+test("unpackSecrets reads packSecrets' text back, with every key, and nothing else", () => {
+    const keys = ["a", "b"];
+    assert.deepEqual(L.unpackSecrets(L.packSecrets({ a: 'it"s' }, keys), keys), { a: 'it"s', b: "" });
+    assert.deepEqual(L.unpackSecrets('{"b":"2","a":"1","x":3}', keys), { a: "1", b: "2" });
+    assert.equal(L.unpackSecrets("", keys), null);
+    assert.equal(L.unpackSecrets("a plain password", keys), null);
+    assert.equal(L.unpackSecrets("null", keys), null);
+    assert.equal(L.unpackSecrets('["a"]', keys), null);
+    assert.equal(L.unpackSecrets('{"a":1}', keys), null);
+});
+
+test("tokenSettings names every token setting in the schema", () => {
+    const schema = readFileSync(new URL("../package/contents/config/main.xml", import.meta.url), "utf8");
+    const tokens = [...schema.matchAll(/<entry name="(\w*Token)"/g)].map(m => m[1]).sort();
+    assert.deepEqual([...L.tokenSettings()].sort(), tokens);
+});
+
 test("newKeyringId is short, plain and changes with the time and the random number", () => {
     const id = L.newKeyringId(1763251200000, 0.5);
     assert.match(id, /^[0-9a-z]+-[0-9a-z]+$/);

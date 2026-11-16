@@ -18,7 +18,7 @@ PlasmoidItem {
     readonly property bool configured: {
         switch (source.kind) {
         case "fleet":
-            return Api.fleetConfigured(Api.fleetOptions(source.key, cfg))
+            return Api.fleetConfigured(Api.fleetOptions(source.key, settingsView()))
         case "rest":
             return restFetch.canRun(restOptions("data"))
         default:
@@ -246,7 +246,7 @@ PlasmoidItem {
 
     // The settings for TeslaApiFetch.run() (the Fleet API or Teslemetry), asking for request.
     function apiOptions(request) {
-        return Object.assign(Api.fleetOptions(source.key, cfg), {
+        return Object.assign(Api.fleetOptions(source.key, settingsView()), {
             // Only for navigation, which is opt-in: asking for it shows an icon in the car.
             withLocation: cfg.showNavigation,
             request: request
@@ -255,14 +255,15 @@ PlasmoidItem {
 
     // The settings for RestFetch.run(), asking for request.
     function restOptions(request) {
+        const settings = settingsView()
         switch (source.key) {
         case "teslamateApi":
-            return { source: source, url: cfg.teslamateApiUrl, token: cfg.teslamateApiToken,
+            return { source: source, url: cfg.teslamateApiUrl, token: settings.teslamateApiToken,
                      car: cfg.teslamateApiCarId, request: request }
         case "tessie":
-            return { source: source, url: "", token: cfg.tessieToken, car: cfg.tessieVin, request: request }
+            return { source: source, url: "", token: settings.tessieToken, car: cfg.tessieVin, request: request }
         case "homeAssistant":
-            return { source: source, url: cfg.haUrl, token: cfg.haToken, car: cfg.haPrefix, request: request }
+            return { source: source, url: cfg.haUrl, token: settings.haToken, car: cfg.haPrefix, request: request }
         }
         return { source: source, url: "", token: "", car: "", request: request }
     }
@@ -272,6 +273,46 @@ PlasmoidItem {
     property var apiPlan: null
     property bool apiSuspended: false
 
+    // The online services' tokens, keyed by setting (Logic.tokenSettings()): from the
+    // wallet, or from the settings without one. null until they're known.
+    property var tokens: null
+    property bool tokensLoading: false
+
+    readonly property Keyring keyring: Keyring {}
+    readonly property string tokensLabel: i18nc("@label name of the entry in the wallet", "Tesla Monitor tokens")
+
+    // cfg as a plain object, with the tokens in place of the settings' own. Until the wallet
+    // has been read, the tokens in it count as there, so the widget counts as set up.
+    function settingsView() {
+        const settings = {}
+        for (const key of cfg.keys()) settings[key] = cfg[key]
+        for (const key of Logic.tokenSettings())
+            settings[key] = tokens ? tokens[key] : cfg.tokensKeyringId ? "-" : cfg[key]
+        return settings
+    }
+
+    // Reads the tokens from the wallet, then polls.
+    function loadTokens() {
+        const id = cfg.tokensKeyringId
+        tokensLoading = true
+        keyring.lookup(id, result => {
+            if (id !== cfg.tokensKeyringId) return
+            tokensLoading = false
+            const read = result.status === "ok" ? Logic.unpackSecrets(result.value, Logic.tokenSettings()) : null
+            if (!read) {
+                keyringFailed(result.status === "missing"
+                    ? i18n("secret-tool isn't installed, so the tokens can't be read from the wallet. Install libsecret-tools on Debian and Ubuntu, or libsecret on Fedora and Arch.")
+                    : result.detail
+                    ? i18n("Couldn't get the tokens from the wallet: %1", result.detail)
+                    : i18n("Couldn't get the tokens from the wallet. Open the wallet and refresh, or enter the token again in the settings."))
+                return
+            }
+            keyringRetry = false
+            tokens = read
+            refresh(false)
+        })
+    }
+
     // manual shows a spinner until the result arrives. If a poll is already running, its
     // result is used.
     function refresh(manual) {
@@ -279,6 +320,16 @@ PlasmoidItem {
         if (manual) {
             userRefreshing = true
             keyringPaused = false
+        }
+        if (source.kind !== "mqtt" && !tokens) {
+            if (tokensLoading) return
+            if (cfg.tokensKeyringId) {
+                loadTokens()
+                return
+            }
+            const plain = {}
+            for (const key of Logic.tokenSettings()) plain[key] = cfg[key]
+            tokens = plain
         }
         if (source.kind === "fleet") {
             if (apiFetch.busy) return
@@ -373,16 +424,37 @@ PlasmoidItem {
         onFinished: (result, err) => root.applyApiResult(result, err)
         // Renewing invalidates the old tokens, so the new ones are saved at once, without
         // counting as a change of settings that discards the data.
-        onTokensRenewed: (access, refresh, expiresAt) => {
-            root.savingTokens = true
-            Plasmoid.configuration.apiAccessToken = access
-            Plasmoid.configuration.apiRefreshToken = refresh
-            Plasmoid.configuration.apiTokenExpiry = expiresAt
-            // Saved now rather than when Plasma next saves, if this Plasma can.
-            if (typeof Plasmoid.configuration.writeConfig === "function") Plasmoid.configuration.writeConfig()
-            root.savingTokens = false
-            root.connectionSeen = root.connectionNow()
+        onTokensRenewed: (access, refresh, expiresAt) => root.saveTokens(access, refresh, expiresAt)
+    }
+
+    // Saves renewed Fleet API tokens: in the wallet, in place, or in the settings without
+    // one. Renewing invalidates the old tokens, so if the wallet refuses the new ones, all
+    // the tokens go in the settings rather than be lost.
+    function saveTokens(access, refresh, expiresAt) {
+        tokens = Object.assign({}, tokens, { apiAccessToken: access, apiRefreshToken: refresh })
+        const id = cfg.tokensKeyringId
+        if (!id) {
+            writeSecretSettings({ apiAccessToken: access, apiRefreshToken: refresh, apiTokenExpiry: expiresAt })
+            return
         }
+        const saved = tokens
+        writeSecretSettings({ apiTokenExpiry: expiresAt })
+        keyring.store(id, tokensLabel, Logic.packSecrets(saved, Logic.tokenSettings()), "", result => {
+            if (result.status === "ok" || id !== cfg.tokensKeyringId) return
+            writeSecretSettings(Object.assign({ tokensKeyringId: "" }, saved))
+            keyring.clear(id)
+        })
+    }
+
+    // Writes settings the widget changes itself, which don't count as a change of settings
+    // that discards the data.
+    function writeSecretSettings(values) {
+        savingSecrets = true
+        for (const key in values) Plasmoid.configuration[key] = values[key]
+        // Saved now rather than when Plasma next saves, if this Plasma can.
+        if (typeof Plasmoid.configuration.writeConfig === "function") Plasmoid.configuration.writeConfig()
+        savingSecrets = false
+        connectionSeen = connectionNow()
     }
 
     RestFetch {
@@ -438,10 +510,11 @@ PlasmoidItem {
                                            "apiVin", "apiAccessToken", "apiRefreshToken", "apiClientId",
                                            "apiAuthUrl", "teslamateApiUrl", "teslamateApiToken",
                                            "teslamateApiCarId", "teslemetryToken", "teslemetryVin",
-                                           "tessieToken", "tessieVin", "haUrl", "haToken", "haPrefix"]
+                                           "tessieToken", "tessieVin", "haUrl", "haToken", "haPrefix",
+                                           "tokensKeyringId"]
     property string connectionSeen: ""
-    // True while the widget saves tokens it renewed, which isn't a change of settings.
-    property bool savingTokens: false
+    // True while writeSecretSettings() runs.
+    property bool savingSecrets: false
     function connectionNow() {
         return JSON.stringify(connectionKeys.map(key => cfg[key]))
     }
@@ -454,7 +527,7 @@ PlasmoidItem {
         function onValueChanged(key) {
             if (!root.connectionKeys.includes(key)) return
             const now = root.connectionNow()
-            if (root.savingTokens) {
+            if (root.savingSecrets) {
                 root.connectionSeen = now
                 return
             }
@@ -474,6 +547,8 @@ PlasmoidItem {
             root.healthySeenAt = null
             root.userRefreshing = false
             root.apiPlan = null
+            root.tokens = null
+            root.tokensLoading = false
             root.keyringPaused = false
             root.keyringRetry = true
             keyringRetryTimer.stop()

@@ -101,6 +101,13 @@
         <entry name="keyringId" type="String">
             <default></default>
         </entry>
+        <!-- The id in the wallet of all the tokens (logic.js tokenSettings()), kept there
+             as one secret, or empty. The token settings hold them in plain text only
+             without a wallet. Tokens the settings page saves get a new id, so the widget
+             sees the change; tokens the widget renews replace the old ones in place. -->
+        <entry name="tokensKeyringId" type="String">
+            <default></default>
+        </entry>
         <entry name="useTls" type="Bool">
             <default>false</default>
         </entry>

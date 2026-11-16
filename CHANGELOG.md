@@ -9,10 +9,11 @@ All notable changes to Tesla Monitor are listed here. The format follows
 ### Security
 
 - The broker password is kept in the wallet, KWallet on Plasma or another Secret Service such as GNOME Keyring, through `secret-tool`, instead of in plain text in Plasma's settings. The widget hands it to `mosquitto_sub` through a pipe rather than on the command line, where other users of the computer could see it. Without `secret-tool` or a wallet, the password is kept as before, and the Connection page says so.
+- The tokens are kept in the wallet too: the Fleet API's access and refresh tokens, including the ones the widget renews, and the Teslemetry, Tessie, TeslaMate API and Home Assistant tokens. If the wallet refuses renewed tokens, they're kept in the settings instead, since the old ones no longer work.
 
 ### Added
 
-- When the wallet doesn't give the password, the widget stops polling until you press Refresh or open the popup, so a closed wallet doesn't ask to be opened at every poll. Right after the settings change it tries once more first.
+- When the wallet doesn't give the password or the tokens, the widget stops polling until you press Refresh or open the popup, so a closed wallet doesn't ask to be opened at every poll. Right after the settings change it tries once more first.
 
 ### Changed
 

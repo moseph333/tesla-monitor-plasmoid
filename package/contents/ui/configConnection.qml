@@ -17,23 +17,26 @@ KCM.SimpleKCM {
     property alias cfg_apiRegion: apiRegion.currentIndex
     property alias cfg_apiBaseUrl: apiBaseUrl.text
     property alias cfg_apiVin: apiVin.text
-    property alias cfg_apiAccessToken: apiAccessToken.text
-    property alias cfg_apiRefreshToken: apiRefreshToken.text
+    property string cfg_apiAccessToken
+    property string cfg_apiRefreshToken
     property alias cfg_apiClientId: apiClientId.text
     property alias cfg_apiAuthUrl: apiAuthUrl.text
     property alias cfg_apiRefreshSeconds: apiRefreshSeconds.value
     property alias cfg_apiIdleRefreshSeconds: apiIdleRefreshSeconds.value
     // Not shown. Unknown (0) once a new access token is typed in; known after a renewal.
     property real cfg_apiTokenExpiry: 0
-    property alias cfg_teslemetryToken: teslemetryToken.text
+    // The token settings aren't aliases either: like the password, where Apply saves them
+    // depends on the wallet, so updateTokens() works them out from the fields.
+    property string cfg_tokensKeyringId
+    property string cfg_teslemetryToken
     property alias cfg_teslemetryVin: teslemetryVin.text
     property alias cfg_haUrl: haUrl.text
-    property alias cfg_haToken: haToken.text
+    property string cfg_haToken
     property alias cfg_haPrefix: haPrefix.text
-    property alias cfg_tessieToken: tessieToken.text
+    property string cfg_tessieToken
     property alias cfg_tessieVin: tessieVin.text
     property alias cfg_teslamateApiUrl: teslamateApiUrl.text
-    property alias cfg_teslamateApiToken: teslamateApiToken.text
+    property string cfg_teslamateApiToken
     property alias cfg_teslamateApiCarId: teslamateApiCarId.value
     property alias cfg_brokerHost: brokerHost.text
     property alias cfg_brokerPort: brokerPort.value
@@ -76,18 +79,75 @@ KCM.SimpleKCM {
     property bool fillingTokens: false
 
     readonly property Keyring keyring: Keyring {
-        onAvailabilityChanged: page.updatePassword()
+        onAvailabilityChanged: {
+            page.updatePassword()
+            page.updateTokens()
+        }
     }
     readonly property KeyringSecret passwordSecret: KeyringSecret {
         keyring: page.keyring
         label: i18nc("@label name of the entry in the wallet", "Tesla Monitor MQTT password")
         onReverted: page.updatePassword()
     }
+    // All the tokens as one secret, Logic.packSecrets()'s text.
+    readonly property KeyringSecret tokenSecret: KeyringSecret {
+        keyring: page.keyring
+        label: i18nc("@label name of the entry in the wallet", "Tesla Monitor tokens")
+        onReverted: page.updateTokens()
+    }
 
     Component.onCompleted: {
         passwordSecret.load(cfg_keyringId, cfg_brokerPassword, value => brokerPassword.text = value)
         brokerPassword.text = cfg_keyringId ? "" : cfg_brokerPassword
-        if (!cfg_keyringId) keyring.probe()
+        const savedTokens = {}
+        for (const key of Logic.tokenSettings()) savedTokens[key] = page["cfg_" + key]
+        tokenSecret.load(cfg_tokensKeyringId, Logic.packSecrets(savedTokens, Logic.tokenSettings()), value => {
+            const read = Logic.unpackSecrets(value, Logic.tokenSettings())
+            if (read) {
+                page.fillTokens(read)
+            } else {
+                // Not tokens, so treated as unreadable: empty fields keep the entry.
+                tokenSecret.savedValue = ""
+                tokenSecret.unread = true
+            }
+        })
+        if (!cfg_tokensKeyringId) fillTokens(savedTokens)
+        if (!cfg_keyringId && !cfg_tokensKeyringId) keyring.probe()
+    }
+
+    // The token fields, keyed by setting.
+    function tokenFields() {
+        return {
+            apiAccessToken: apiAccessToken,
+            apiRefreshToken: apiRefreshToken,
+            teslemetryToken: teslemetryToken,
+            tessieToken: tessieToken,
+            teslamateApiToken: teslamateApiToken,
+            haToken: haToken
+        }
+    }
+
+    // Puts tokens in their fields without counting it as an edit.
+    function fillTokens(values) {
+        fillingTokens = true
+        const fields = tokenFields()
+        for (const key in values) if (fields[key]) fields[key].text = values[key]
+        fillingTokens = false
+        updateTokens()
+    }
+
+    function tokenValue() {
+        const fields = tokenFields()
+        const values = {}
+        for (const key in fields) values[key] = fields[key].text
+        return Logic.packSecrets(values, Logic.tokenSettings())
+    }
+
+    function updateTokens() {
+        const where = tokenSecret.target(tokenValue())
+        const fields = tokenFields()
+        cfg_tokensKeyringId = where.id
+        for (const key in fields) page["cfg_" + key] = where.plain ? fields[key].text : ""
     }
 
     // Sets the cfg_ values to what Apply would save, so Plasma enables Apply when there's
@@ -101,6 +161,30 @@ KCM.SimpleKCM {
     // Plasma calls this on Apply, before it saves the cfg_ values.
     function saveConfig() {
         passwordSecret.save(brokerPassword.text)
+        tokenSecret.save(tokenValue())
+    }
+
+    // What the page says about where the tokens go, or "".
+    function tokensMessage() {
+        if (tokenSecret.storeFailed)
+            return tokenSecret.storeError
+                ? i18n("Couldn't save the tokens in the wallet: %1. Press Apply to try again.", tokenSecret.storeError)
+                : i18n("Couldn't save the tokens in the wallet. Press Apply to try again.")
+        const install = i18n("Install libsecret-tools on Debian and Ubuntu, or libsecret on Fedora and Arch.")
+        const value = tokenValue()
+        if (tokenSecret.unread && value === "") {
+            if (keyring.availability === "missing")
+                return i18n("secret-tool isn't installed, so the tokens saved in the wallet can't be read.") + " " + install
+            if (keyring.availability === "unavailable")
+                return i18n("There's no wallet, so the saved tokens can't be read: %1", keyring.detail)
+            return i18n("The saved tokens couldn't be read from the wallet, which may be closed. Enter them again to replace them, or leave the fields empty to keep them.")
+        }
+        if (cfg_tokensKeyringId !== "" || value === "") return ""
+        if (keyring.availability === "missing")
+            return i18n("secret-tool isn't installed, so the tokens are saved in plain text in the widget's settings.") + " " + install
+        if (keyring.availability === "unavailable")
+            return i18n("There's no wallet, so the tokens are saved in plain text in the widget's settings: %1", keyring.detail)
+        return ""
     }
 
     // What the page says about where the password goes, or "".
@@ -458,7 +542,11 @@ KCM.SimpleKCM {
             visible: page.source.key === "teslemetry"
             Kirigami.FormData.label: i18n("Access token:")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            onTextChanged: page.brokerEdited()
+            enabled: !page.tokenSecret.reading
+            onTextChanged: {
+                page.brokerEdited()
+                page.updateTokens()
+            }
         }
 
         QQC2.TextField {
@@ -473,7 +561,7 @@ KCM.SimpleKCM {
 
         Hint {
             visible: page.source.key === "teslemetry"
-            text: i18n("Make an access token in the Teslemetry console, at teslemetry.com, with access to the car's data. It doesn't expire, so there is nothing to renew. Teslemetry answers from its cache for free while the data is fresh, and charges credits when it has to ask the car. Find Cars fills in the VIN. The token is stored unencrypted in Plasma's configuration.")
+            text: i18n("Make an access token in the Teslemetry console, at teslemetry.com, with access to the car's data. It doesn't expire, so there is nothing to renew. Teslemetry answers from its cache for free while the data is fresh, and charges credits when it has to ask the car. Find Cars fills in the VIN.")
         }
 
         Kirigami.Separator {
@@ -497,7 +585,11 @@ KCM.SimpleKCM {
             visible: page.source.key === "homeAssistant"
             Kirigami.FormData.label: i18n("Access token:")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            onTextChanged: page.brokerEdited()
+            enabled: !page.tokenSecret.reading
+            onTextChanged: {
+                page.brokerEdited()
+                page.updateTokens()
+            }
         }
 
         QQC2.TextField {
@@ -513,7 +605,7 @@ KCM.SimpleKCM {
 
         Hint {
             visible: page.source.key === "homeAssistant"
-            text: i18n("Make a long-lived access token in your Home Assistant profile, under Security. The car is the start of its entity IDs, such as my_model_3 for sensor.my_model_3_battery_level; Find Cars lists them. The widget knows the entities by Home Assistant's English names, so renamed or translated entity IDs aren't found. The token is stored unencrypted in Plasma's configuration.")
+            text: i18n("Make a long-lived access token in your Home Assistant profile, under Security. The car is the start of its entity IDs, such as my_model_3 for sensor.my_model_3_battery_level; Find Cars lists them. The widget knows the entities by Home Assistant's English names, so renamed or translated entity IDs aren't found.")
         }
 
         Kirigami.Separator {
@@ -527,7 +619,11 @@ KCM.SimpleKCM {
             visible: page.source.key === "tessie"
             Kirigami.FormData.label: i18n("Access token:")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            onTextChanged: page.brokerEdited()
+            enabled: !page.tokenSecret.reading
+            onTextChanged: {
+                page.brokerEdited()
+                page.updateTokens()
+            }
         }
 
         QQC2.TextField {
@@ -542,7 +638,7 @@ KCM.SimpleKCM {
 
         Hint {
             visible: page.source.key === "tessie"
-            text: i18n("Make an access token in Tessie's dashboard, under Settings, API. Tessie doesn't charge for each request, so checking every minute costs nothing more. Find Cars fills in the VIN. The token is stored unencrypted in Plasma's configuration.")
+            text: i18n("Make an access token in Tessie's dashboard, under Settings, API. Tessie doesn't charge for each request, so checking every minute costs nothing more. Find Cars fills in the VIN.")
         }
 
         Kirigami.Separator {
@@ -567,7 +663,11 @@ KCM.SimpleKCM {
             Kirigami.FormData.label: i18n("Token:")
             placeholderText: i18n("Optional")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            onTextChanged: page.formEdited()
+            enabled: !page.tokenSecret.reading
+            onTextChanged: {
+                page.formEdited()
+                page.updateTokens()
+            }
         }
 
         QQC2.SpinBox {
@@ -584,7 +684,7 @@ KCM.SimpleKCM {
 
         Hint {
             visible: page.source.key === "teslamateApi"
-            text: i18n("TeslaMateApi listens on port 8080 and needs MQTT enabled. Reading the car needs no token; the token is TeslaMateApi's API_TOKEN, for a server that asks for it. The car ID is TeslaMate's, 1 for the first car; Find Cars lists them. The token is stored unencrypted in Plasma's configuration.")
+            text: i18n("TeslaMateApi listens on port 8080 and needs MQTT enabled. Reading the car needs no token; the token is TeslaMateApi's API_TOKEN, for a server that asks for it. The car ID is TeslaMate's, 1 for the first car; Find Cars lists them.")
         }
 
         Kirigami.Separator {
@@ -628,9 +728,11 @@ KCM.SimpleKCM {
             visible: page.source.key === "fleet"
             Kirigami.FormData.label: i18n("Access token:")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            enabled: !page.tokenSecret.reading
             onTextChanged: {
                 if (!page.fillingTokens) page.cfg_apiTokenExpiry = 0
                 page.brokerEdited()
+                page.updateTokens()
             }
         }
 
@@ -640,7 +742,11 @@ KCM.SimpleKCM {
             Kirigami.FormData.label: i18n("Refresh token:")
             placeholderText: i18n("Optional")
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-            onTextChanged: page.formEdited()
+            enabled: !page.tokenSecret.reading
+            onTextChanged: {
+                page.formEdited()
+                page.updateTokens()
+            }
         }
 
         QQC2.TextField {
@@ -664,7 +770,7 @@ KCM.SimpleKCM {
 
         Hint {
             visible: page.source.key === "fleet"
-            text: i18n("tools/tesla-login.py in the widget's source gets these for your own Fleet API app. Tesla's access tokens last 8 hours. With the refresh token and the app's client ID, the widget renews the access token itself and saves the new tokens. The token needs the vehicle_device_data scope. Tokens are stored unencrypted in Plasma's configuration.")
+            text: i18n("tools/tesla-login.py in the widget's source gets these for your own Fleet API app. Tesla's access tokens last 8 hours. With the refresh token and the app's client ID, the widget renews the access token itself and saves the new tokens. The token needs the vehicle_device_data scope.")
         }
 
         QQC2.TextField {
@@ -819,6 +925,21 @@ KCM.SimpleKCM {
         Hint {
             visible: page.mqtt
             text: i18n("If TeslaMate sets MQTT_NAMESPACE, use teslamate/<namespace>/cars/1.")
+        }
+
+        // Where the tokens go, for every source that has one.
+        Hint {
+            visible: !page.mqtt && page.cfg_tokensKeyringId !== "" && page.tokenValue() !== ""
+                     && !tokensNote.visible
+            text: i18n("The tokens are kept in the wallet, not in the widget's settings.")
+        }
+
+        Kirigami.InlineMessage {
+            id: tokensNote
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            visible: !page.mqtt && text !== ""
+            type: page.tokenSecret.storeFailed ? Kirigami.MessageType.Error : Kirigami.MessageType.Warning
+            text: page.tokensMessage()
         }
 
         RowLayout {
