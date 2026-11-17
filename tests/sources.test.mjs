@@ -43,6 +43,7 @@ test("byId knows Tessie, an online service that lets the car sleep", () => {
     assert.equal(S.byId(4).kind, "rest");
     assert.equal(S.byId(4).cloud, true);
     assert.equal(S.byId(4).sleepAware, false);
+    assert.equal(S.byId(4).geofences, true);
     assert.equal(S.popupRefreshMs(S.byId(4)), 60000);
 });
 

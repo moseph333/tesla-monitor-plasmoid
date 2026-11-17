@@ -4,6 +4,8 @@
 // it in the Tesla Fleet API's vehicle_data shape, without the "response" wrapper, so the
 // conversion is teslaapi.js fromVehicleData(), which RestFetch passes in. Tessie doesn't
 // bill each request and answers from its own copy, so asking doesn't keep the car awake.
+// After the state, RestFetch asks for the location, whose saved place name becomes
+// TeslaMate's geofence.
 
 const BASE_URL = "https://api.tessie.com";
 
@@ -22,6 +24,20 @@ function requestPath(request, vin) {
     if (request === "cars") return "/vehicles";
     const car = "/" + encodeURIComponent(cleanVin(vin));
     return request === "test" ? car + "/status" : car + "/state?use_cache=true";
+}
+
+// The path of the car's location, which names the saved location it's at.
+function locationPath(vin) {
+    return "/" + encodeURIComponent(cleanVin(vin)) + "/location";
+}
+
+// GET /{vin}/location as TeslaMate's geofence: the saved location's name, such as "Home",
+// or "" when the car isn't at one. null for a reply that isn't a location. Only the name is
+// kept, never the coordinates or the address.
+function geofenceFromLocation(json) {
+    if (!json || typeof json !== "object" || Array.isArray(json)) return null;
+    if (!("saved_location" in json) && !("latitude" in json)) return null;
+    return typeof json.saved_location === "string" ? json.saved_location.trim() : "";
 }
 
 // GET /{vin}/status as TeslaMate's state.

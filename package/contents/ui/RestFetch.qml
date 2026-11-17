@@ -79,9 +79,28 @@ QtObject {
             }
             const result = convert(json)
             if (result.error) done(id, null, result.error)
+            else if (result.kind === "data" && o.source.key === "tessie") addTessiePlace(id, where.base, o, result)
             else done(id, result, null)
         })
         return true
+    }
+
+    // Asks Tessie for the car's location, and adds the saved location it's at to the
+    // values as the geofence. If that fails, the values arrive without one.
+    function addTessiePlace(id, base, o, result) {
+        request(base + Tessie.locationPath(o.car), String(o.token || "").trim(), (status, body) => {
+            if (id !== serial) return
+            let place = null
+            if (!Rest.httpError(status, body).kind) {
+                try {
+                    place = Tessie.geofenceFromLocation(JSON.parse(body))
+                } catch (e) {
+                    place = null
+                }
+            }
+            if (place !== null) result.values.geofence = place
+            done(id, result, null)
+        })
     }
 
     function convert(json) {

@@ -25,7 +25,7 @@ The card on Plasma 6.8 with the data of `tools/fake-teslamate.sh`: a Model 3 abo
 
 The card shows:
 
-- The car's name, what it's doing, the TeslaMate geofence it's in and for how long, such as "Parked · Home · 3h". If you set TeslaMate's address in the settings, clicking the name opens TeslaMate in your browser
+- The car's name, what it's doing, the TeslaMate geofence, Home Assistant zone or Tessie saved location it's in and for how long, such as "Parked · Home · 3h". If you set TeslaMate's address in the settings, clicking the name opens TeslaMate in your browser
 - Battery level and range in a ring. A gap in the track marks the charge limit, and the track up to it is a shade stronger than beyond it. Where a gap can't show, with the level above the limit or a limit from 95%, a notch marks it instead. Below 10% the level turns red unless the car is charging. While charging, a bolt sits above the level and the stretch still to charge takes the ring's color and pulses slowly while the popup is open, and the card shows the power, the time left with when it'll be done, the energy added, current and voltage with the number of phases, and the current the car asks for when that's less than the charger offers. The Tesla Fleet API, Teslemetry, Tessie and Home Assistant also say how much range the charge adds per hour, and whether the car is on a Supercharger or another DC fast charger, where the card leaves out the current and voltage, which the car doesn't report there. Otherwise it says whether the car is plugged in, finished charging, stopped early, waiting for a scheduled start, or plugged into a charger that has no power, and gives the charge limit with about how far a charge to it goes
 - While driving, the power the battery gives, or takes back while regenerating. If you turn on navigation, also the destination, the time to arrival with any traffic delay, the distance left and the battery level on arrival
 - How much of the battery is usable while it's cold, and, with the Tesla Fleet API, Teslemetry, Tessie or Home Assistant, whether the car is heating it
@@ -158,7 +158,7 @@ The TeslaMate API and Home Assistant use the TeslaMate refresh settings, in seco
 | Right-hand drive | Off by default. TeslaMate names doors and windows by driver and passenger side, so turn this on if the steering wheel is on the right |
 | Car color | **The car's paint** by default: the drawing's body takes the color TeslaMate reports as `exterior_color`. **Theme colors** draws it in tints of your color scheme instead, which is also what you get when TeslaMate reports no paint or one the widget doesn't know |
 | Show the destination and arrival while driving | Off by default. While the car follows a route, the card shows the destination, the time to arrival with any traffic delay, the distance left and the battery level on arrival. Needs TeslaMate 1.29 or newer |
-| Unlocked is OK at | TeslaMate geofence names, or Home Assistant zone names, separated by commas, such as `Home, Work`. There an unlocked car isn't shown as a warning or notified, for a garage or home where you leave it unlocked on purpose |
+| Unlocked is OK at | TeslaMate geofence names, Home Assistant zone names or Tessie saved locations, separated by commas, such as `Home, Work`. There an unlocked car isn't shown as a warning or notified, for a garage or home where you leave it unlocked on purpose |
 | TeslaMate | TeslaMate's web address, such as `http://teslamate.local:4000`. Clicking the car's name in the popup, or **Open TeslaMate** in the widget's context menu, opens it in your browser. `http://` is added if you leave it out. With Home Assistant, Teslemetry or Tessie as the data source, they open Home Assistant, the Teslemetry console or Tessie's web app instead |
 
 **Notifications**
@@ -245,7 +245,7 @@ All of these read what another program already fetched from the car, so the widg
 
 ### Tessie
 
-[Tessie](https://tessie.com) keeps the car's latest data and serves it to the widget, which reads it every 5 minutes by default. Tessie doesn't charge for each request, so every minute costs nothing more, and asking never wakes the car or keeps it awake. While the car sleeps, the card keeps showing what Tessie last knew. Make an access token in Tessie's dashboard, under **Settings → API**. **Find Cars** fills in the VIN. Tessie has no geofences.
+[Tessie](https://tessie.com) keeps the car's latest data and serves it to the widget, which reads it every 5 minutes by default. Tessie doesn't charge for each request, so every minute costs nothing more, and asking never wakes the car or keeps it awake. While the car sleeps, the card keeps showing what Tessie last knew. Make an access token in Tessie's dashboard, under **Settings → API**. **Find Cars** fills in the VIN. Tessie's saved locations count as geofences: the card names the one the car is at, such as Home, and **Unlocked is OK at** takes their names. For that the widget asks Tessie where the car is after each update, and keeps only the place's name.
 
 ### Home Assistant
 
@@ -269,7 +269,7 @@ The widget sends a notification when:
 
 Notifications are only for changes. Nothing is sent for what's already the case when the widget starts, after you change the connection settings, or after a long break in the data, such as while the computer sleeps. Plasma shows them as System Notifications, and clicking one opens the widget. Copies of the widget that show the same car, such as one in the panel and one on the desktop, send each notification once.
 
-If you leave the car unlocked on purpose somewhere, such as in your garage at home, add that TeslaMate geofence or Home Assistant zone to **Unlocked is OK at** on the Display page. The widget then neither warns nor notifies there.
+If you leave the car unlocked on purpose somewhere, such as in your garage at home, add that TeslaMate geofence, Home Assistant zone or Tessie saved location to **Unlocked is OK at** on the Display page. The widget then neither warns nor notifies there.
 
 ## Security and privacy
 
@@ -282,6 +282,7 @@ With TeslaMate, the widget only reads from the MQTT broker. It never contacts th
 - Use a broker account that can only read TeslaMate's topics, wherever the password is kept.
 - The widget never uses the car's position (`latitude`, `longitude`, `location`, `heading`, `elevation`) or the older `active_route_*` topics, so the account can be denied those. It shows the navigation destination (`active_route`) only when **Show the destination and arrival while driving** is on, but it still receives that topic with everything else under the prefix, so deny it too if you don't use navigation.
 - Use TLS if the broker is reachable from outside your home network.
+- With Tessie, the widget asks for the car's location to name the saved location it's at. It keeps only that name: the coordinates and the address in Tessie's reply are dropped at once.
 - The tokens of every source, the Fleet API's access and refresh tokens and the Teslemetry, Tessie, TeslaMate API and Home Assistant tokens, are kept in the wallet too, all in one entry called "Tesla Monitor tokens". They're on a command line only while `secret-tool` saves them: when you apply new ones, and when the widget renews the Fleet API's, about every 8 hours. If the wallet refuses renewed tokens, the widget keeps the tokens in the settings in plain text rather than lose them, since the old ones no longer work.
 - The Fleet API's tokens are only sent in HTTPS headers: the widget refuses a custom URL or token server that uses plain HTTP, unless it's on this computer, such as a local proxy. Anyone with the tokens can read the car's data until they expire, or for as long as the refresh token works.
 - The other sources' tokens are only sent in their requests' headers too. Teslemetry's and Tessie's don't expire, so revoke one you no longer use. A Home Assistant token can do anything your Home Assistant user can, so make it for a user that isn't an administrator if you can, and use HTTPS if Home Assistant is reachable from outside your home network. The TeslaMate API and Home Assistant are often reached over plain HTTP at home, where the token travels unencrypted.
@@ -404,7 +405,7 @@ For the other sources, use `http://localhost:8765` as the address:
 
 - **TeslaMate API**: no token, car ID 1.
 - **Home Assistant**: any token, and `blue_thunder` as the car, or use **Find Cars**.
-- **Tessie**: its address can't be changed in the settings, so the fake server only helps to look at its replies, such as `curl -H 'Authorization: Bearer x' http://localhost:8765/5YJ3E1EA0KF000001/state`.
+- **Tessie**: its address can't be changed in the settings, so the fake server only helps to look at its replies, such as `curl -H 'Authorization: Bearer x' http://localhost:8765/5YJ3E1EA0KF000001/state` or `.../location`.
 - **Teslemetry**: the source always asks Teslemetry. Its replies are the Fleet API's, so try those with the **Tesla Fleet API** source.
 
 It also fakes Tesla's sign-in page, which signs in at once, and app registration, so `tools/tesla-login.py` can be tried against it. Its client secret is `fake-secret` (`--client-secret` changes it), and `--fail-register` makes registration fail. The URL options are hidden from `--help`, since only the fake server needs them:

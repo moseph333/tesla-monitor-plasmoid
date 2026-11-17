@@ -7,7 +7,7 @@
 //   kind        "mqtt" (MqttFetch), "fleet" (TeslaApiFetch) or "rest" (RestFetch)
 //   cloud       billed or rate-limited online service: polled in minutes, never under 1
 //   sleepAware  reaching the car keeps it awake, so polls follow teslaapi.js pollPlan()
-//   geofences   reports TeslaMate's geofence, which "Unlocked is OK at" needs
+//   geofences   reports a named place as TeslaMate's geofence, which "Unlocked is OK at" needs
 
 const MQTT = 0;
 const FLEET = 1;
@@ -27,7 +27,8 @@ const SOURCES = [
     { id: TESLEMETRY, key: "teslemetry", kind: "fleet", name: "Teslemetry", cloud: true, sleepAware: true,
       geofences: false },
     // Answers from its own copy of the car's state, so polling doesn't keep the car awake.
-    { id: TESSIE, key: "tessie", kind: "rest", name: "Tessie", cloud: true, sleepAware: false, geofences: false },
+    // Its saved locations are geofences.
+    { id: TESSIE, key: "tessie", kind: "rest", name: "Tessie", cloud: true, sleepAware: false, geofences: true },
     // Reads what Home Assistant's own Tesla integration already fetched; zones are geofences.
     { id: HOME_ASSISTANT, key: "homeAssistant", kind: "rest", name: "Home Assistant", cloud: false,
       sleepAware: false, geofences: true }

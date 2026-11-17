@@ -20,7 +20,7 @@ The same car is also served as the widget's other sources see it, so they can be
 the same way, with the address http://localhost:8765:
 
     TeslaMate API   /api/v1/cars and /api/v1/cars/1/status, without a token
-    Tessie          /vehicles, /<VIN>/state and /<VIN>/status, with any token
+    Tessie          /vehicles, /<VIN>/state, /<VIN>/status and /<VIN>/location, with any token
     Home Assistant  /api/ and /api/states, with any token; the car is blue_thunder
 
 (For Teslemetry, which serves the Fleet API's URLs, use the Fleet API source with
@@ -418,6 +418,10 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(200, car)
         elif path == "/" + VIN + "/status":
             self.reply(200, {"status": "asleep" if car["state"] in ("asleep", "offline") else "awake"})
+        elif path == "/" + VIN + "/location":
+            driving = car["drive_state"].get("shift_state") == "D"
+            self.reply(200, {"latitude": 52.52, "longitude": 13.405, "address": "1 Example Street",
+                             "saved_location": None if driving else "Home"})
         else:
             self.reply(404, {"error": "Vehicle not found"})
 

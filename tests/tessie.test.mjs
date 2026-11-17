@@ -28,6 +28,17 @@ test("requestPath reads the state from Tessie's cache", () => {
     assert.equal(T.requestPath("cars", ""), "/vehicles");
 });
 
+test("the location names the saved location the car is at, and nothing else", () => {
+    assert.equal(T.locationPath("5yj3 e1ea0kf000001"), "/5YJ3E1EA0KF000001/location");
+    const location = { latitude: 52.52, longitude: 13.405, address: "1 Main St", saved_location: " Home " };
+    assert.equal(T.geofenceFromLocation(location), "Home");
+    assert.equal(T.geofenceFromLocation({ ...location, saved_location: null }), "");
+    assert.equal(T.geofenceFromLocation({ latitude: 52.52, longitude: 13.405 }), "");
+    assert.equal(T.geofenceFromLocation({ error: "Vehicle not found" }), null);
+    assert.equal(T.geofenceFromLocation([]), null);
+    assert.equal(T.geofenceFromLocation(null), null);
+});
+
 test("convert reads Tessie's state like the Fleet API's vehicle_data", () => {
     const result = T.convert("data", fixture("tessie_state.json"), Api.fromVehicleData);
     const fleet = Api.fromVehicleData(fixture("vehicle_data_parked.json"));
