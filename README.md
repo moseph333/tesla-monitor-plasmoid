@@ -28,7 +28,7 @@ The card shows:
 - The car's name, what it's doing, the TeslaMate geofence it's in and for how long, such as "Parked · Home · 3h". If you set TeslaMate's address in the settings, clicking the name opens TeslaMate in your browser
 - Battery level and range in a ring. A gap in the track marks the charge limit, and the track up to it is a shade stronger than beyond it. Where a gap can't show, with the level above the limit or a limit from 95%, a notch marks it instead. Below 10% the level turns red unless the car is charging. While charging, a bolt sits above the level and the stretch still to charge takes the ring's color and pulses slowly while the popup is open, and the card shows the power, the time left with when it'll be done, the energy added, current and voltage with the number of phases, and the current the car asks for when that's less than the charger offers. The Tesla Fleet API, Teslemetry, Tessie and Home Assistant also say how much range the charge adds per hour, and whether the car is on a Supercharger or another DC fast charger, where the card leaves out the current and voltage, which the car doesn't report there. Otherwise it says whether the car is plugged in, finished charging, stopped early, waiting for a scheduled start, or plugged into a charger that has no power, and gives the charge limit with about how far a charge to it goes
 - While driving, the power the battery gives, or takes back while regenerating. If you turn on navigation, also the destination, the time to arrival with any traffic delay, the distance left and the battery level on arrival
-- How much of the battery is usable while it's cold
+- How much of the battery is usable while it's cold, and, with the Tesla Fleet API, Teslemetry, Tessie or Home Assistant, whether the car is heating it
 - Inside and outside temperature, climate and odometer
 - A top-down drawing of the car, as the model it is and in its own paint, lying on its side with its nose to the right so it fills the card, with each tire's pressure, each door and window, the trunk, frunk and charge port, the lock and Sentry. Open doors swing out, a Model X's rear doors lift like the wings they are, a hatchback's rear window opens with its trunk, anything open turns orange, a low tire turns red, the charge cable shows while plugged in, and a red lens on the windshield means Sentry is on. Hover over the car to see the same status as text. The paint is the one TeslaMate reports. When it reports none, or one the widget doesn't know, the car is drawn in tints of your color scheme, which you can also choose in the settings
 - One warning that lists everything that needs attention: open doors, windows, frunk, trunk, sunroof or charge port, the car unlocked with nobody inside, low tire pressure, service mode, and TeslaMate having trouble reaching the car. The popup is a little taller while it shows, so the car keeps its size. The panel icon's tooltip lists the same
@@ -398,7 +398,7 @@ Choose **Tesla Fleet API**, set the Region to **Custom URL** with `http://localh
 curl http://localhost:8765/_scenario/charging
 ```
 
-The scenarios are `parked`, `charging`, `supercharging`, `complete`, `driving`, `open`, `unlocked`, `update`, `asleep` and `offline`.
+The scenarios are `parked`, `charging`, `supercharging`, `complete`, `cold`, `driving`, `open`, `unlocked`, `update`, `asleep` and `offline`.
 
 For the other sources, use `http://localhost:8765` as the address:
 

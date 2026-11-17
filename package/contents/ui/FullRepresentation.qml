@@ -6,6 +6,8 @@ import org.kde.plasma.components as PlasmaComponents3
 import org.kde.plasma.extras as PlasmaExtras
 import org.kde.kirigami as Kirigami
 
+import "logic.js" as Logic
+
 // The widget as a card, in the popup or on the desktop: header, battery and activity,
 // anything needing attention, a strip of readings, the car from above, and a footer.
 // Without data it shows a placeholder instead.
@@ -134,7 +136,14 @@ Item {
                 animated: widget.popupOpen && !widget.stale
                 faded: content.dataOpacity < 1
                 subText: widget.fmtDistance(widget.rangeKm)
-                noteText: widget.usableCold !== null ? i18n("%1% usable", widget.usableCold) : ""
+                // How much of a cold battery is usable, and whether the car is heating it,
+                // for the sources that say.
+                noteText: {
+                    const usable = widget.usableCold !== null ? i18n("%1% usable", widget.usableCold) : ""
+                    if (!Logic.bool(widget.car, "battery_heater_on")) return usable
+                    return usable ? i18nc("a cold battery's usable level, and the heater on", "%1 · heating", usable)
+                                  : i18n("Heating battery")
+                }
             }
 
             CardDetails {

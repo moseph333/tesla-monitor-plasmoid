@@ -207,6 +207,7 @@ function fromStates(list, prefix, nowMs) {
 
     if (e["climate.climate"]) flag("is_climate_on", e["climate.climate"].state !== "off");
     flag("is_preconditioning", on("binary_sensor.preconditioning"));
+    flag("battery_heater_on", on("binary_sensor.battery_heater"));
     measure("inside_temp", e["sensor.inside_temperature"], toCelsius);
     measure("outside_temp", e["sensor.outside_temperature"], toCelsius);
 

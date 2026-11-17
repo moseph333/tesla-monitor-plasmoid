@@ -214,6 +214,16 @@ test("no fast charger, or the API's <invalid>, leaves the charger's kind out", (
     assert.equal(car.charge_rate_kmh, undefined);
 });
 
+test("the battery heater reads from the charge or the climate state", () => {
+    const heater = edit => Api.fromVehicleData(parked(edit)).battery_heater_on;
+    assert.equal(heater(r => { r.charge_state.battery_heater_on = true; }), "true");
+    assert.equal(heater(r => { r.climate_state.battery_heater = true; }), "true");
+    assert.equal(heater(r => { r.charge_state.battery_heater_on = false; r.climate_state.battery_heater = true; }), "true");
+    assert.equal(heater(r => { r.charge_state.battery_heater_on = true; r.climate_state.battery_heater = false; }), "true");
+    assert.equal(heater(r => { r.climate_state.battery_heater = false; }), "false");
+    assert.equal(heater(), undefined);
+});
+
 test("a scheduled charge's start time becomes ISO, so it reads as scheduled", () => {
     const car = Api.fromVehicleData(parked(r => {
         Object.assign(r.charge_state, {

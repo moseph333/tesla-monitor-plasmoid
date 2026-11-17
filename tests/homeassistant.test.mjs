@@ -202,6 +202,14 @@ test("fastCharger tells DC from AC by the type, and doesn't guess", () => {
     assert.equal(v.charge_rate_kmh, undefined);
 });
 
+test("fromStates reads the battery heater", () => {
+    assert.equal(H.fromStates(states({ "binary_sensor.blue_thunder_battery_heater": "on" }), "blue_thunder", NOW)
+        .battery_heater_on, "true");
+    assert.equal(H.fromStates(states({ "binary_sensor.blue_thunder_battery_heater": "off" }), "blue_thunder", NOW)
+        .battery_heater_on, "false");
+    assert.equal(H.fromStates(states(), "blue_thunder", NOW).battery_heater_on, undefined);
+});
+
 test("fromStates rebuilds TeslaMate's active_route in miles", () => {
     const v = H.fromStates(states({
         "sensor.blue_thunder_destination": "Office",

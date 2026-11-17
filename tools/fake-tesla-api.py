@@ -11,8 +11,8 @@ Switch scenarios while it runs:
 
     curl http://localhost:8765/_scenario/charging
 
-Scenarios: parked, charging, supercharging, complete, driving, open, unlocked, update, asleep,
-offline.
+Scenarios: parked, charging, supercharging, complete, cold, driving, open, unlocked, update,
+asleep, offline.
 With --expire-first, the first access token is refused once, so the widget has to renew.
 Only one token is valid at a time, as with Tesla: renewing invalidates the old ones.
 
@@ -64,6 +64,10 @@ def scenario(name, car):
                       charge_port_door_open=True, battery_level=45, charge_energy_added=21.3,
                       charge_rate=610, fast_charger_present=True, fast_charger_type="Supercharger",
                       fast_charger_brand="Tesla")
+    elif name == "cold":
+        # A cold battery holds charge back, and the car is heating it.
+        charge.update(usable_battery_level=65, battery_heater_on=True)
+        car["climate_state"].update(outside_temp=-8.0, inside_temp=2.5, battery_heater=True)
     elif name == "complete":
         charge.update(charging_state="Complete", battery_level=80, charge_port_door_open=True)
     elif name == "driving":
@@ -211,6 +215,7 @@ def home_assistant_states(car):
     add("lock", "lock", "Lock", "locked" if vs["locked"] else "unlocked")
     add("switch", "sentry_mode", "Sentry mode", on(vs["sentry_mode"]))
     add("binary_sensor", "user_present", "User present", on(vs["is_user_present"]))
+    add("binary_sensor", "battery_heater", "Battery heater", on(c.get("battery_heater_on")))
     add("cover", "frunk", "Frunk", "open" if vs["ft"] else "closed")
     add("cover", "trunk", "Trunk", "open" if vs["rt"] else "closed")
     for key, label, value in (("front_driver", "Front driver", vs["df"]), ("rear_driver", "Rear driver", vs["dr"]),

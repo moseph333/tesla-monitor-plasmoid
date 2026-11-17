@@ -9,6 +9,7 @@ All notable changes to Tesla Monitor are listed here. The format follows
 ### Added
 
 - While charging, the card says how much range the charge adds per hour, and whether the car is on a Supercharger or another DC fast charger, with the Tesla Fleet API, Teslemetry, Tessie and Home Assistant. On a DC charger it leaves out the current and voltage, which the car reports as about 0 A and a few volts there.
+- Under the battery ring, the card says when the car is heating the battery, with the same sources.
 
 ## [1.12.0] - 2026-11-16
 

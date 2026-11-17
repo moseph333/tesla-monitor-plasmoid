@@ -193,11 +193,15 @@ function fromVehicleData(json) {
                 out[key] = charge[key].trim();
         // The range the charge adds per hour, in mph like every distance here.
         if (finite(charge.charge_rate)) out.charge_rate_kmh = String(charge.charge_rate * KM_PER_MILE);
+        put("battery_heater_on", charge.battery_heater_on);
     }
 
     if (climate) {
         for (const key of ["inside_temp", "outside_temp", "is_climate_on", "is_preconditioning"])
             put(key, climate[key]);
+        // The battery heater shows up in either place, depending on the car.
+        if (climate.battery_heater === true) out.battery_heater_on = "true";
+        else if (climate.battery_heater === false && !out.battery_heater_on) out.battery_heater_on = "false";
     }
 
     if (drive) {
