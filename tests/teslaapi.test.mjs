@@ -181,6 +181,39 @@ test("a charging car reads as charging, with the charger's details", () => {
     assert.deepEqual(L.attention(car, []), []);
 });
 
+test("a DC fast charge keeps the charger's kind and the charge rate in km/h", () => {
+    const car = Api.fromVehicleData(parked(r => {
+        Object.assign(r.charge_state, {
+            charging_state: "Charging", charger_power: 150, charger_voltage: 2,
+            charger_actual_current: 0, fast_charger_present: true,
+            fast_charger_type: "Supercharger", fast_charger_brand: "Tesla", charge_rate: 500
+        });
+    }));
+    assert.equal(car.fast_charger_present, "true");
+    assert.equal(car.fast_charger_type, "Supercharger");
+    assert.equal(car.fast_charger_brand, "Tesla");
+    close(car.charge_rate_kmh, 500 * 1.609344);
+    assert.equal(L.chargerKind(car), "supercharger");
+});
+
+test("no fast charger, or the API's <invalid>, leaves the charger's kind out", () => {
+    const ac = Api.fromVehicleData(parked(r => {
+        Object.assign(r.charge_state, {
+            charging_state: "Charging", fast_charger_present: false,
+            fast_charger_type: "ACSingleWireCAN", fast_charger_brand: "<invalid>", charge_rate: 0
+        });
+    }));
+    assert.equal(ac.fast_charger_present, "false");
+    assert.equal(ac.fast_charger_type, "ACSingleWireCAN");
+    assert.equal(ac.fast_charger_brand, undefined);
+    assert.equal(ac.charge_rate_kmh, "0");
+    assert.equal(L.chargerKind(ac), "");
+    // The parked fixture has none of them.
+    const car = Api.fromVehicleData(parked());
+    assert.equal(car.fast_charger_present, undefined);
+    assert.equal(car.charge_rate_kmh, undefined);
+});
+
 test("a scheduled charge's start time becomes ISO, so it reads as scheduled", () => {
     const car = Api.fromVehicleData(parked(r => {
         Object.assign(r.charge_state, {

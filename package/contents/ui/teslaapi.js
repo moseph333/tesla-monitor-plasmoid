@@ -2,7 +2,8 @@
 
 // The Tesla Fleet API source. Its replies are turned into the same values TeslaMate
 // publishes over MQTT ({topic suffix: string}), so everything that reads root.car works
-// unchanged. Kept separate from logic.js, which stays about TeslaMate's values.
+// unchanged, plus a few the API has that TeslaMate doesn't publish, under the API's own
+// names. Kept separate from logic.js, which stays about TeslaMate's values.
 // Proxies that serve the same URLs (a custom base URL) work the same way.
 
 const MINUTE = 60 * 1000;
@@ -184,6 +185,14 @@ function fromVehicleData(json) {
         miles("rated_battery_range_km", charge.battery_range);
         miles("est_battery_range_km", charge.est_battery_range);
         miles("ideal_battery_range_km", charge.ideal_battery_range);
+        // A DC fast charger, and whose. Not TeslaMate topics. The API says "<invalid>" for
+        // none.
+        put("fast_charger_present", charge.fast_charger_present);
+        for (const key of ["fast_charger_type", "fast_charger_brand"])
+            if (typeof charge[key] === "string" && charge[key].trim() && charge[key] !== "<invalid>")
+                out[key] = charge[key].trim();
+        // The range the charge adds per hour, in mph like every distance here.
+        if (finite(charge.charge_rate)) out.charge_rate_kmh = String(charge.charge_rate * KM_PER_MILE);
     }
 
     if (climate) {

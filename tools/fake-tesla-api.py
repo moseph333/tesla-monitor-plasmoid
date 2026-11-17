@@ -11,7 +11,8 @@ Switch scenarios while it runs:
 
     curl http://localhost:8765/_scenario/charging
 
-Scenarios: parked, charging, complete, driving, open, unlocked, update, asleep, offline.
+Scenarios: parked, charging, supercharging, complete, driving, open, unlocked, update, asleep,
+offline.
 With --expire-first, the first access token is refused once, so the widget has to renew.
 Only one token is valid at a time, as with Tesla: renewing invalidates the old ones.
 
@@ -53,7 +54,16 @@ def scenario(name, car):
     if name == "charging":
         charge.update(charging_state="Charging", charger_power=11, charger_voltage=230,
                       charger_actual_current=16, charger_phases=3, time_to_full_charge=1.25,
-                      charge_port_door_open=True, battery_level=60)
+                      charge_port_door_open=True, battery_level=60, charge_rate=34,
+                      fast_charger_present=False, fast_charger_type="ACSingleWireCAN",
+                      fast_charger_brand="<invalid>")
+    elif name == "supercharging":
+        # On a DC charger the car reports about 0 A and a few volts.
+        charge.update(charging_state="Charging", charger_power=148, charger_voltage=2,
+                      charger_actual_current=0, charger_phases=None, time_to_full_charge=0.42,
+                      charge_port_door_open=True, battery_level=45, charge_energy_added=21.3,
+                      charge_rate=610, fast_charger_present=True, fast_charger_type="Supercharger",
+                      fast_charger_brand="Tesla")
     elif name == "complete":
         charge.update(charging_state="Complete", battery_level=80, charge_port_door_open=True)
     elif name == "driving":
@@ -184,6 +194,8 @@ def home_assistant_states(car):
     add("sensor", "charger_voltage", "Charger voltage", c["charger_voltage"] or 0, "V")
     add("sensor", "charger_current", "Charger current", c["charger_actual_current"] or 0, "A")
     add("sensor", "charge_energy_added", "Charge energy added", c["charge_energy_added"], "kWh")
+    add("sensor", "charge_rate", "Charge rate", c.get("charge_rate"), "mph")
+    add("sensor", "fast_charger_type", "Fast charger type", c.get("fast_charger_type"))
     full = c["time_to_full_charge"]
     add("sensor", "time_to_full_charge", "Time to full charge",
         time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(time.time() + full * 3600)) if full else None,

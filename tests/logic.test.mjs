@@ -344,6 +344,17 @@ test("showPhases hides one phase and incomplete or zero values", () => {
     assert.equal(L.showPhases(null), null);
 });
 
+test("chargerKind tells a Supercharger from another DC charger, and needs one present", () => {
+    assert.equal(L.chargerKind({ fast_charger_present: "true", fast_charger_brand: "Tesla" }), "supercharger");
+    assert.equal(L.chargerKind({ fast_charger_present: "true", fast_charger_type: "Supercharger" }), "supercharger");
+    assert.equal(L.chargerKind({ fast_charger_present: "true", fast_charger_type: "Combo" }), "dc");
+    assert.equal(L.chargerKind({ fast_charger_present: "true" }), "dc");
+    assert.equal(L.chargerKind({ fast_charger_present: "false", fast_charger_type: "Supercharger" }), "");
+    assert.equal(L.chargerKind({ fast_charger_type: "Supercharger" }), "");
+    assert.equal(L.chargerKind({}), "");
+    assert.equal(L.chargerKind(null), "");
+});
+
 // TeslaMate's own example payloads for active_route.
 const routing = JSON.stringify({
     destination: "Home", energy_at_arrival: 73, miles_to_arrival: 6.485299,

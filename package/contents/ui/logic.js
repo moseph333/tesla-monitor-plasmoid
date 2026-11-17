@@ -219,6 +219,15 @@ function showPhases(car) {
     return Math.round(kw * 1000 / (amps * volts)) === phases ? phases : null;
 }
 
+// What the car is charging from, for sources that say (TeslaMate doesn't): "supercharger",
+// "dc" for another DC fast charger, or "" for AC or unknown.
+function chargerKind(car) {
+    if (!bool(car, "fast_charger_present")) return "";
+    const type = String(car.fast_charger_type || "").toLowerCase();
+    const brand = String(car.fast_charger_brand || "").toLowerCase();
+    return brand.includes("tesla") || type.includes("supercharger") ? "supercharger" : "dc";
+}
+
 // The active route from TeslaMate's active_route JSON (1.29+), as {destination, minutes,
 // trafficMinutes, energyAtArrival, km}, or null. Missing numbers are null. With no route
 // TeslaMate publishes {"error": "No active route available"}.

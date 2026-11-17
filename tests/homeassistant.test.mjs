@@ -172,6 +172,36 @@ test("fromStates reads Teslemetry's sentry mode sensor", () => {
     assert.equal(H.fromStates(list, "blue_thunder", NOW).sentry_mode, "false");
 });
 
+test("fromStates reads a fast charger's type and the charge rate", () => {
+    const v = H.fromStates(states({
+        "sensor.blue_thunder_fast_charger_type": "Supercharger",
+        "sensor.blue_thunder_charge_rate": { state: "300", attributes: { unit_of_measurement: "mph" } }
+    }), "blue_thunder", NOW);
+    assert.equal(v.fast_charger_type, "Supercharger");
+    assert.equal(v.fast_charger_present, "true");
+    close(v.charge_rate_kmh, 300 * 1.609344);
+    assert.equal(L.chargerKind(v), "supercharger");
+    const metric = H.fromStates(states({
+        "sensor.blue_thunder_charge_rate": { state: "52", attributes: { unit_of_measurement: "km/h" } }
+    }), "blue_thunder", NOW);
+    assert.equal(metric.charge_rate_kmh, "52");
+});
+
+test("fastCharger tells DC from AC by the type, and doesn't guess", () => {
+    assert.equal(H.fastCharger("Supercharger"), true);
+    assert.equal(H.fastCharger("Combo"), true);
+    assert.equal(H.fastCharger("CHAdeMO"), true);
+    assert.equal(H.fastCharger("ACSingleWireCAN"), false);
+    assert.equal(H.fastCharger("<invalid>"), false);
+    assert.equal(H.fastCharger("MCSingleWireCAN"), null);
+    assert.equal(H.fastCharger(""), null);
+    // Without the entity (off by default), nothing is said.
+    const v = H.fromStates(states(), "blue_thunder", NOW);
+    assert.equal(v.fast_charger_present, undefined);
+    assert.equal(v.fast_charger_type, undefined);
+    assert.equal(v.charge_rate_kmh, undefined);
+});
+
 test("fromStates rebuilds TeslaMate's active_route in miles", () => {
     const v = H.fromStates(states({
         "sensor.blue_thunder_destination": "Office",

@@ -22,6 +22,8 @@ Column {
 
     // Regenerating, judged by the rounded kW shown, so "0 kW" never counts.
     readonly property bool regenerating: widget.power !== null && Math.round(widget.power) < 0
+    // "supercharger", "dc" or "", from sources that say.
+    readonly property string chargerKind: Logic.chargerKind(widget.car)
 
     // Breaks a line of " · "-separated parts between parts, never inside one, so no line
     // ends in a dot or splits "done by 4:00 PM". Lines fill from the last part backwards,
@@ -82,14 +84,28 @@ Column {
                      widget.clock(widget.lastUpdated.getTime() + widget.hoursToFull * 60 * 60 * 1000))
     }
 
-    // The energy added so far, and what the charger supplies.
+    // Under the charging figure: a DC fast charger's kind, and the range the charge adds per
+    // hour, for the sources that report them.
+    function chargeCaptionText() {
+        const parts = []
+        if (chargerKind === "supercharger") parts.push(i18n("Supercharger"))
+        else if (chargerKind === "dc") parts.push(i18n("DC fast charger"))
+        // "+610 mi/h" rather than mph, which would read as a speed.
+        const rate = Logic.distance(Logic.num(widget.car, "charge_rate_kmh"), widget.distUnit)
+        if (rate !== null && rate >= 0.5)
+            parts.push(i18nc("range a charge adds per hour: +610 mi/h", "+%1 %2/h", String(Math.round(rate)), widget.distUnit))
+        return parts.join(" · ")
+    }
+
+    // The energy added so far, and what the charger supplies. A DC charger's current and
+    // voltage are left out: the car reports about 0 A and a few volts for them.
     function chargeSupplyText() {
         const parts = []
         const added = Logic.num(widget.car, "charge_energy_added")
         if (added !== null) parts.push("+" + added.toLocaleString(Qt.locale(), "f", 1) + " kWh")
         const amps = Logic.num(widget.car, "charger_actual_current")
         const volts = Logic.num(widget.car, "charger_voltage")
-        if (amps !== null && volts !== null) {
+        if (amps !== null && volts !== null && chargerKind === "") {
             parts.push(amps + " A", volts + " V")
             const phases = Logic.showPhases(widget.car)
             // i18np() needs an integer for the plural form, and payload numbers are reals.
@@ -99,11 +115,11 @@ Column {
     }
 
     // Shown when the car requests less current than the charger offers, which explains a
-    // slow charge.
+    // slow charge. Not for a DC charger, which the request doesn't limit.
     function chargeRequestText() {
         const request = Logic.num(widget.car, "charge_current_request")
         const requestMax = Logic.num(widget.car, "charge_current_request_max")
-        return request !== null && requestMax !== null && request < requestMax
+        return chargerKind === "" && request !== null && requestMax !== null && request < requestMax
             ? i18n("Requested %1 of %2 A", request, requestMax) : ""
     }
 
@@ -172,11 +188,14 @@ Column {
     }
     PlasmaComponents3.Label {
         width: details.width
-        visible: !widget.charging && widget.driving && widget.power !== null
+        visible: text !== ""
         wrapMode: Text.Wrap
         font.pointSize: Kirigami.Theme.smallFont.pointSize
+        font.features: { "tnum": 1 }
         opacity: look.secondary
-        text: details.regenerating ? i18n("Regenerating") : i18n("Battery power")
+        text: widget.charging ? details.chargeCaptionText()
+            : widget.driving && widget.power !== null
+            ? (details.regenerating ? i18n("Regenerating") : i18n("Battery power")) : ""
     }
 
     // Space between the figure and the lines.

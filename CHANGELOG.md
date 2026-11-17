@@ -4,6 +4,12 @@ All notable changes to Tesla Monitor are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.13.0] - 2026-11-16
+
+### Added
+
+- While charging, the card says how much range the charge adds per hour, and whether the car is on a Supercharger or another DC fast charger, with the Tesla Fleet API, Teslemetry, Tessie and Home Assistant. On a DC charger it leaves out the current and voltage, which the car reports as about 0 A and a few volts there.
+
 ## [1.12.0] - 2026-11-16
 
 ### Security
@@ -190,6 +196,7 @@ All notable changes to Tesla Monitor are listed here. The format follows
 
 - First public version of the widget.
 
+[1.13.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.12.0...v1.13.0
 [1.12.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.11.1...v1.12.0
 [1.11.1]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.11.0...v1.11.1
 [1.11.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.10.0...v1.11.0

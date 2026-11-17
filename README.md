@@ -26,7 +26,7 @@ The card on Plasma 6.8 with the data of `tools/fake-teslamate.sh`: a Model 3 abo
 The card shows:
 
 - The car's name, what it's doing, the TeslaMate geofence it's in and for how long, such as "Parked · Home · 3h". If you set TeslaMate's address in the settings, clicking the name opens TeslaMate in your browser
-- Battery level and range in a ring. A gap in the track marks the charge limit, and the track up to it is a shade stronger than beyond it. Where a gap can't show, with the level above the limit or a limit from 95%, a notch marks it instead. Below 10% the level turns red unless the car is charging. While charging, a bolt sits above the level and the stretch still to charge takes the ring's color and pulses slowly while the popup is open, and the card shows the power, the time left with when it'll be done, the energy added, current and voltage with the number of phases, and the current the car asks for when that's less than the charger offers. Otherwise it says whether the car is plugged in, finished charging, stopped early, waiting for a scheduled start, or plugged into a charger that has no power, and gives the charge limit with about how far a charge to it goes
+- Battery level and range in a ring. A gap in the track marks the charge limit, and the track up to it is a shade stronger than beyond it. Where a gap can't show, with the level above the limit or a limit from 95%, a notch marks it instead. Below 10% the level turns red unless the car is charging. While charging, a bolt sits above the level and the stretch still to charge takes the ring's color and pulses slowly while the popup is open, and the card shows the power, the time left with when it'll be done, the energy added, current and voltage with the number of phases, and the current the car asks for when that's less than the charger offers. The Tesla Fleet API, Teslemetry, Tessie and Home Assistant also say how much range the charge adds per hour, and whether the car is on a Supercharger or another DC fast charger, where the card leaves out the current and voltage, which the car doesn't report there. Otherwise it says whether the car is plugged in, finished charging, stopped early, waiting for a scheduled start, or plugged into a charger that has no power, and gives the charge limit with about how far a charge to it goes
 - While driving, the power the battery gives, or takes back while regenerating. If you turn on navigation, also the destination, the time to arrival with any traffic delay, the distance left and the battery level on arrival
 - How much of the battery is usable while it's cold
 - Inside and outside temperature, climate and odometer
@@ -254,7 +254,7 @@ The widget reads the car from Home Assistant's REST API, as Home Assistant's own
 - Make a long-lived access token in your Home Assistant profile, under **Security**.
 - **Car** is the start of the car's entity IDs. Home Assistant names them after the car and the entity, such as `sensor.my_model_3_battery_level` for a car called My Model 3, so the car is `my_model_3`. **Find Cars** lists the cars it has.
 - The widget finds the entities by Home Assistant's English names. If Home Assistant runs in another language, it may have named them in that language when the car was added, and the widget won't find them. Renamed entities aren't found either. Rename them back to the English IDs, or use another source.
-- Entities Home Assistant turns off by default, such as Teslemetry's odometer and power, stay empty on the card until you turn them on.
+- Entities Home Assistant turns off by default, such as Teslemetry's odometer and power, or the fast charger type, stay empty on the card until you turn them on.
 - Each poll downloads the state of every entity in Home Assistant, so on a large installation you may want a longer refresh interval.
 - Home Assistant doesn't give the car's model or paint, so the car is drawn as the **Model** setting says, and in theme colors.
 
@@ -398,7 +398,7 @@ Choose **Tesla Fleet API**, set the Region to **Custom URL** with `http://localh
 curl http://localhost:8765/_scenario/charging
 ```
 
-The scenarios are `parked`, `charging`, `complete`, `driving`, `open`, `unlocked`, `update`, `asleep` and `offline`.
+The scenarios are `parked`, `charging`, `supercharging`, `complete`, `driving`, `open`, `unlocked`, `update`, `asleep` and `offline`.
 
 For the other sources, use `http://localhost:8765` as the address:
 
