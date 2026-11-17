@@ -12,7 +12,7 @@ Switch scenarios while it runs:
     curl http://localhost:8765/_scenario/charging
 
 Scenarios: parked, charging, supercharging, complete, cold, dogmode, driving, open, unlocked,
-update, asleep, offline.
+update, scheduled, installing, asleep, offline.
 With --expire-first, the first access token is refused once, so the widget has to renew.
 Only one token is valid at a time, as with Tesla: renewing invalidates the old ones.
 
@@ -84,6 +84,11 @@ def scenario(name, car):
         vs.update(locked=False)
     elif name == "update":
         vs["software_update"].update(status="available", version="2025.38.1")
+    elif name == "scheduled":
+        vs["software_update"].update(status="scheduled", version="2025.38.1",
+                                     scheduled_time_ms=int((time.time() + 2 * 3600) * 1000))
+    elif name == "installing":
+        vs["software_update"].update(status="installing", version="2025.38.1", install_perc=40)
     elif name in ("asleep", "offline"):
         return name
     return "online"

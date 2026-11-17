@@ -260,6 +260,13 @@ function fromVehicleData(json) {
             out.update_version = typeof update.version === "string" ? update.version.trim() : "";
             put("download_perc", update.download_perc);
             put("install_perc", update.install_perc);
+            // Not TeslaMate topics: how long installing takes, and when a scheduled
+            // installation starts (milliseconds since 1970).
+            if (finite(update.expected_duration_sec) && update.expected_duration_sec > 0)
+                out.update_duration_sec = String(update.expected_duration_sec);
+            const at = update.scheduled_time_ms;
+            out.update_scheduled_time = status === "scheduled" && finite(at) && at > 0
+                ? new Date(at).toISOString() : "";
         }
     }
     return out;

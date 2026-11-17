@@ -314,6 +314,28 @@ test("updateProgress is empty without an update", () => {
     assert.deepEqual(L.updateProgress(null), none);
 });
 
+test("updateSchedule gives a scheduled installation still to come", () => {
+    const now = Date.parse("2026-11-16T20:00:00Z");
+    const car = { update_available: "true", update_scheduled_time: "2026-11-17T02:00:00.000Z" };
+    assert.equal(L.updateSchedule(car, now), Date.parse("2026-11-17T02:00:00Z"));
+    assert.equal(L.updateSchedule(car, Date.parse("2026-11-17T02:00:00Z")), null);
+    assert.equal(L.updateSchedule({ ...car, update_available: "false" }, now), null);
+    assert.equal(L.updateSchedule({ update_available: "true", update_scheduled_time: "" }, now), null);
+    assert.equal(L.updateSchedule({ update_available: "true" }, now), null);
+    assert.equal(L.updateSchedule(null, now), null);
+});
+
+test("installMinutesLeft works out the rest of an installation from its length", () => {
+    const installing = { state: "updating", install_perc: "25", update_duration_sec: "2400" };
+    assert.equal(L.installMinutesLeft(installing), 30);
+    assert.equal(L.installMinutesLeft({ ...installing, install_perc: "100" }), 0);
+    // Unknown progress or length, or not installing.
+    assert.equal(L.installMinutesLeft({ ...installing, install_perc: "0" }), null);
+    assert.equal(L.installMinutesLeft({ ...installing, update_duration_sec: undefined }), null);
+    assert.equal(L.installMinutesLeft({ ...installing, state: "online", update_available: "true" }), null);
+    assert.equal(L.installMinutesLeft({}), null);
+});
+
 test("showPhases shows a multi-phase count that the power agrees with", () => {
     // 16 A at 230 V on three phases is 11 kW.
     const three = { charger_phases: "3", charger_actual_current: "16", charger_voltage: "230", charger_power: "11" };

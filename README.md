@@ -32,7 +32,7 @@ The card shows:
 - Inside and outside temperature, climate and odometer. With the Tesla Fleet API, Teslemetry, Tessie or Home Assistant, the climate also says when it's in Dog Mode, Camp Mode or Keep Climate, defrosting, or cooling the cabin for overheat protection, and gives the temperature it's set to. The TeslaMate API reports the first three too
 - A top-down drawing of the car, as the model it is and in its own paint, lying on its side with its nose to the right so it fills the card, with each tire's pressure, each door and window, the trunk, frunk and charge port, the lock and Sentry. Open doors swing out, a Model X's rear doors lift like the wings they are, a hatchback's rear window opens with its trunk, anything open turns orange, a low tire turns red, the charge cable shows while plugged in, and a red lens on the windshield means Sentry is on. Hover over the car to see the same status as text. The paint is the one TeslaMate reports. When it reports none, or one the widget doesn't know, the car is drawn in tints of your color scheme, which you can also choose in the settings
 - One warning that lists everything that needs attention: open doors, windows, frunk, trunk, sunroof or charge port, the car unlocked with nobody inside, low tire pressure, service mode, and TeslaMate having trouble reaching the car. The popup is a little taller while it shows, so the car keeps its size. The panel icon's tooltip lists the same
-- Software version, available updates and their download and install progress
+- Software version, available updates and their download and install progress. With the Tesla Fleet API, Teslemetry or Tessie, also when a scheduled update will install, and about how long an installation has left
 
 It can also send desktop notifications when charging finishes or stops early, when something is left open or the car is unlocked with nobody inside, when a tire's pressure is low, and when a software update is available. See [Notifications](#notifications).
 
@@ -398,7 +398,7 @@ Choose **Tesla Fleet API**, set the Region to **Custom URL** with `http://localh
 curl http://localhost:8765/_scenario/charging
 ```
 
-The scenarios are `parked`, `charging`, `supercharging`, `complete`, `cold`, `dogmode`, `driving`, `open`, `unlocked`, `update`, `asleep` and `offline`.
+The scenarios are `parked`, `charging`, `supercharging`, `complete`, `cold`, `dogmode`, `driving`, `open`, `unlocked`, `update`, `scheduled`, `installing`, `asleep` and `offline`.
 
 For the other sources, use `http://localhost:8765` as the address:
 

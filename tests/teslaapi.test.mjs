@@ -294,6 +294,22 @@ test("software updates map to TeslaMate's update topics", () => {
     assert.equal(update("").update_available, "false");
 });
 
+test("a scheduled update's start and the installation's length pass through", () => {
+    const update = (status, extra) => Api.fromVehicleData(parked(r => {
+        Object.assign(r.vehicle_state.software_update, { status: status, version: "2025.38.1" }, extra);
+    }));
+    const scheduled = update("scheduled", { scheduled_time_ms: 1763337600000 });
+    assert.equal(scheduled.update_scheduled_time, "2025-11-17T00:00:00.000Z");
+    assert.equal(scheduled.update_duration_sec, "2700");
+    assert.equal(L.updateSchedule(scheduled, 1763337600000 - 60000), 1763337600000);
+    // A time left over once the update is no longer scheduled doesn't count.
+    assert.equal(update("available", { scheduled_time_ms: 1763337600000 }).update_scheduled_time, "");
+    assert.equal(update("scheduled").update_scheduled_time, "");
+    assert.equal(update("installing", { install_perc: 40 }).update_duration_sec, "2700");
+    assert.equal(L.installMinutesLeft(update("installing", { install_perc: 40 })), 27);
+    assert.equal(update("", { expected_duration_sec: 0 }).update_duration_sec, undefined);
+});
+
 test("driving converts mph to km/h and keeps the route in TeslaMate's JSON", () => {
     const car = Api.fromVehicleData(parked(r => {
         Object.assign(r.drive_state, {

@@ -223,6 +223,23 @@ function climateMode(car) {
     return triState(car, "is_climate_on") === false ? "off" : null;
 }
 
+// When a scheduled installation of an available update starts, in ms, or null if none is
+// scheduled or the time has passed. Only the Fleet API, Teslemetry and Tessie say.
+function updateSchedule(car, nowMs) {
+    if (!bool(car, "update_available")) return null;
+    const at = Date.parse(car.update_scheduled_time || "");
+    return isNaN(at) || at <= nowMs ? null : at;
+}
+
+// About how many minutes an installation has left, from how long the source says it takes
+// and how far it has got, or null when either is unknown.
+function installMinutesLeft(car) {
+    const progress = updateProgress(car);
+    const seconds = num(car, "update_duration_sec");
+    if (progress.phase !== "installing" || progress.percent === null || seconds === null || seconds <= 0) return null;
+    return Math.max(0, (1 - Math.min(progress.percent, 100) / 100) * seconds / 60);
+}
+
 // The charger's phase count if more than one, else null. The car can report more phases
 // than the charger has, so (as TeslaMate does) the count is only trusted when the power
 // matches current × voltage × phases.
