@@ -138,6 +138,16 @@ test("fromVehicleData gives TeslaMate's values for a parked car", () => {
     assert.equal(car.healthy, undefined);
 });
 
+test("the trim, the wheels and the spoiler pass through as TeslaMate's topics", () => {
+    const car = Api.fromVehicleData(parked(r => {
+        Object.assign(r.vehicle_config, { trim_badging: "p74d", wheel_type: "Stiletto20", spoiler_type: "Passive" });
+    }));
+    assert.equal(car.trim_badging, "p74d");
+    assert.equal(car.wheel_type, "Stiletto20");
+    assert.equal(car.spoiler_type, "Passive");
+    assert.equal(Api.fromVehicleData(parked()).trim_badging, undefined);
+});
+
 test("fromVehicleData accepts the reply without its response wrapper, and junk", () => {
     assert.equal(Api.fromVehicleData(parked().response).battery_level, "72");
     assert.deepEqual(Api.fromVehicleData(null), {});
@@ -181,6 +191,68 @@ test("a charging car reads as charging, with the charger's details", () => {
     assert.deepEqual(L.attention(car, []), []);
 });
 
+test("a DC fast charge keeps the charger's kind and the charge rate in km/h", () => {
+    const car = Api.fromVehicleData(parked(r => {
+        Object.assign(r.charge_state, {
+            charging_state: "Charging", charger_power: 150, charger_voltage: 2,
+            charger_actual_current: 0, fast_charger_present: true,
+            fast_charger_type: "Supercharger", fast_charger_brand: "Tesla", charge_rate: 500
+        });
+    }));
+    assert.equal(car.fast_charger_present, "true");
+    assert.equal(car.fast_charger_type, "Supercharger");
+    assert.equal(car.fast_charger_brand, "Tesla");
+    close(car.charge_rate_kmh, 500 * 1.609344);
+    assert.equal(L.chargerKind(car), "supercharger");
+});
+
+test("no fast charger, or the API's <invalid>, leaves the charger's kind out", () => {
+    const ac = Api.fromVehicleData(parked(r => {
+        Object.assign(r.charge_state, {
+            charging_state: "Charging", fast_charger_present: false,
+            fast_charger_type: "ACSingleWireCAN", fast_charger_brand: "<invalid>", charge_rate: 0
+        });
+    }));
+    assert.equal(ac.fast_charger_present, "false");
+    assert.equal(ac.fast_charger_type, "ACSingleWireCAN");
+    assert.equal(ac.fast_charger_brand, undefined);
+    assert.equal(ac.charge_rate_kmh, "0");
+    assert.equal(L.chargerKind(ac), "");
+    // The parked fixture has none of them.
+    const car = Api.fromVehicleData(parked());
+    assert.equal(car.fast_charger_present, undefined);
+    assert.equal(car.charge_rate_kmh, undefined);
+});
+
+test("the battery heater reads from the charge or the climate state", () => {
+    const heater = edit => Api.fromVehicleData(parked(edit)).battery_heater_on;
+    assert.equal(heater(r => { r.charge_state.battery_heater_on = true; }), "true");
+    assert.equal(heater(r => { r.climate_state.battery_heater = true; }), "true");
+    assert.equal(heater(r => { r.charge_state.battery_heater_on = false; r.climate_state.battery_heater = true; }), "true");
+    assert.equal(heater(r => { r.charge_state.battery_heater_on = true; r.climate_state.battery_heater = false; }), "true");
+    assert.equal(heater(r => { r.climate_state.battery_heater = false; }), "false");
+    assert.equal(heater(), undefined);
+});
+
+test("dog, camp and keep mode, defrost, overheat protection and the set temperature pass through", () => {
+    const car = Api.fromVehicleData(parked(r => {
+        Object.assign(r.climate_state, {
+            is_climate_on: true, climate_keeper_mode: "dog", cabin_overheat_protection_actively_cooling: false,
+            driver_temp_setting: 20.5, defrost_mode: 0, is_front_defroster_on: false
+        });
+    }));
+    assert.equal(car.climate_keeper_mode, "dog");
+    assert.equal(car.cabin_overheat_protection_actively_cooling, "false");
+    assert.equal(car.driver_temp_setting, "20.5");
+    assert.equal(car.is_front_defroster_on, "false");
+    assert.equal(L.climateMode(car), "dog");
+    const defrost = edit => Api.fromVehicleData(parked(edit)).is_front_defroster_on;
+    assert.equal(defrost(r => { r.climate_state.defrost_mode = 2; }), "true");
+    assert.equal(defrost(r => { r.climate_state.is_front_defroster_on = true; r.climate_state.defrost_mode = 0; }), "true");
+    assert.equal(defrost(), undefined);
+    assert.equal(Api.fromVehicleData(parked()).climate_keeper_mode, undefined);
+});
+
 test("a scheduled charge's start time becomes ISO, so it reads as scheduled", () => {
     const car = Api.fromVehicleData(parked(r => {
         Object.assign(r.charge_state, {
@@ -217,6 +289,16 @@ test("a tire warning and a sunroof pass through", () => {
     assert.deepEqual(L.attention(car, []).map(item => item.id), ["tire:fr", "sunroof"]);
 });
 
+test("the recommended cold tire pressures pass through in bar", () => {
+    const car = Api.fromVehicleData(parked(r => {
+        Object.assign(r.vehicle_state, { tpms_rcp_front_value: 2.9, tpms_rcp_rear_value: 3.1 });
+    }));
+    assert.equal(car.tpms_rcp_front, "2.9");
+    assert.equal(car.tpms_rcp_rear, "3.1");
+    assert.equal(Api.fromVehicleData(parked(r => { r.vehicle_state.tpms_rcp_front_value = 0; })).tpms_rcp_front, undefined);
+    assert.equal(Api.fromVehicleData(parked()).tpms_rcp_rear, undefined);
+});
+
 test("software updates map to TeslaMate's update topics", () => {
     const update = (status, extra) => Api.fromVehicleData(parked(r => {
         Object.assign(r.vehicle_state.software_update, { status: status, version: "2025.38.1" }, extra);
@@ -230,6 +312,22 @@ test("software updates map to TeslaMate's update topics", () => {
     assert.equal(installing.state, "updating");
     assert.deepEqual(L.updateProgress(installing), { phase: "installing", percent: 30 });
     assert.equal(update("").update_available, "false");
+});
+
+test("a scheduled update's start and the installation's length pass through", () => {
+    const update = (status, extra) => Api.fromVehicleData(parked(r => {
+        Object.assign(r.vehicle_state.software_update, { status: status, version: "2025.38.1" }, extra);
+    }));
+    const scheduled = update("scheduled", { scheduled_time_ms: 1763337600000 });
+    assert.equal(scheduled.update_scheduled_time, "2025-11-17T00:00:00.000Z");
+    assert.equal(scheduled.update_duration_sec, "2700");
+    assert.equal(L.updateSchedule(scheduled, 1763337600000 - 60000), 1763337600000);
+    // A time left over once the update is no longer scheduled doesn't count.
+    assert.equal(update("available", { scheduled_time_ms: 1763337600000 }).update_scheduled_time, "");
+    assert.equal(update("scheduled").update_scheduled_time, "");
+    assert.equal(update("installing", { install_perc: 40 }).update_duration_sec, "2700");
+    assert.equal(L.installMinutesLeft(update("installing", { install_perc: 40 })), 27);
+    assert.equal(update("", { expected_duration_sec: 0 }).update_duration_sec, undefined);
 });
 
 test("driving converts mph to km/h and keeps the route in TeslaMate's JSON", () => {

@@ -21,6 +21,37 @@ function modelKey(setting, reported) {
     return "3";
 }
 
+// The trim TeslaMate's trim_badging (the API's vehicle_config.trim_badging) names, as a
+// key for QML to word: "plaid", "performance", "dual" (dual motor) or "". Only the clear
+// patterns count: "74D" is dual motor, "P74D" performance, anything with "plaid" plaid.
+// Anything else, such as "50" or "74", gives "" rather than a guess.
+function trimKey(badging) {
+    const b = String(badging === undefined || badging === null ? "" : badging).trim().toLowerCase();
+    if (b.includes("plaid")) return "plaid";
+    const match = /^(p?)\d+(d?)$/.exec(b);
+    if (!match) return "";
+    return match[1] ? "performance" : match[2] ? "dual" : "";
+}
+
+// A wheel_type such as "Pinwheel18" or "Induction20Black" as {name, inches}: the name split
+// into words and the rim size in inches, without what follows the size. null for a value
+// that doesn't start with a name and a size.
+function wheelInfo(wheelType) {
+    const match = /^([A-Za-z]+?)(\d{2})(?!\d)/.exec(String(wheelType === undefined || wheelType === null ? "" : wheelType).trim());
+    if (!match) return null;
+    let name = match[1].replace(/([a-z])([A-Z])/g, "$1 $2");
+    // Tesla's own spelling.
+    if (/^uber turbine$/i.test(name)) name = "Überturbine";
+    return { name: name, inches: Number(match[2]) };
+}
+
+// Whether TeslaMate's spoiler_type (the API's vehicle_config.spoiler_type) means the car
+// has a spoiler: anything but "None" or nothing, such as "Passive".
+function hasSpoiler(spoilerType) {
+    const t = String(spoilerType === undefined || spoilerType === null ? "" : spoilerType).trim().toLowerCase();
+    return t !== "" && t !== "none" && t !== "<invalid>";
+}
+
 // ---------- paths ----------
 
 function round2(v) { return Math.round(v * 100) / 100; }
@@ -239,6 +270,25 @@ function sideProfile(key) {
 
 // ---------- plans ----------
 
+// A lip spoiler along the trunk lid's trailing edge: a band depth units deep at the middle
+// that thins out toward the lid's corners, as a closed symmetric path. Its inner edge is
+// the trailing edge moved forward, and meets the lid's side ahead of the corner. "" for a
+// lid that doesn't end in a curve to the centerline, such as a bed cover.
+function lipPath(w, trunk, depth) {
+    const n = trunk.length;
+    const tail = trunk[n - 1];
+    if (n < 3 || tail.length !== 6 || Math.abs(tail[4] - w / 2) > 0.001) return "";
+    const corner = endOf(trunk[n - 2]);
+    const before = endOf(trunk[n - 3]);
+    const side = corner[1] - before[1];
+    if (side <= 0) return "";
+    // Where the side is short, as on a Model X, the band is thinner.
+    const d = Math.min(depth, side * 0.8);
+    const inner = [corner[0] + (before[0] - corner[0]) * d / side, corner[1] - d];
+    return symmetric(w, [[w / 2, tail[5] - d], [tail[2], tail[3] - d, tail[0], tail[1] - d, inner[0], inner[1]],
+                         corner, tail]);
+}
+
 // A closed chain shifted by dx. With w, mirrored onto the right side of a car w wide.
 function placed(points, dx, w) {
     return chain(mapX(points, x => w === undefined ? x + dx : w - (x + dx))) + " Z";
@@ -285,6 +335,7 @@ function mirrorPath(points, base, w, onLeft) {
 //   falcon             rear doors that lift like wings: see the Model X
 //   trim               black parts outside the body
 //   slats              lines across the trunk lid
+// The plan's spoilerPath is a lip spoiler on the trunk lid, from lipPath().
 function makePlan(spec) {
     const w = spec.w;
     const sym = o => symmetric(w, o.points, o.top, o.bottom);
@@ -335,6 +386,7 @@ function makePlan(spec) {
         bodyPath: flank => symmetric(w, spec.body(flank)),
         frunkPath: sym(spec.hood),
         trunkPath: sym(spec.trunk),
+        spoilerPath: lipPath(w, spec.trunk.points, 4),
         creasePath: each(spec.creases, false),
         slatPath: spec.slats || "",
         trimPath: each(spec.trim, true),

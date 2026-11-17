@@ -4,6 +4,8 @@ import org.kde.plasma.plasmoid
 import org.kde.plasma.components as PlasmaComponents3
 import org.kde.kirigami as Kirigami
 
+import "logic.js" as Logic
+
 // The card's footer: the software version, an update's status, and when the data arrived.
 // The update's status moves to its own line when one line can't hold everything. The
 // version and status are as wide as their text and shrink when there isn't room, so a long
@@ -35,10 +37,16 @@ GridLayout {
             const p = widget.softwareUpdate.percent !== null ? Math.round(widget.softwareUpdate.percent) : 0
             return v ? i18n("Downloading %1 · %2%", v, p) : i18n("Downloading update · %1%", p)
         }
-        case "installing":
+        case "installing": {
+            const left = Logic.formatHours((Logic.installMinutesLeft(widget.car) ?? 0) / 60)
+            if (left) return v ? i18n("Installing %1 · about %2 left", v, left) : i18n("Installing update · about %1 left", left)
             return v ? i18n("Installing %1", v) : i18n("Installing update")
-        default:
+        }
+        default: {
+            const at = Logic.updateSchedule(widget.car, widget.now)
+            if (at !== null) return v ? i18n("%1 installs at %2", v, widget.clock(at)) : i18n("Update installs at %1", widget.clock(at))
             return v ? i18n("%1 available", v) : i18n("Update available")
+        }
         }
     }
 

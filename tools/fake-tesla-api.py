@@ -11,7 +11,8 @@ Switch scenarios while it runs:
 
     curl http://localhost:8765/_scenario/charging
 
-Scenarios: parked, charging, complete, driving, open, unlocked, update, asleep, offline.
+Scenarios: parked, charging, supercharging, complete, cold, dogmode, driving, open, unlocked,
+update, scheduled, installing, performance, asleep, offline.
 With --expire-first, the first access token is refused once, so the widget has to renew.
 Only one token is valid at a time, as with Tesla: renewing invalidates the old ones.
 
@@ -19,7 +20,7 @@ The same car is also served as the widget's other sources see it, so they can be
 the same way, with the address http://localhost:8765:
 
     TeslaMate API   /api/v1/cars and /api/v1/cars/1/status, without a token
-    Tessie          /vehicles, /<VIN>/state and /<VIN>/status, with any token
+    Tessie          /vehicles, /<VIN>/state, /<VIN>/status and /<VIN>/location, with any token
     Home Assistant  /api/ and /api/states, with any token; the car is blue_thunder
 
 (For Teslemetry, which serves the Fleet API's URLs, use the Fleet API source with
@@ -50,10 +51,28 @@ def scenario(name, car):
     charge = car["charge_state"]
     drive = car["drive_state"]
     vs = car["vehicle_state"]
+    vs.update(tpms_rcp_front_value=2.9, tpms_rcp_rear_value=2.9)
+    car["vehicle_config"].update(trim_badging="74d", wheel_type="Pinwheel18", spoiler_type="None")
     if name == "charging":
         charge.update(charging_state="Charging", charger_power=11, charger_voltage=230,
                       charger_actual_current=16, charger_phases=3, time_to_full_charge=1.25,
-                      charge_port_door_open=True, battery_level=60)
+                      charge_port_door_open=True, battery_level=60, charge_rate=34,
+                      fast_charger_present=False, fast_charger_type="ACSingleWireCAN",
+                      fast_charger_brand="<invalid>")
+    elif name == "supercharging":
+        # On a DC charger the car reports about 0 A and a few volts.
+        charge.update(charging_state="Charging", charger_power=148, charger_voltage=2,
+                      charger_actual_current=0, charger_phases=None, time_to_full_charge=0.42,
+                      charge_port_door_open=True, battery_level=45, charge_energy_added=21.3,
+                      charge_rate=610, fast_charger_present=True, fast_charger_type="Supercharger",
+                      fast_charger_brand="Tesla")
+    elif name == "cold":
+        # A cold battery holds charge back, and the car is heating it.
+        charge.update(usable_battery_level=65, battery_heater_on=True)
+        car["climate_state"].update(outside_temp=-8.0, inside_temp=2.5, battery_heater=True)
+    elif name == "dogmode":
+        car["climate_state"].update(is_climate_on=True, climate_keeper_mode="dog", driver_temp_setting=20.5,
+                                    inside_temp=20.5, outside_temp=31.0)
     elif name == "complete":
         charge.update(charging_state="Complete", battery_level=80, charge_port_door_open=True)
     elif name == "driving":
@@ -67,6 +86,13 @@ def scenario(name, car):
         vs.update(locked=False)
     elif name == "update":
         vs["software_update"].update(status="available", version="2025.38.1")
+    elif name == "scheduled":
+        vs["software_update"].update(status="scheduled", version="2025.38.1",
+                                     scheduled_time_ms=int((time.time() + 2 * 3600) * 1000))
+    elif name == "installing":
+        vs["software_update"].update(status="installing", version="2025.38.1", install_perc=40)
+    elif name == "performance":
+        car["vehicle_config"].update(trim_badging="p74d", wheel_type="Stiletto20", spoiler_type="Passive")
     elif name in ("asleep", "offline"):
         return name
     return "online"
@@ -106,9 +132,10 @@ def teslamate_api_status(car):
                            windows_open=any(windows), doors_open=any(doors.values()),
                            trunk_open=bool(vs["rt"]), frunk_open=bool(vs["ft"]),
                            is_user_present=vs["is_user_present"], center_display_state=0),
-        "car_details": {"model": "3", "trim_badging": "74D"},
-        "car_exterior": {"exterior_color": car["vehicle_config"]["exterior_color"], "spoiler_type": "None",
-                         "wheel_type": "Pinwheel18"},
+        "car_details": {"model": "3", "trim_badging": car["vehicle_config"]["trim_badging"].upper()},
+        "car_exterior": {"exterior_color": car["vehicle_config"]["exterior_color"],
+                         "spoiler_type": car["vehicle_config"]["spoiler_type"],
+                         "wheel_type": car["vehicle_config"]["wheel_type"]},
         "car_geodata": {"geofence": "Home" if teslamate_state(car) != "driving" else "",
                         "location": {"latitude": 52.52, "longitude": 13.405}, "latitude": 52.52, "longitude": 13.405},
         "car_versions": {"version": vs["car_version"].split()[0],
@@ -127,7 +154,7 @@ def teslamate_api_status(car):
             "speed": int((d.get("speed") or 0) * KM_PER_MILE), "heading": 120, "elevation": 34},
         "climate_details": {"is_climate_on": cl["is_climate_on"], "inside_temp": cl["inside_temp"],
                             "outside_temp": cl["outside_temp"], "is_preconditioning": cl["is_preconditioning"],
-                            "climate_keeper_mode": "off"},
+                            "climate_keeper_mode": cl.get("climate_keeper_mode") or "off"},
         "battery_details": {"est_battery_range": round(c["est_battery_range"] * KM_PER_MILE, 2),
                             "rated_battery_range": round(c["battery_range"] * KM_PER_MILE, 2),
                             "ideal_battery_range": round(c["ideal_battery_range"] * KM_PER_MILE, 2),
@@ -184,12 +211,19 @@ def home_assistant_states(car):
     add("sensor", "charger_voltage", "Charger voltage", c["charger_voltage"] or 0, "V")
     add("sensor", "charger_current", "Charger current", c["charger_actual_current"] or 0, "A")
     add("sensor", "charge_energy_added", "Charge energy added", c["charge_energy_added"], "kWh")
+    add("sensor", "charge_rate", "Charge rate", c.get("charge_rate"), "mph")
+    add("sensor", "fast_charger_type", "Fast charger type", c.get("fast_charger_type"))
     full = c["time_to_full_charge"]
     add("sensor", "time_to_full_charge", "Time to full charge",
         time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(time.time() + full * 3600)) if full else None,
         device_class="timestamp")
     add("cover", "charge_port_door", "Charge port door", "open" if c["charge_port_door_open"] else "closed")
-    add("climate", "climate", "Climate", "heat_cool" if cl["is_climate_on"] else "off")
+    keeper = cl.get("climate_keeper_mode") or "off"
+    add("climate", "climate", "Climate", "heat_cool" if cl["is_climate_on"] else "off",
+        preset_mode="keep" if keeper == "on" else keeper)
+    setting = cl.get("driver_temp_setting")
+    add("sensor", "driver_temperature_setting", "Driver temperature setting",
+        None if setting is None else round(setting * 9 / 5 + 32, 1), "°F")
     add("sensor", "inside_temperature", "Inside temperature", round(cl["inside_temp"] * 9 / 5 + 32, 1), "°F")
     add("sensor", "outside_temperature", "Outside temperature", round(cl["outside_temp"] * 9 / 5 + 32, 1), "°F")
     add("sensor", "shift_state", "Shift state", (d.get("shift_state") or "").lower() or None)
@@ -199,6 +233,7 @@ def home_assistant_states(car):
     add("lock", "lock", "Lock", "locked" if vs["locked"] else "unlocked")
     add("switch", "sentry_mode", "Sentry mode", on(vs["sentry_mode"]))
     add("binary_sensor", "user_present", "User present", on(vs["is_user_present"]))
+    add("binary_sensor", "battery_heater", "Battery heater", on(c.get("battery_heater_on")))
     add("cover", "frunk", "Frunk", "open" if vs["ft"] else "closed")
     add("cover", "trunk", "Trunk", "open" if vs["rt"] else "closed")
     for key, label, value in (("front_driver", "Front driver", vs["df"]), ("rear_driver", "Rear driver", vs["dr"]),
@@ -366,9 +401,10 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(200, {"data": {"cars": [{
                 "car_id": 1, "name": car["display_name"],
                 "car_details": {"eid": car["id"], "vid": car["vehicle_id"], "vin": VIN, "model": "3",
-                                "trim_badging": "74D", "efficiency": 0.153},
+                                "trim_badging": car["vehicle_config"]["trim_badging"].upper(), "efficiency": 0.153},
                 "car_exterior": {"exterior_color": car["vehicle_config"]["exterior_color"],
-                                 "spoiler_type": "None", "wheel_type": "Pinwheel18"}}]}})
+                                 "spoiler_type": car["vehicle_config"]["spoiler_type"],
+                                 "wheel_type": car["vehicle_config"]["wheel_type"]}}]}})
         elif path == "/api/v1/cars/1/status":
             self.reply(200, teslamate_api_status(car))
         elif path.endswith("/status"):
@@ -387,6 +423,10 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(200, car)
         elif path == "/" + VIN + "/status":
             self.reply(200, {"status": "asleep" if car["state"] in ("asleep", "offline") else "awake"})
+        elif path == "/" + VIN + "/location":
+            driving = car["drive_state"].get("shift_state") == "D"
+            self.reply(200, {"latitude": 52.52, "longitude": 13.405, "address": "1 Example Street",
+                             "saved_location": None if driving else "Home"})
         else:
             self.reply(404, {"error": "Vehicle not found"})
 

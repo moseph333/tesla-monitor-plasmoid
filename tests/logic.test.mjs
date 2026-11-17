@@ -314,6 +314,28 @@ test("updateProgress is empty without an update", () => {
     assert.deepEqual(L.updateProgress(null), none);
 });
 
+test("updateSchedule gives a scheduled installation still to come", () => {
+    const now = Date.parse("2026-11-16T20:00:00Z");
+    const car = { update_available: "true", update_scheduled_time: "2026-11-17T02:00:00.000Z" };
+    assert.equal(L.updateSchedule(car, now), Date.parse("2026-11-17T02:00:00Z"));
+    assert.equal(L.updateSchedule(car, Date.parse("2026-11-17T02:00:00Z")), null);
+    assert.equal(L.updateSchedule({ ...car, update_available: "false" }, now), null);
+    assert.equal(L.updateSchedule({ update_available: "true", update_scheduled_time: "" }, now), null);
+    assert.equal(L.updateSchedule({ update_available: "true" }, now), null);
+    assert.equal(L.updateSchedule(null, now), null);
+});
+
+test("installMinutesLeft works out the rest of an installation from its length", () => {
+    const installing = { state: "updating", install_perc: "25", update_duration_sec: "2400" };
+    assert.equal(L.installMinutesLeft(installing), 30);
+    assert.equal(L.installMinutesLeft({ ...installing, install_perc: "100" }), 0);
+    // Unknown progress or length, or not installing.
+    assert.equal(L.installMinutesLeft({ ...installing, install_perc: "0" }), null);
+    assert.equal(L.installMinutesLeft({ ...installing, update_duration_sec: undefined }), null);
+    assert.equal(L.installMinutesLeft({ ...installing, state: "online", update_available: "true" }), null);
+    assert.equal(L.installMinutesLeft({}), null);
+});
+
 test("showPhases shows a multi-phase count that the power agrees with", () => {
     // 16 A at 230 V on three phases is 11 kW.
     const three = { charger_phases: "3", charger_actual_current: "16", charger_voltage: "230", charger_power: "11" };
@@ -342,6 +364,33 @@ test("showPhases hides one phase and incomplete or zero values", () => {
     assert.equal(L.showPhases({ ...three, charger_voltage: "0" }), null);
     assert.equal(L.showPhases({}), null);
     assert.equal(L.showPhases(null), null);
+});
+
+test("chargerKind tells a Supercharger from another DC charger, and needs one present", () => {
+    assert.equal(L.chargerKind({ fast_charger_present: "true", fast_charger_brand: "Tesla" }), "supercharger");
+    assert.equal(L.chargerKind({ fast_charger_present: "true", fast_charger_type: "Supercharger" }), "supercharger");
+    assert.equal(L.chargerKind({ fast_charger_present: "true", fast_charger_type: "Combo" }), "dc");
+    assert.equal(L.chargerKind({ fast_charger_present: "true" }), "dc");
+    assert.equal(L.chargerKind({ fast_charger_present: "false", fast_charger_type: "Supercharger" }), "");
+    assert.equal(L.chargerKind({ fast_charger_type: "Supercharger" }), "");
+    assert.equal(L.chargerKind({}), "");
+    assert.equal(L.chargerKind(null), "");
+});
+
+test("climateMode names what the climate is doing, the most telling first", () => {
+    assert.equal(L.climateMode({ is_preconditioning: "true", climate_keeper_mode: "dog" }), "preconditioning");
+    assert.equal(L.climateMode({ is_climate_on: "true", climate_keeper_mode: "dog" }), "dog");
+    assert.equal(L.climateMode({ is_climate_on: "true", climate_keeper_mode: "camp" }), "camp");
+    assert.equal(L.climateMode({ is_climate_on: "true", climate_keeper_mode: "on" }), "keep");
+    assert.equal(L.climateMode({ is_climate_on: "true", climate_keeper_mode: "off", is_front_defroster_on: "true" }), "defrost");
+    assert.equal(L.climateMode({ is_climate_on: "true", climate_keeper_mode: "off" }), "on");
+    // Overheat protection only counts while the climate itself is off.
+    assert.equal(L.climateMode({ is_climate_on: "true", cabin_overheat_protection_actively_cooling: "true" }), "on");
+    assert.equal(L.climateMode({ is_climate_on: "false", cabin_overheat_protection_actively_cooling: "true" }), "overheat");
+    assert.equal(L.climateMode({ is_climate_on: "false" }), "off");
+    assert.equal(L.climateMode({ climate_keeper_mode: "" }), null);
+    assert.equal(L.climateMode({}), null);
+    assert.equal(L.climateMode(null), null);
 });
 
 // TeslaMate's own example payloads for active_route.
@@ -1748,6 +1797,55 @@ const MODEL_KEYS = ["s", "3", "x", "y", "cybertruck"];
 // Every number in a path, to check that none of them is NaN or missing.
 const pathNumbers = path => path.split(/[\s,]+/).filter(t => !/^[MLHVCAZ]$/.test(t));
 
+test("trimKey reads only the clear trim badges", () => {
+    assert.equal(Models.trimKey("74D"), "dual");
+    assert.equal(Models.trimKey("100d"), "dual");
+    assert.equal(Models.trimKey("P74D"), "performance");
+    assert.equal(Models.trimKey("p100d"), "performance");
+    assert.equal(Models.trimKey("Plaid"), "plaid");
+    assert.equal(Models.trimKey("50"), "");
+    assert.equal(Models.trimKey("74"), "");
+    assert.equal(Models.trimKey("LR AWD"), "");
+    assert.equal(Models.trimKey(""), "");
+    assert.equal(Models.trimKey(undefined), "");
+});
+
+test("wheelInfo splits the wheel's name from its size", () => {
+    assert.deepEqual(Models.wheelInfo("Pinwheel18"), { name: "Pinwheel", inches: 18 });
+    assert.deepEqual(Models.wheelInfo("Pinwheel18CapKit"), { name: "Pinwheel", inches: 18 });
+    assert.deepEqual(Models.wheelInfo("Induction20Black"), { name: "Induction", inches: 20 });
+    assert.deepEqual(Models.wheelInfo("AeroTurbine19"), { name: "Aero Turbine", inches: 19 });
+    assert.deepEqual(Models.wheelInfo("UberTurbine21"), { name: "Überturbine", inches: 21 });
+    assert.equal(Models.wheelInfo("Pinwheel"), null);
+    assert.equal(Models.wheelInfo("18"), null);
+    assert.equal(Models.wheelInfo("Pinwheel185"), null);
+    assert.equal(Models.wheelInfo(""), null);
+    assert.equal(Models.wheelInfo(null), null);
+});
+
+test("hasSpoiler counts any spoiler type but none", () => {
+    assert.equal(Models.hasSpoiler("Passive"), true);
+    assert.equal(Models.hasSpoiler("None"), false);
+    assert.equal(Models.hasSpoiler("<invalid>"), false);
+    assert.equal(Models.hasSpoiler(""), false);
+    assert.equal(Models.hasSpoiler(undefined), false);
+});
+
+test("the sedans and SUVs have a lip spoiler on the trunk lid's trailing edge, the Cybertruck none", () => {
+    for (const key of ["s", "3", "x", "y"]) {
+        const p = Models.plan(key);
+        assert.match(p.spoilerPath, /^M .* Z$/, key);
+        const n = pathNumbers(p.spoilerPath).map(Number);
+        const xs = n.filter((v, i) => i % 2 === 0);
+        const ys = n.filter((v, i) => i % 2 === 1);
+        // Symmetric across the car, and at the lid's rear end, no further back.
+        assert.ok(Math.abs(Math.min(...xs) + Math.max(...xs) - p.boxWidth) < 0.05, key);
+        assert.ok(Math.max(...ys) <= p.trunkSpan[1] + 0.001, key);
+        assert.ok(Math.min(...ys) > p.trunkSpan[0] - 0.001, key);
+    }
+    assert.equal(Models.plan("cybertruck").spoilerPath, "");
+});
+
 test("modelKey takes the settings' choice over what TeslaMate reports", () => {
     assert.deepEqual([1, 2, 3, 4, 5].map(i => Models.modelKey(i, "3")), MODEL_KEYS);
     assert.equal(Models.modelKey(4, undefined), "y");
@@ -1849,7 +1947,7 @@ test("every plan's paths are well formed", () => {
             for (const t of pathNumbers(path)) assert.ok(Number.isFinite(Number(t)), key + ": " + t);
         }
         // What a plan may leave out is an empty path, never a missing one.
-        for (const name of ["creasePath", "slatPath", "trimPath", "quarterPath"]) {
+        for (const name of ["creasePath", "slatPath", "trimPath", "quarterPath", "spoilerPath"]) {
             assert.equal(typeof p[name], "string", key + " " + name);
             for (const t of pathNumbers(p[name]).filter(Boolean)) assert.ok(Number.isFinite(Number(t)), key + " " + name);
         }

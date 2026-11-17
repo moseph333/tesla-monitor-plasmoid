@@ -84,6 +84,29 @@ test("fromStatus gives TeslaMate's values", () => {
     assert.equal(v.active_route, "");
 });
 
+test("fromStatus reads TeslaMate's climate keeper mode", () => {
+    assert.equal(T.fromStatus(status()).climate_keeper_mode, "off");
+    const dog = T.fromStatus(status(d => {
+        Object.assign(d.status.climate_details, { is_climate_on: true, climate_keeper_mode: "dog" });
+    }));
+    assert.equal(dog.climate_keeper_mode, "dog");
+    assert.equal(L.climateMode(dog), "dog");
+});
+
+test("fromStatus reads the trim, the wheels and the spoiler", () => {
+    const v = T.fromStatus(status());
+    assert.equal(v.trim_badging, "74D");
+    assert.equal(v.wheel_type, "Pinwheel18");
+    assert.equal(v.spoiler_type, "None");
+    // Nullable columns TeslaMate has no value for.
+    const none = T.fromStatus(status(d => {
+        d.status.car_details.trim_badging = null;
+        d.status.car_exterior.wheel_type = { String: "", Valid: false };
+    }));
+    assert.equal(none.trim_badging, "");
+    assert.equal(none.wheel_type, "");
+});
+
 test("fromStatus leaves out a tire pressure TeslaMateApi hasn't received", () => {
     const v = T.fromStatus(status());
     close(v.tpms_pressure_fl, 2.9);

@@ -112,7 +112,11 @@ function fromStatus(json) {
 
     const details = group("car_details");
     if (details.model) put("model", details.model);
-    put("exterior_color", group("car_exterior").exterior_color);
+    put("trim_badging", text(details.trim_badging));
+    const exterior = group("car_exterior");
+    put("exterior_color", exterior.exterior_color);
+    put("wheel_type", text(exterior.wheel_type));
+    put("spoiler_type", text(exterior.spoiler_type));
     put("geofence", group("car_geodata").geofence);
 
     const versions = group("car_versions");
@@ -141,6 +145,7 @@ function fromStatus(json) {
     const climate = group("climate_details");
     put("is_climate_on", climate.is_climate_on);
     put("is_preconditioning", climate.is_preconditioning);
+    put("climate_keeper_mode", climate.climate_keeper_mode);
     celsius("inside_temp", climate.inside_temp);
     celsius("outside_temp", climate.outside_temp);
 

@@ -206,6 +206,40 @@ function updateProgress(car) {
     return { phase: "available", percent: null };
 }
 
+// What the climate is doing, for the Climate cell: preconditioning, dog, camp, keep (keep
+// climate on), defrost, on, overheat (cabin overheat protection cooling with the climate
+// off), off, or null when unknown. Only the Fleet API, Teslemetry, Tessie and Home Assistant
+// report all of them.
+function climateMode(car) {
+    if (bool(car, "is_preconditioning")) return "preconditioning";
+    switch (car ? car.climate_keeper_mode : "") {
+    case "dog": return "dog";
+    case "camp": return "camp";
+    case "on": return "keep";
+    }
+    if (bool(car, "is_front_defroster_on")) return "defrost";
+    if (bool(car, "is_climate_on")) return "on";
+    if (bool(car, "cabin_overheat_protection_actively_cooling")) return "overheat";
+    return triState(car, "is_climate_on") === false ? "off" : null;
+}
+
+// When a scheduled installation of an available update starts, in ms, or null if none is
+// scheduled or the time has passed. Only the Fleet API, Teslemetry and Tessie say.
+function updateSchedule(car, nowMs) {
+    if (!bool(car, "update_available")) return null;
+    const at = Date.parse(car.update_scheduled_time || "");
+    return isNaN(at) || at <= nowMs ? null : at;
+}
+
+// About how many minutes an installation has left, from how long the source says it takes
+// and how far it has got, or null when either is unknown.
+function installMinutesLeft(car) {
+    const progress = updateProgress(car);
+    const seconds = num(car, "update_duration_sec");
+    if (progress.phase !== "installing" || progress.percent === null || seconds === null || seconds <= 0) return null;
+    return Math.max(0, (1 - Math.min(progress.percent, 100) / 100) * seconds / 60);
+}
+
 // The charger's phase count if more than one, else null. The car can report more phases
 // than the charger has, so (as TeslaMate does) the count is only trusted when the power
 // matches current × voltage × phases.
@@ -217,6 +251,15 @@ function showPhases(car) {
     if (phases === null || phases <= 1 || amps === null || amps <= 0
         || volts === null || volts <= 0 || kw === null) return null;
     return Math.round(kw * 1000 / (amps * volts)) === phases ? phases : null;
+}
+
+// What the car is charging from, for sources that say (TeslaMate doesn't): "supercharger",
+// "dc" for another DC fast charger, or "" for AC or unknown.
+function chargerKind(car) {
+    if (!bool(car, "fast_charger_present")) return "";
+    const type = String(car.fast_charger_type || "").toLowerCase();
+    const brand = String(car.fast_charger_brand || "").toLowerCase();
+    return brand.includes("tesla") || type.includes("supercharger") ? "supercharger" : "dc";
 }
 
 // The active route from TeslaMate's active_route JSON (1.29+), as {destination, minutes,

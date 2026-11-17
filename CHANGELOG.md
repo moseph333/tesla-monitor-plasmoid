@@ -4,6 +4,19 @@ All notable changes to Tesla Monitor are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.13.0] - 2026-11-16
+
+### Added
+
+- While charging, the card says how much range the charge adds per hour, and whether the car is on a Supercharger or another DC fast charger, with the Tesla Fleet API, Teslemetry, Tessie and Home Assistant. On a DC charger it leaves out the current and voltage, which the car reports as about 0 A and a few volts there.
+- Under the battery ring, the card says when the car is heating the battery, with the same sources.
+- The Climate cell names Dog Mode, Camp Mode and Keep Climate, with the TeslaMate API too, and, with the Fleet API, Teslemetry, Tessie and Home Assistant, defrosting and cabin overheat protection. While the climate runs, it shows the temperature it's set to instead of "On".
+- The footer says when a scheduled update will install, and about how long an installation has left, with the Fleet API, Teslemetry and Tessie.
+- Hovering over the car shows the recommended tire pressure, with the same three sources.
+- Tessie's saved locations count as geofences: the card names the one the car is at, and **Unlocked is OK at** takes their names. The widget asks Tessie for the car's location after each update, and keeps only the place's name.
+- Hovering over the car names its trim, such as Model 3 Performance, and its wheels, such as Stiletto 20″, with every source but Home Assistant.
+- The drawing gives a car that reports a spoiler, such as a Model 3 Performance, a black lip along the trunk lid's trailing edge, with the same sources.
+
 ## [1.12.0] - 2026-11-16
 
 ### Security
@@ -190,6 +203,7 @@ All notable changes to Tesla Monitor are listed here. The format follows
 
 - First public version of the widget.
 
+[1.13.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.12.0...v1.13.0
 [1.12.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.11.1...v1.12.0
 [1.11.1]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.11.0...v1.11.1
 [1.11.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.10.0...v1.11.0

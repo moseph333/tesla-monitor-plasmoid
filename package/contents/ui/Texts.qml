@@ -25,6 +25,30 @@ QtObject {
         return "—"
     }
 
+    // A models.js key as the model's name.
+    function modelName(key) {
+        switch (key) {
+        case "s": return i18nc("a car model", "Model S")
+        case "3": return i18nc("a car model", "Model 3")
+        case "x": return i18nc("a car model", "Model X")
+        case "y": return i18nc("a car model", "Model Y")
+        case "cybertruck": return i18nc("a car model", "Cybertruck")
+        default: return ""
+        }
+    }
+
+    // The model with its trim from Models.trimKey(), such as "Model 3 Performance", or ""
+    // when the trim is unknown.
+    function modelWithTrim(modelKey, trimKey) {
+        const model = texts.modelName(modelKey)
+        switch (trimKey) {
+        case "plaid": return i18nc("a car model and its trim", "%1 Plaid", model)
+        case "performance": return i18nc("a car model and its trim", "%1 Performance", model)
+        case "dual": return i18nc("a car model and its trim", "%1 Dual Motor", model)
+        default: return ""
+        }
+    }
+
     // Lower case: used inside sentences.
     function tireName(pos) {
         switch (pos) {

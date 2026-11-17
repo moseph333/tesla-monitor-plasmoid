@@ -2,7 +2,8 @@
 
 // The Tesla Fleet API source. Its replies are turned into the same values TeslaMate
 // publishes over MQTT ({topic suffix: string}), so everything that reads root.car works
-// unchanged. Kept separate from logic.js, which stays about TeslaMate's values.
+// unchanged, plus a few the API has that TeslaMate doesn't publish, under the API's own
+// names. Kept separate from logic.js, which stays about TeslaMate's values.
 // Proxies that serve the same URLs (a custom base URL) work the same way.
 
 const MINUTE = 60 * 1000;
@@ -164,6 +165,9 @@ function fromVehicleData(json) {
         const model = modelName(config.car_type);
         if (model) out.model = model;
         put("exterior_color", config.exterior_color);
+        put("trim_badging", config.trim_badging);
+        put("wheel_type", config.wheel_type);
+        put("spoiler_type", config.spoiler_type);
         if (present(config.sun_roof_installed)) out.sun_roof_installed = config.sun_roof_installed ? "true" : "false";
     }
 
@@ -184,11 +188,30 @@ function fromVehicleData(json) {
         miles("rated_battery_range_km", charge.battery_range);
         miles("est_battery_range_km", charge.est_battery_range);
         miles("ideal_battery_range_km", charge.ideal_battery_range);
+        // A DC fast charger, and whose. Not TeslaMate topics. The API says "<invalid>" for
+        // none.
+        put("fast_charger_present", charge.fast_charger_present);
+        for (const key of ["fast_charger_type", "fast_charger_brand"])
+            if (typeof charge[key] === "string" && charge[key].trim() && charge[key] !== "<invalid>")
+                out[key] = charge[key].trim();
+        // The range the charge adds per hour, in mph like every distance here.
+        if (finite(charge.charge_rate)) out.charge_rate_kmh = String(charge.charge_rate * KM_PER_MILE);
+        put("battery_heater_on", charge.battery_heater_on);
     }
 
     if (climate) {
-        for (const key of ["inside_temp", "outside_temp", "is_climate_on", "is_preconditioning"])
+        for (const key of ["inside_temp", "outside_temp", "is_climate_on", "is_preconditioning",
+                           "climate_keeper_mode", "cabin_overheat_protection_actively_cooling",
+                           "driver_temp_setting"])
             put(key, climate[key]);
+        // Defrost mode is 0 when off; older cars only report the front defroster.
+        if (climate.is_front_defroster_on === true || (finite(climate.defrost_mode) && climate.defrost_mode > 0))
+            out.is_front_defroster_on = "true";
+        else if (climate.is_front_defroster_on === false || climate.defrost_mode === 0)
+            out.is_front_defroster_on = "false";
+        // The battery heater shows up in either place, depending on the car.
+        if (climate.battery_heater === true) out.battery_heater_on = "true";
+        else if (climate.battery_heater === false && !out.battery_heater_on) out.battery_heater_on = "false";
     }
 
     if (drive) {
@@ -234,12 +257,24 @@ function fromVehicleData(json) {
             put("tpms_pressure_" + tire, vs["tpms_pressure_" + tire]);
             put("tpms_soft_warning_" + tire, vs["tpms_soft_warning_" + tire]);
         }
+        // The recommended cold pressures in bar. Not TeslaMate topics.
+        for (const axle of ["front", "rear"]) {
+            const bar = vs["tpms_rcp_" + axle + "_value"];
+            if (finite(bar) && bar > 0) out["tpms_rcp_" + axle] = String(bar);
+        }
         if (update) {
             const status = typeof update.status === "string" ? update.status : "";
             out.update_available = UPDATE_PENDING.includes(status) ? "true" : "false";
             out.update_version = typeof update.version === "string" ? update.version.trim() : "";
             put("download_perc", update.download_perc);
             put("install_perc", update.install_perc);
+            // Not TeslaMate topics: how long installing takes, and when a scheduled
+            // installation starts (milliseconds since 1970).
+            if (finite(update.expected_duration_sec) && update.expected_duration_sec > 0)
+                out.update_duration_sec = String(update.expected_duration_sec);
+            const at = update.scheduled_time_ms;
+            out.update_scheduled_time = status === "scheduled" && finite(at) && at > 0
+                ? new Date(at).toISOString() : "";
         }
     }
     return out;

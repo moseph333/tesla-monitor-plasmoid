@@ -162,7 +162,7 @@ KCM.SimpleKCM {
         }
 
         Hint {
-            text: i18n("TeslaMate geofence names, or Home Assistant zone names, separated by commas. There, an unlocked car isn't shown as a warning or notified. The Tesla Fleet API, Teslemetry and Tessie have no geofences.")
+            text: i18n("TeslaMate geofence names, Home Assistant zone names or Tessie saved locations, separated by commas. There, an unlocked car isn't shown as a warning or notified. The Tesla Fleet API and Teslemetry have no geofences.")
         }
 
         // Normalized as the widget will open it, so an address typed without http:// shows

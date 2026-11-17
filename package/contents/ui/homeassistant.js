@@ -135,6 +135,15 @@ function carName(e) {
     return "";
 }
 
+// Whether a fast charger type is a DC fast charger: true for a Supercharger, CCS or
+// CHAdeMO, false for none or an AC charger (ACSingleWireCAN), null for a type not known.
+function fastCharger(type) {
+    const t = String(type || "").toLowerCase();
+    if (!t) return null;
+    if (t === "<invalid>" || t.startsWith("ac")) return false;
+    return /supercharger|combo|ccs|chademo/.test(t) ? true : null;
+}
+
 // A zone as TeslaMate's geofence: Home Assistant says "home" for its home zone and the
 // zone's name for others.
 function zone(state) {
@@ -186,12 +195,30 @@ function fromStates(list, prefix, nowMs) {
         const minutes = minutesUntil(e["sensor.time_to_full_charge"], nowMs);
         if (minutes !== null) out.time_to_full_charge = String(minutes / 60);
     }
+    // Off by default in Home Assistant. Only the type is given, so whether it's a DC fast
+    // charger is read from that.
+    const fastType = e["sensor.fast_charger_type"] ? e["sensor.fast_charger_type"].state.trim() : "";
+    if (fastType && fastType !== "<invalid>") out.fast_charger_type = fastType;
+    flag("fast_charger_present", fastCharger(fastType));
+    measure("charge_rate_kmh", e["sensor.charge_rate"], toKmh);
     const port = e["cover.charge_port_door"];
     if (port) flag("charge_port_door_open", port.state === "open" || port.state === "opening");
     else flag("charge_port_door_open", on("binary_sensor.charge_port_door"));
 
-    if (e["climate.climate"]) flag("is_climate_on", e["climate.climate"].state !== "off");
+    const climate = e["climate.climate"];
+    if (climate) {
+        flag("is_climate_on", climate.state !== "off");
+        // Dog, camp and keep mode are the climate's presets. The Tessie integration calls
+        // keep "on", the others "keep".
+        const preset = climate.attributes && typeof climate.attributes.preset_mode === "string"
+            ? climate.attributes.preset_mode : "";
+        if (preset) out.climate_keeper_mode = preset === "keep" ? "on" : preset;
+    }
+    flag("cabin_overheat_protection_actively_cooling", on("binary_sensor.cabin_overheat_protection_actively_cooling"));
+    flag("is_front_defroster_on", e["switch.defrost"] ? on("switch.defrost") : on("switch.defrost_mode"));
+    measure("driver_temp_setting", e["sensor.driver_temperature_setting"], toCelsius);
     flag("is_preconditioning", on("binary_sensor.preconditioning"));
+    flag("battery_heater_on", on("binary_sensor.battery_heater"));
     measure("inside_temp", e["sensor.inside_temperature"], toCelsius);
     measure("outside_temp", e["sensor.outside_temperature"], toCelsius);
 
