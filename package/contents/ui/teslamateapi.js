@@ -141,6 +141,7 @@ function fromStatus(json) {
     const climate = group("climate_details");
     put("is_climate_on", climate.is_climate_on);
     put("is_preconditioning", climate.is_preconditioning);
+    put("climate_keeper_mode", climate.climate_keeper_mode);
     celsius("inside_temp", climate.inside_temp);
     celsius("outside_temp", climate.outside_temp);
 

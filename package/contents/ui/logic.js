@@ -206,6 +206,23 @@ function updateProgress(car) {
     return { phase: "available", percent: null };
 }
 
+// What the climate is doing, for the Climate cell: preconditioning, dog, camp, keep (keep
+// climate on), defrost, on, overheat (cabin overheat protection cooling with the climate
+// off), off, or null when unknown. Only the Fleet API, Teslemetry, Tessie and Home Assistant
+// report all of them.
+function climateMode(car) {
+    if (bool(car, "is_preconditioning")) return "preconditioning";
+    switch (car ? car.climate_keeper_mode : "") {
+    case "dog": return "dog";
+    case "camp": return "camp";
+    case "on": return "keep";
+    }
+    if (bool(car, "is_front_defroster_on")) return "defrost";
+    if (bool(car, "is_climate_on")) return "on";
+    if (bool(car, "cabin_overheat_protection_actively_cooling")) return "overheat";
+    return triState(car, "is_climate_on") === false ? "off" : null;
+}
+
 // The charger's phase count if more than one, else null. The car can report more phases
 // than the charger has, so (as TeslaMate does) the count is only trusted when the power
 // matches current × voltage × phases.

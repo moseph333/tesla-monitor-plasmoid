@@ -84,6 +84,15 @@ test("fromStatus gives TeslaMate's values", () => {
     assert.equal(v.active_route, "");
 });
 
+test("fromStatus reads TeslaMate's climate keeper mode", () => {
+    assert.equal(T.fromStatus(status()).climate_keeper_mode, "off");
+    const dog = T.fromStatus(status(d => {
+        Object.assign(d.status.climate_details, { is_climate_on: true, climate_keeper_mode: "dog" });
+    }));
+    assert.equal(dog.climate_keeper_mode, "dog");
+    assert.equal(L.climateMode(dog), "dog");
+});
+
 test("fromStatus leaves out a tire pressure TeslaMateApi hasn't received", () => {
     const v = T.fromStatus(status());
     close(v.tpms_pressure_fl, 2.9);

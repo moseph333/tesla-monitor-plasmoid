@@ -11,8 +11,8 @@ Switch scenarios while it runs:
 
     curl http://localhost:8765/_scenario/charging
 
-Scenarios: parked, charging, supercharging, complete, cold, driving, open, unlocked, update,
-asleep, offline.
+Scenarios: parked, charging, supercharging, complete, cold, dogmode, driving, open, unlocked,
+update, asleep, offline.
 With --expire-first, the first access token is refused once, so the widget has to renew.
 Only one token is valid at a time, as with Tesla: renewing invalidates the old ones.
 
@@ -68,6 +68,9 @@ def scenario(name, car):
         # A cold battery holds charge back, and the car is heating it.
         charge.update(usable_battery_level=65, battery_heater_on=True)
         car["climate_state"].update(outside_temp=-8.0, inside_temp=2.5, battery_heater=True)
+    elif name == "dogmode":
+        car["climate_state"].update(is_climate_on=True, climate_keeper_mode="dog", driver_temp_setting=20.5,
+                                    inside_temp=20.5, outside_temp=31.0)
     elif name == "complete":
         charge.update(charging_state="Complete", battery_level=80, charge_port_door_open=True)
     elif name == "driving":
@@ -141,7 +144,7 @@ def teslamate_api_status(car):
             "speed": int((d.get("speed") or 0) * KM_PER_MILE), "heading": 120, "elevation": 34},
         "climate_details": {"is_climate_on": cl["is_climate_on"], "inside_temp": cl["inside_temp"],
                             "outside_temp": cl["outside_temp"], "is_preconditioning": cl["is_preconditioning"],
-                            "climate_keeper_mode": "off"},
+                            "climate_keeper_mode": cl.get("climate_keeper_mode") or "off"},
         "battery_details": {"est_battery_range": round(c["est_battery_range"] * KM_PER_MILE, 2),
                             "rated_battery_range": round(c["battery_range"] * KM_PER_MILE, 2),
                             "ideal_battery_range": round(c["ideal_battery_range"] * KM_PER_MILE, 2),
@@ -205,7 +208,12 @@ def home_assistant_states(car):
         time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(time.time() + full * 3600)) if full else None,
         device_class="timestamp")
     add("cover", "charge_port_door", "Charge port door", "open" if c["charge_port_door_open"] else "closed")
-    add("climate", "climate", "Climate", "heat_cool" if cl["is_climate_on"] else "off")
+    keeper = cl.get("climate_keeper_mode") or "off"
+    add("climate", "climate", "Climate", "heat_cool" if cl["is_climate_on"] else "off",
+        preset_mode="keep" if keeper == "on" else keeper)
+    setting = cl.get("driver_temp_setting")
+    add("sensor", "driver_temperature_setting", "Driver temperature setting",
+        None if setting is None else round(setting * 9 / 5 + 32, 1), "°F")
     add("sensor", "inside_temperature", "Inside temperature", round(cl["inside_temp"] * 9 / 5 + 32, 1), "°F")
     add("sensor", "outside_temperature", "Outside temperature", round(cl["outside_temp"] * 9 / 5 + 32, 1), "°F")
     add("sensor", "shift_state", "Shift state", (d.get("shift_state") or "").lower() or None)

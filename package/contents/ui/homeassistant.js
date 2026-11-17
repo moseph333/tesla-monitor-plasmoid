@@ -205,7 +205,18 @@ function fromStates(list, prefix, nowMs) {
     if (port) flag("charge_port_door_open", port.state === "open" || port.state === "opening");
     else flag("charge_port_door_open", on("binary_sensor.charge_port_door"));
 
-    if (e["climate.climate"]) flag("is_climate_on", e["climate.climate"].state !== "off");
+    const climate = e["climate.climate"];
+    if (climate) {
+        flag("is_climate_on", climate.state !== "off");
+        // Dog, camp and keep mode are the climate's presets. The Tessie integration calls
+        // keep "on", the others "keep".
+        const preset = climate.attributes && typeof climate.attributes.preset_mode === "string"
+            ? climate.attributes.preset_mode : "";
+        if (preset) out.climate_keeper_mode = preset === "keep" ? "on" : preset;
+    }
+    flag("cabin_overheat_protection_actively_cooling", on("binary_sensor.cabin_overheat_protection_actively_cooling"));
+    flag("is_front_defroster_on", e["switch.defrost"] ? on("switch.defrost") : on("switch.defrost_mode"));
+    measure("driver_temp_setting", e["sensor.driver_temperature_setting"], toCelsius);
     flag("is_preconditioning", on("binary_sensor.preconditioning"));
     flag("battery_heater_on", on("binary_sensor.battery_heater"));
     measure("inside_temp", e["sensor.inside_temperature"], toCelsius);

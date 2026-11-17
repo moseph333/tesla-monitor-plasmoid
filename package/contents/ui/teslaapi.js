@@ -197,8 +197,15 @@ function fromVehicleData(json) {
     }
 
     if (climate) {
-        for (const key of ["inside_temp", "outside_temp", "is_climate_on", "is_preconditioning"])
+        for (const key of ["inside_temp", "outside_temp", "is_climate_on", "is_preconditioning",
+                           "climate_keeper_mode", "cabin_overheat_protection_actively_cooling",
+                           "driver_temp_setting"])
             put(key, climate[key]);
+        // Defrost mode is 0 when off; older cars only report the front defroster.
+        if (climate.is_front_defroster_on === true || (finite(climate.defrost_mode) && climate.defrost_mode > 0))
+            out.is_front_defroster_on = "true";
+        else if (climate.is_front_defroster_on === false || climate.defrost_mode === 0)
+            out.is_front_defroster_on = "false";
         // The battery heater shows up in either place, depending on the car.
         if (climate.battery_heater === true) out.battery_heater_on = "true";
         else if (climate.battery_heater === false && !out.battery_heater_on) out.battery_heater_on = "false";

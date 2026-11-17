@@ -18,8 +18,13 @@ Rectangle {
     RowLayout {
         id: stats
 
-        readonly property bool climateOn: Logic.bool(widget.car, "is_climate_on")
-        readonly property bool preconditioning: Logic.bool(widget.car, "is_preconditioning")
+        // Logic.climateMode(): preconditioning, dog, camp, keep, defrost, on, overheat, off
+        // or null.
+        readonly property var climateMode: Logic.climateMode(widget.car)
+        readonly property bool climateActive: climateMode !== null && climateMode !== "off"
+        // The temperature the climate is set to, for the modes that heat or cool to it.
+        readonly property var setTemp: ["preconditioning", "dog", "camp", "keep", "on"].includes(climateMode)
+            ? Logic.num(widget.car, "driver_temp_setting") : null
         // The width of an equal share. Cells are equally wide, except one whose text needs
         // more (such as "Preconditioning"): it gets what it asks for and the rest share
         // what is left, so the dividers barely move when a text changes. 0 when the strip
@@ -61,11 +66,23 @@ Rectangle {
             id: climate
             Layout.fillWidth: true
             Layout.preferredWidth: Math.max(implicitWidth, stats.share)
-            label: stats.preconditioning ? i18n("Preconditioning") : i18n("Climate")
-            // A dash while TeslaMate hasn't reported the climate.
-            value: stats.preconditioning || stats.climateOn ? i18n("On")
-                : Logic.triState(widget.car, "is_climate_on") === null ? "—" : i18n("Off")
-            dot: stats.preconditioning || stats.climateOn
+            label: {
+                switch (stats.climateMode) {
+                case "preconditioning": return i18n("Preconditioning")
+                case "dog": return i18n("Dog Mode")
+                case "camp": return i18n("Camp Mode")
+                case "keep": return i18n("Keep Climate")
+                case "defrost": return i18n("Defrosting")
+                case "overheat": return i18nc("cabin overheat protection is cooling the car", "Cabin Cooling")
+                default: return i18n("Climate")
+                }
+            }
+            // The set temperature while it's on, if the source gives it. A dash while the
+            // climate hasn't been reported.
+            value: stats.setTemp !== null ? widget.fmtTemp(stats.setTemp)
+                : stats.climateActive ? i18n("On")
+                : stats.climateMode === null ? "—" : i18n("Off")
+            dot: stats.climateActive
         }
         Stat {
             id: odometer

@@ -210,6 +210,34 @@ test("fromStates reads the battery heater", () => {
     assert.equal(H.fromStates(states(), "blue_thunder", NOW).battery_heater_on, undefined);
 });
 
+test("fromStates reads the climate's preset, defrost, overheat protection and set temperature", () => {
+    const v = H.fromStates(states({
+        "climate.blue_thunder_climate": { state: "heat_cool", attributes: { preset_mode: "dog" } },
+        "sensor.blue_thunder_driver_temperature_setting": { state: "69", attributes: { unit_of_measurement: "°F" } },
+        "switch.blue_thunder_defrost": "off",
+        "binary_sensor.blue_thunder_cabin_overheat_protection_actively_cooling": "off"
+    }), "blue_thunder", NOW);
+    assert.equal(v.climate_keeper_mode, "dog");
+    close(v.driver_temp_setting, (69 - 32) * 5 / 9);
+    assert.equal(v.is_front_defroster_on, "false");
+    assert.equal(v.cabin_overheat_protection_actively_cooling, "false");
+    assert.equal(L.climateMode(v), "dog");
+    // The Fleet and Teslemetry integrations call keep mode "keep", Tessie's "on".
+    const keep = preset => H.fromStates(states({
+        "climate.blue_thunder_climate": { state: "heat_cool", attributes: { preset_mode: preset } }
+    }), "blue_thunder", NOW).climate_keeper_mode;
+    assert.equal(keep("keep"), "on");
+    assert.equal(keep("on"), "on");
+    assert.equal(keep("off"), "off");
+    // Tessie's integration calls the defrost switch "Defrost mode".
+    assert.equal(H.fromStates(states({ "switch.blue_thunder_defrost_mode": "on" }), "blue_thunder", NOW)
+        .is_front_defroster_on, "true");
+    const none = H.fromStates(states(), "blue_thunder", NOW);
+    assert.equal(none.climate_keeper_mode, undefined);
+    assert.equal(none.is_front_defroster_on, undefined);
+    assert.equal(none.driver_temp_setting, undefined);
+});
+
 test("fromStates rebuilds TeslaMate's active_route in miles", () => {
     const v = H.fromStates(states({
         "sensor.blue_thunder_destination": "Office",

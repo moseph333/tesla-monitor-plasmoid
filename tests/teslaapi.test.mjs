@@ -224,6 +224,25 @@ test("the battery heater reads from the charge or the climate state", () => {
     assert.equal(heater(), undefined);
 });
 
+test("dog, camp and keep mode, defrost, overheat protection and the set temperature pass through", () => {
+    const car = Api.fromVehicleData(parked(r => {
+        Object.assign(r.climate_state, {
+            is_climate_on: true, climate_keeper_mode: "dog", cabin_overheat_protection_actively_cooling: false,
+            driver_temp_setting: 20.5, defrost_mode: 0, is_front_defroster_on: false
+        });
+    }));
+    assert.equal(car.climate_keeper_mode, "dog");
+    assert.equal(car.cabin_overheat_protection_actively_cooling, "false");
+    assert.equal(car.driver_temp_setting, "20.5");
+    assert.equal(car.is_front_defroster_on, "false");
+    assert.equal(L.climateMode(car), "dog");
+    const defrost = edit => Api.fromVehicleData(parked(edit)).is_front_defroster_on;
+    assert.equal(defrost(r => { r.climate_state.defrost_mode = 2; }), "true");
+    assert.equal(defrost(r => { r.climate_state.is_front_defroster_on = true; r.climate_state.defrost_mode = 0; }), "true");
+    assert.equal(defrost(), undefined);
+    assert.equal(Api.fromVehicleData(parked()).climate_keeper_mode, undefined);
+});
+
 test("a scheduled charge's start time becomes ISO, so it reads as scheduled", () => {
     const car = Api.fromVehicleData(parked(r => {
         Object.assign(r.charge_state, {

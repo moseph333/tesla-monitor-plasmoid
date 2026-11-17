@@ -355,6 +355,22 @@ test("chargerKind tells a Supercharger from another DC charger, and needs one pr
     assert.equal(L.chargerKind(null), "");
 });
 
+test("climateMode names what the climate is doing, the most telling first", () => {
+    assert.equal(L.climateMode({ is_preconditioning: "true", climate_keeper_mode: "dog" }), "preconditioning");
+    assert.equal(L.climateMode({ is_climate_on: "true", climate_keeper_mode: "dog" }), "dog");
+    assert.equal(L.climateMode({ is_climate_on: "true", climate_keeper_mode: "camp" }), "camp");
+    assert.equal(L.climateMode({ is_climate_on: "true", climate_keeper_mode: "on" }), "keep");
+    assert.equal(L.climateMode({ is_climate_on: "true", climate_keeper_mode: "off", is_front_defroster_on: "true" }), "defrost");
+    assert.equal(L.climateMode({ is_climate_on: "true", climate_keeper_mode: "off" }), "on");
+    // Overheat protection only counts while the climate itself is off.
+    assert.equal(L.climateMode({ is_climate_on: "true", cabin_overheat_protection_actively_cooling: "true" }), "on");
+    assert.equal(L.climateMode({ is_climate_on: "false", cabin_overheat_protection_actively_cooling: "true" }), "overheat");
+    assert.equal(L.climateMode({ is_climate_on: "false" }), "off");
+    assert.equal(L.climateMode({ climate_keeper_mode: "" }), null);
+    assert.equal(L.climateMode({}), null);
+    assert.equal(L.climateMode(null), null);
+});
+
 // TeslaMate's own example payloads for active_route.
 const routing = JSON.stringify({
     destination: "Home", energy_at_arrival: 73, miles_to_arrival: 6.485299,
