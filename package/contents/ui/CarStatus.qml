@@ -25,6 +25,8 @@ Item {
     property var fr: ({ value: "—", unit: "", text: "—", warn: false })
     property var rl: ({ value: "—", unit: "", text: "—", warn: false })
     property var rr: ({ value: "—", unit: "", text: "—", warn: false })
+    // The recommended cold pressures as a line of text, or "" if the source doesn't say.
+    property string recommendedPressure: ""
     // The body color as "#rrggbb", or "" for theme colors.
     property string paint: ""
     // TeslaMate names doors and windows by driver and passenger, not left and right.
@@ -325,6 +327,7 @@ Item {
         const low = [["fl", fl], ["fr", fr], ["rl", rl], ["rr", rr]]
             .filter(t => t[1].warn).map(t => texts.tireName(t[0]))
         if (low.length > 0) lines.push(i18n("Low tire pressure: %1", low.join(", ")))
+        if (recommendedPressure) lines.push(recommendedPressure)
         return lines.join("\n")
     }
 

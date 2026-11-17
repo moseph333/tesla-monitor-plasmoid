@@ -51,6 +51,7 @@ def scenario(name, car):
     charge = car["charge_state"]
     drive = car["drive_state"]
     vs = car["vehicle_state"]
+    vs.update(tpms_rcp_front_value=2.9, tpms_rcp_rear_value=2.9)
     if name == "charging":
         charge.update(charging_state="Charging", charger_power=11, charger_voltage=230,
                       charger_actual_current=16, charger_phases=3, time_to_full_charge=1.25,

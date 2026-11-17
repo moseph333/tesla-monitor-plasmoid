@@ -254,6 +254,11 @@ function fromVehicleData(json) {
             put("tpms_pressure_" + tire, vs["tpms_pressure_" + tire]);
             put("tpms_soft_warning_" + tire, vs["tpms_soft_warning_" + tire]);
         }
+        // The recommended cold pressures in bar. Not TeslaMate topics.
+        for (const axle of ["front", "rear"]) {
+            const bar = vs["tpms_rcp_" + axle + "_value"];
+            if (finite(bar) && bar > 0) out["tpms_rcp_" + axle] = String(bar);
+        }
         if (update) {
             const status = typeof update.status === "string" ? update.status : "";
             out.update_available = UPDATE_PENDING.includes(status) ? "true" : "false";

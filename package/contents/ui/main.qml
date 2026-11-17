@@ -122,18 +122,29 @@ PlasmoidItem {
         const v = Logic.distance(kmh, units.distance)
         return v === null ? "" : Math.round(v) + (units.distance === "mi" ? " mph" : " km/h")
     }
-    // One tire's pressure as {value, unit, text, warn}. bar gets one decimal, psi and kPa
-    // none. The card shows value and unit in different sizes; notifications use text.
-    function tire(pos) {
-        const p = Logic.pressure(Logic.num(car, "tpms_pressure_" + pos), units.pressure)
+    // A pressure in bar as {value, unit, text} in the chosen unit. bar gets one decimal, psi
+    // and kPa none.
+    function fmtPressure(bar) {
+        const p = Logic.pressure(bar, units.pressure)
         const value = p === null ? "—"
             : String(units.pressure === "bar" ? p.toLocaleString(Qt.locale(), "f", 1) : Math.round(p))
-        return {
-            value: value,
-            unit: p === null ? "" : pressUnit,
-            text: p === null ? "—" : value + " " + pressUnit,
-            warn: Logic.bool(car, "tpms_soft_warning_" + pos)
-        }
+        return { value: value, unit: p === null ? "" : pressUnit, text: p === null ? "—" : value + " " + pressUnit }
+    }
+    // One tire's pressure as {value, unit, text, warn}. The card shows value and unit in
+    // different sizes; notifications use text.
+    function tire(pos) {
+        return Object.assign(fmtPressure(Logic.num(car, "tpms_pressure_" + pos)),
+                             { warn: Logic.bool(car, "tpms_soft_warning_" + pos) })
+    }
+    // The recommended cold pressures, for the sources that give them, or "".
+    function recommendedPressureText() {
+        const front = Logic.num(car, "tpms_rcp_front")
+        const rear = Logic.num(car, "tpms_rcp_rear")
+        if (front === null || rear === null) return ""
+        const f = fmtPressure(front).text
+        const r = fmtPressure(rear).text
+        return f === r ? i18n("Recommended pressure: %1", f)
+                       : i18n("Recommended pressure: %1 front, %2 rear", f, r)
     }
 
     function stateLabel() {

@@ -279,6 +279,16 @@ test("a tire warning and a sunroof pass through", () => {
     assert.deepEqual(L.attention(car, []).map(item => item.id), ["tire:fr", "sunroof"]);
 });
 
+test("the recommended cold tire pressures pass through in bar", () => {
+    const car = Api.fromVehicleData(parked(r => {
+        Object.assign(r.vehicle_state, { tpms_rcp_front_value: 2.9, tpms_rcp_rear_value: 3.1 });
+    }));
+    assert.equal(car.tpms_rcp_front, "2.9");
+    assert.equal(car.tpms_rcp_rear, "3.1");
+    assert.equal(Api.fromVehicleData(parked(r => { r.vehicle_state.tpms_rcp_front_value = 0; })).tpms_rcp_front, undefined);
+    assert.equal(Api.fromVehicleData(parked()).tpms_rcp_rear, undefined);
+});
+
 test("software updates map to TeslaMate's update topics", () => {
     const update = (status, extra) => Api.fromVehicleData(parked(r => {
         Object.assign(r.vehicle_state.software_update, { status: status, version: "2025.38.1" }, extra);

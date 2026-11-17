@@ -12,6 +12,7 @@ All notable changes to Tesla Monitor are listed here. The format follows
 - Under the battery ring, the card says when the car is heating the battery, with the same sources.
 - The Climate cell names Dog Mode, Camp Mode and Keep Climate, with the TeslaMate API too, and, with the Fleet API, Teslemetry, Tessie and Home Assistant, defrosting and cabin overheat protection. While the climate runs, it shows the temperature it's set to instead of "On".
 - The footer says when a scheduled update will install, and about how long an installation has left, with the Fleet API, Teslemetry and Tessie.
+- Hovering over the car shows the recommended tire pressure, with the same three sources.
 
 ## [1.12.0] - 2026-11-16
 

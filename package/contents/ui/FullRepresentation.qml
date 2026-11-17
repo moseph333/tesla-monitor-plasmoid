@@ -199,6 +199,7 @@ Item {
             fr: widget.tire("fr")
             rl: widget.tire("rl")
             rr: widget.tire("rr")
+            recommendedPressure: widget.recommendedPressureText()
         }
 
         CardFooter {
