@@ -138,6 +138,15 @@ test("fromVehicleData gives TeslaMate's values for a parked car", () => {
     assert.equal(car.healthy, undefined);
 });
 
+test("the trim and the wheels pass through as TeslaMate's topics", () => {
+    const car = Api.fromVehicleData(parked(r => {
+        Object.assign(r.vehicle_config, { trim_badging: "p74d", wheel_type: "Stiletto20" });
+    }));
+    assert.equal(car.trim_badging, "p74d");
+    assert.equal(car.wheel_type, "Stiletto20");
+    assert.equal(Api.fromVehicleData(parked()).trim_badging, undefined);
+});
+
 test("fromVehicleData accepts the reply without its response wrapper, and junk", () => {
     assert.equal(Api.fromVehicleData(parked().response).battery_level, "72");
     assert.deepEqual(Api.fromVehicleData(null), {});

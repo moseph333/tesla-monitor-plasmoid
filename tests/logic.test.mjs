@@ -1797,6 +1797,32 @@ const MODEL_KEYS = ["s", "3", "x", "y", "cybertruck"];
 // Every number in a path, to check that none of them is NaN or missing.
 const pathNumbers = path => path.split(/[\s,]+/).filter(t => !/^[MLHVCAZ]$/.test(t));
 
+test("trimKey reads only the clear trim badges", () => {
+    assert.equal(Models.trimKey("74D"), "dual");
+    assert.equal(Models.trimKey("100d"), "dual");
+    assert.equal(Models.trimKey("P74D"), "performance");
+    assert.equal(Models.trimKey("p100d"), "performance");
+    assert.equal(Models.trimKey("Plaid"), "plaid");
+    assert.equal(Models.trimKey("50"), "");
+    assert.equal(Models.trimKey("74"), "");
+    assert.equal(Models.trimKey("LR AWD"), "");
+    assert.equal(Models.trimKey(""), "");
+    assert.equal(Models.trimKey(undefined), "");
+});
+
+test("wheelInfo splits the wheel's name from its size", () => {
+    assert.deepEqual(Models.wheelInfo("Pinwheel18"), { name: "Pinwheel", inches: 18 });
+    assert.deepEqual(Models.wheelInfo("Pinwheel18CapKit"), { name: "Pinwheel", inches: 18 });
+    assert.deepEqual(Models.wheelInfo("Induction20Black"), { name: "Induction", inches: 20 });
+    assert.deepEqual(Models.wheelInfo("AeroTurbine19"), { name: "Aero Turbine", inches: 19 });
+    assert.deepEqual(Models.wheelInfo("UberTurbine21"), { name: "Überturbine", inches: 21 });
+    assert.equal(Models.wheelInfo("Pinwheel"), null);
+    assert.equal(Models.wheelInfo("18"), null);
+    assert.equal(Models.wheelInfo("Pinwheel185"), null);
+    assert.equal(Models.wheelInfo(""), null);
+    assert.equal(Models.wheelInfo(null), null);
+});
+
 test("modelKey takes the settings' choice over what TeslaMate reports", () => {
     assert.deepEqual([1, 2, 3, 4, 5].map(i => Models.modelKey(i, "3")), MODEL_KEYS);
     assert.equal(Models.modelKey(4, undefined), "y");

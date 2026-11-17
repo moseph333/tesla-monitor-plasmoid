@@ -39,6 +39,7 @@ and each changes only its own values, so start with "parked".
   regen           driving and regenerating 12 kW
   route, noroute  navigating to Home, or not navigating
   cold            a cold battery: 72%, of which 65% is usable
+  performance     a Model 3 Performance on 20" Stiletto wheels
   unhealthy       TeslaMate having trouble reaching the car
   service         service mode on
   asleep          the car asleep
@@ -66,7 +67,7 @@ for name in "$@"; do
     case $name in
     parked | charging | complete | stopped | nopower | scheduled | open | close | unlock | lock | \
         present | away | home | tires | tires-empty | update | downloading | installing | \
-        driving | regen | route | noroute | cold | unhealthy | service | asleep | car2 | clear) ;;
+        driving | regen | route | noroute | cold | performance | unhealthy | service | asleep | car2 | clear) ;;
     *)
         echo "fake-teslamate.sh: unknown scenario: $name" >&2
         usage >&2
@@ -165,7 +166,7 @@ TIRES="fl fr rl rr"
 
 # Every value this script publishes, for clear.
 keys() {
-    echo display_name exterior_color model state since healthy version update_available update_version \
+    echo display_name exterior_color model trim_badging wheel_type state since healthy version update_available update_version \
         download_perc install_perc geofence shift_state speed power locked sentry_mode \
         is_user_present doors_open windows_open frunk_open trunk_open sun_roof_installed \
         sun_roof_percent_open is_climate_on is_preconditioning inside_temp outside_temp \
@@ -195,6 +196,8 @@ scenario() {
         pub display_name "Fake Model 3"
         pub exterior_color DeepBlue
         pub model 3
+        pub trim_badging 74D
+        pub wheel_type Pinwheel18
         state online
         # TeslaMate 2.1 and newer don't retain healthy, so it's removed, as there. The card
         # keeps a warning from unhealthy for 10 minutes, as it does with a real TeslaMate.
@@ -321,6 +324,10 @@ scenario() {
         ;;
     noroute) pub active_route '{"error":"No active route available"}' ;;
     cold) battery 72 65 ;;
+    performance)
+        pub trim_badging P74D
+        pub wheel_type Stiletto20
+        ;;
     unhealthy) pub healthy false ;;
     service) pub service_mode true ;;
     asleep)

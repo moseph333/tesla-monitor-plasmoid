@@ -316,6 +316,11 @@ Item {
 
     function summary() {
         const lines = []
+        // The trim and the wheels, for the sources that report them.
+        const title = texts.modelWithTrim(model, Models.trimKey(car.trim_badging))
+        if (title) lines.push(title)
+        const wheels = Models.wheelInfo(car.wheel_type)
+        if (wheels) lines.push(i18nc("wheel name and rim size in inches", "Wheels: %1 %2″", wheels.name, wheels.inches))
         if (locked !== null) lines.push(locked ? i18n("Locked") : i18n("Unlocked"))
         lines.push(i18n("Doors: %1", texts.partsText(Logic.parts(car, "door"))))
         lines.push(i18n("Windows: %1", texts.partsText(Logic.parts(car, "window"))))

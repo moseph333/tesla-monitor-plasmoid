@@ -14,6 +14,7 @@ All notable changes to Tesla Monitor are listed here. The format follows
 - The footer says when a scheduled update will install, and about how long an installation has left, with the Fleet API, Teslemetry and Tessie.
 - Hovering over the car shows the recommended tire pressure, with the same three sources.
 - Tessie's saved locations count as geofences: the card names the one the car is at, and **Unlocked is OK at** takes their names. The widget asks Tessie for the car's location after each update, and keeps only the place's name.
+- Hovering over the car names its trim, such as Model 3 Performance, and its wheels, such as Stiletto 20″, with every source but Home Assistant.
 
 ## [1.12.0] - 2026-11-16
 

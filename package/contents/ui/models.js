@@ -21,6 +21,30 @@ function modelKey(setting, reported) {
     return "3";
 }
 
+// The trim TeslaMate's trim_badging (the API's vehicle_config.trim_badging) names, as a
+// key for QML to word: "plaid", "performance", "dual" (dual motor) or "". Only the clear
+// patterns count: "74D" is dual motor, "P74D" performance, anything with "plaid" plaid.
+// Anything else, such as "50" or "74", gives "" rather than a guess.
+function trimKey(badging) {
+    const b = String(badging === undefined || badging === null ? "" : badging).trim().toLowerCase();
+    if (b.includes("plaid")) return "plaid";
+    const match = /^(p?)\d+(d?)$/.exec(b);
+    if (!match) return "";
+    return match[1] ? "performance" : match[2] ? "dual" : "";
+}
+
+// A wheel_type such as "Pinwheel18" or "Induction20Black" as {name, inches}: the name split
+// into words and the rim size in inches, without what follows the size. null for a value
+// that doesn't start with a name and a size.
+function wheelInfo(wheelType) {
+    const match = /^([A-Za-z]+?)(\d{2})(?!\d)/.exec(String(wheelType === undefined || wheelType === null ? "" : wheelType).trim());
+    if (!match) return null;
+    let name = match[1].replace(/([a-z])([A-Z])/g, "$1 $2");
+    // Tesla's own spelling.
+    if (/^uber turbine$/i.test(name)) name = "Überturbine";
+    return { name: name, inches: Number(match[2]) };
+}
+
 // ---------- paths ----------
 
 function round2(v) { return Math.round(v * 100) / 100; }

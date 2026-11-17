@@ -12,7 +12,7 @@ Switch scenarios while it runs:
     curl http://localhost:8765/_scenario/charging
 
 Scenarios: parked, charging, supercharging, complete, cold, dogmode, driving, open, unlocked,
-update, scheduled, installing, asleep, offline.
+update, scheduled, installing, performance, asleep, offline.
 With --expire-first, the first access token is refused once, so the widget has to renew.
 Only one token is valid at a time, as with Tesla: renewing invalidates the old ones.
 
@@ -52,6 +52,7 @@ def scenario(name, car):
     drive = car["drive_state"]
     vs = car["vehicle_state"]
     vs.update(tpms_rcp_front_value=2.9, tpms_rcp_rear_value=2.9)
+    car["vehicle_config"].update(trim_badging="74d", wheel_type="Pinwheel18")
     if name == "charging":
         charge.update(charging_state="Charging", charger_power=11, charger_voltage=230,
                       charger_actual_current=16, charger_phases=3, time_to_full_charge=1.25,
@@ -90,6 +91,8 @@ def scenario(name, car):
                                      scheduled_time_ms=int((time.time() + 2 * 3600) * 1000))
     elif name == "installing":
         vs["software_update"].update(status="installing", version="2025.38.1", install_perc=40)
+    elif name == "performance":
+        car["vehicle_config"].update(trim_badging="p74d", wheel_type="Stiletto20")
     elif name in ("asleep", "offline"):
         return name
     return "online"
@@ -129,9 +132,9 @@ def teslamate_api_status(car):
                            windows_open=any(windows), doors_open=any(doors.values()),
                            trunk_open=bool(vs["rt"]), frunk_open=bool(vs["ft"]),
                            is_user_present=vs["is_user_present"], center_display_state=0),
-        "car_details": {"model": "3", "trim_badging": "74D"},
+        "car_details": {"model": "3", "trim_badging": car["vehicle_config"]["trim_badging"].upper()},
         "car_exterior": {"exterior_color": car["vehicle_config"]["exterior_color"], "spoiler_type": "None",
-                         "wheel_type": "Pinwheel18"},
+                         "wheel_type": car["vehicle_config"]["wheel_type"]},
         "car_geodata": {"geofence": "Home" if teslamate_state(car) != "driving" else "",
                         "location": {"latitude": 52.52, "longitude": 13.405}, "latitude": 52.52, "longitude": 13.405},
         "car_versions": {"version": vs["car_version"].split()[0],
@@ -397,9 +400,9 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(200, {"data": {"cars": [{
                 "car_id": 1, "name": car["display_name"],
                 "car_details": {"eid": car["id"], "vid": car["vehicle_id"], "vin": VIN, "model": "3",
-                                "trim_badging": "74D", "efficiency": 0.153},
+                                "trim_badging": car["vehicle_config"]["trim_badging"].upper(), "efficiency": 0.153},
                 "car_exterior": {"exterior_color": car["vehicle_config"]["exterior_color"],
-                                 "spoiler_type": "None", "wheel_type": "Pinwheel18"}}]}})
+                                 "spoiler_type": "None", "wheel_type": car["vehicle_config"]["wheel_type"]}}]}})
         elif path == "/api/v1/cars/1/status":
             self.reply(200, teslamate_api_status(car))
         elif path.endswith("/status"):
