@@ -15,6 +15,7 @@ All notable changes to Tesla Monitor are listed here. The format follows
 - Hovering over the car shows the recommended tire pressure, with the same three sources.
 - Tessie's saved locations count as geofences: the card names the one the car is at, and **Unlocked is OK at** takes their names. The widget asks Tessie for the car's location after each update, and keeps only the place's name.
 - Hovering over the car names its trim, such as Model 3 Performance, and its wheels, such as Stiletto 20″, with every source but Home Assistant.
+- The drawing gives a car that reports a spoiler, such as a Model 3 Performance, a black lip along the trunk lid's trailing edge, with the same sources.
 
 ## [1.12.0] - 2026-11-16
 

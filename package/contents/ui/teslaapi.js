@@ -167,6 +167,7 @@ function fromVehicleData(json) {
         put("exterior_color", config.exterior_color);
         put("trim_badging", config.trim_badging);
         put("wheel_type", config.wheel_type);
+        put("spoiler_type", config.spoiler_type);
         if (present(config.sun_roof_installed)) out.sun_roof_installed = config.sun_roof_installed ? "true" : "false";
     }
 

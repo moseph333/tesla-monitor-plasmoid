@@ -93,10 +93,11 @@ test("fromStatus reads TeslaMate's climate keeper mode", () => {
     assert.equal(L.climateMode(dog), "dog");
 });
 
-test("fromStatus reads the trim and the wheels", () => {
+test("fromStatus reads the trim, the wheels and the spoiler", () => {
     const v = T.fromStatus(status());
     assert.equal(v.trim_badging, "74D");
     assert.equal(v.wheel_type, "Pinwheel18");
+    assert.equal(v.spoiler_type, "None");
     // Nullable columns TeslaMate has no value for.
     const none = T.fromStatus(status(d => {
         d.status.car_details.trim_badging = null;

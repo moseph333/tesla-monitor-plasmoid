@@ -1823,6 +1823,29 @@ test("wheelInfo splits the wheel's name from its size", () => {
     assert.equal(Models.wheelInfo(null), null);
 });
 
+test("hasSpoiler counts any spoiler type but none", () => {
+    assert.equal(Models.hasSpoiler("Passive"), true);
+    assert.equal(Models.hasSpoiler("None"), false);
+    assert.equal(Models.hasSpoiler("<invalid>"), false);
+    assert.equal(Models.hasSpoiler(""), false);
+    assert.equal(Models.hasSpoiler(undefined), false);
+});
+
+test("the sedans and SUVs have a lip spoiler on the trunk lid's trailing edge, the Cybertruck none", () => {
+    for (const key of ["s", "3", "x", "y"]) {
+        const p = Models.plan(key);
+        assert.match(p.spoilerPath, /^M .* Z$/, key);
+        const n = pathNumbers(p.spoilerPath).map(Number);
+        const xs = n.filter((v, i) => i % 2 === 0);
+        const ys = n.filter((v, i) => i % 2 === 1);
+        // Symmetric across the car, and at the lid's rear end, no further back.
+        assert.ok(Math.abs(Math.min(...xs) + Math.max(...xs) - p.boxWidth) < 0.05, key);
+        assert.ok(Math.max(...ys) <= p.trunkSpan[1] + 0.001, key);
+        assert.ok(Math.min(...ys) > p.trunkSpan[0] - 0.001, key);
+    }
+    assert.equal(Models.plan("cybertruck").spoilerPath, "");
+});
+
 test("modelKey takes the settings' choice over what TeslaMate reports", () => {
     assert.deepEqual([1, 2, 3, 4, 5].map(i => Models.modelKey(i, "3")), MODEL_KEYS);
     assert.equal(Models.modelKey(4, undefined), "y");
@@ -1924,7 +1947,7 @@ test("every plan's paths are well formed", () => {
             for (const t of pathNumbers(path)) assert.ok(Number.isFinite(Number(t)), key + ": " + t);
         }
         // What a plan may leave out is an empty path, never a missing one.
-        for (const name of ["creasePath", "slatPath", "trimPath", "quarterPath"]) {
+        for (const name of ["creasePath", "slatPath", "trimPath", "quarterPath", "spoilerPath"]) {
             assert.equal(typeof p[name], "string", key + " " + name);
             for (const t of pathNumbers(p[name]).filter(Boolean)) assert.ok(Number.isFinite(Number(t)), key + " " + name);
         }

@@ -116,6 +116,7 @@ function fromStatus(json) {
     const exterior = group("car_exterior");
     put("exterior_color", exterior.exterior_color);
     put("wheel_type", text(exterior.wheel_type));
+    put("spoiler_type", text(exterior.spoiler_type));
     put("geofence", group("car_geodata").geofence);
 
     const versions = group("car_versions");

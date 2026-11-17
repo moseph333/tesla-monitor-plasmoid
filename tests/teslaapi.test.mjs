@@ -138,12 +138,13 @@ test("fromVehicleData gives TeslaMate's values for a parked car", () => {
     assert.equal(car.healthy, undefined);
 });
 
-test("the trim and the wheels pass through as TeslaMate's topics", () => {
+test("the trim, the wheels and the spoiler pass through as TeslaMate's topics", () => {
     const car = Api.fromVehicleData(parked(r => {
-        Object.assign(r.vehicle_config, { trim_badging: "p74d", wheel_type: "Stiletto20" });
+        Object.assign(r.vehicle_config, { trim_badging: "p74d", wheel_type: "Stiletto20", spoiler_type: "Passive" });
     }));
     assert.equal(car.trim_badging, "p74d");
     assert.equal(car.wheel_type, "Stiletto20");
+    assert.equal(car.spoiler_type, "Passive");
     assert.equal(Api.fromVehicleData(parked()).trim_badging, undefined);
 });
 

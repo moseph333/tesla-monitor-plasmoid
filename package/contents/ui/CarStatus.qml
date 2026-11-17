@@ -43,6 +43,9 @@ Item {
     readonly property string rightSeat: rightHandDrive ? "driver" : "passenger"
     readonly property var frunkOpen: Logic.triState(car, "frunk_open")
     readonly property var trunkOpen: Logic.triState(car, "trunk_open")
+    // A spoiler on the trunk lid, for the sources that report one. Hidden while the lid is
+    // open, so the open lid stays one color.
+    readonly property bool spoiler: Models.hasSpoiler(car.spoiler_type) && trunkOpen !== true
     readonly property var portOpen: Logic.triState(car, "charge_port_door_open")
     readonly property bool pluggedIn: Logic.bool(car, "plugged_in")
     readonly property var locked: Logic.triState(car, "locked")
@@ -670,6 +673,11 @@ Item {
                     fillColor: colors.openFill(root.trunkOpen, colors.painted ? "white" : "transparent")
                     fillGradient: colors.painted && root.trunkOpen !== true ? trunkSheen : null
                     strokeColor: colors.openLine(root.trunkOpen, colors.seamColor, colors.faintSeamColor)
+                }
+                // A lip spoiler on the trunk lid, black like the trim.
+                Part {
+                    path: root.spoiler ? root.plan.spoilerPath : ""
+                    fillColor: colors.trimColor
                 }
                 // Creases in the hood, and the slats of a bed cover.
                 Part {

@@ -52,7 +52,7 @@ def scenario(name, car):
     drive = car["drive_state"]
     vs = car["vehicle_state"]
     vs.update(tpms_rcp_front_value=2.9, tpms_rcp_rear_value=2.9)
-    car["vehicle_config"].update(trim_badging="74d", wheel_type="Pinwheel18")
+    car["vehicle_config"].update(trim_badging="74d", wheel_type="Pinwheel18", spoiler_type="None")
     if name == "charging":
         charge.update(charging_state="Charging", charger_power=11, charger_voltage=230,
                       charger_actual_current=16, charger_phases=3, time_to_full_charge=1.25,
@@ -92,7 +92,7 @@ def scenario(name, car):
     elif name == "installing":
         vs["software_update"].update(status="installing", version="2025.38.1", install_perc=40)
     elif name == "performance":
-        car["vehicle_config"].update(trim_badging="p74d", wheel_type="Stiletto20")
+        car["vehicle_config"].update(trim_badging="p74d", wheel_type="Stiletto20", spoiler_type="Passive")
     elif name in ("asleep", "offline"):
         return name
     return "online"
@@ -133,7 +133,8 @@ def teslamate_api_status(car):
                            trunk_open=bool(vs["rt"]), frunk_open=bool(vs["ft"]),
                            is_user_present=vs["is_user_present"], center_display_state=0),
         "car_details": {"model": "3", "trim_badging": car["vehicle_config"]["trim_badging"].upper()},
-        "car_exterior": {"exterior_color": car["vehicle_config"]["exterior_color"], "spoiler_type": "None",
+        "car_exterior": {"exterior_color": car["vehicle_config"]["exterior_color"],
+                         "spoiler_type": car["vehicle_config"]["spoiler_type"],
                          "wheel_type": car["vehicle_config"]["wheel_type"]},
         "car_geodata": {"geofence": "Home" if teslamate_state(car) != "driving" else "",
                         "location": {"latitude": 52.52, "longitude": 13.405}, "latitude": 52.52, "longitude": 13.405},
@@ -402,7 +403,8 @@ class Handler(BaseHTTPRequestHandler):
                 "car_details": {"eid": car["id"], "vid": car["vehicle_id"], "vin": VIN, "model": "3",
                                 "trim_badging": car["vehicle_config"]["trim_badging"].upper(), "efficiency": 0.153},
                 "car_exterior": {"exterior_color": car["vehicle_config"]["exterior_color"],
-                                 "spoiler_type": "None", "wheel_type": car["vehicle_config"]["wheel_type"]}}]}})
+                                 "spoiler_type": car["vehicle_config"]["spoiler_type"],
+                                 "wheel_type": car["vehicle_config"]["wheel_type"]}}]}})
         elif path == "/api/v1/cars/1/status":
             self.reply(200, teslamate_api_status(car))
         elif path.endswith("/status"):
