@@ -8,6 +8,7 @@ import org.kde.kcmutils as KCM
 import "logic.js" as Logic
 import "teslaapi.js" as Api
 import "sources.js" as Sources
+import "rest.js" as Rest
 import "homeassistant.js" as HomeAssistant
 
 KCM.SimpleKCM {
@@ -307,16 +308,16 @@ KCM.SimpleKCM {
 
     // The values on the page for RestFetch.run(), asking for request.
     function restOptions(request) {
-        switch (source.key) {
-        case "teslamateApi":
-            return { source: source, url: teslamateApiUrl.text, token: teslamateApiToken.text,
-                     car: teslamateApiCarId.value, request: request }
-        case "tessie":
-            return { source: source, url: "", token: tessieToken.text, car: tessieVin.text, request: request }
-        case "homeAssistant":
-            return { source: source, url: haUrl.text, token: haToken.text, car: haPrefix.text, request: request }
-        }
-        return { source: source, url: "", token: "", car: "", request: request }
+        return Rest.restOptions(source, {
+            teslamateApiUrl: teslamateApiUrl.text,
+            teslamateApiToken: teslamateApiToken.text,
+            teslamateApiCarId: teslamateApiCarId.value,
+            tessieToken: tessieToken.text,
+            tessieVin: tessieVin.text,
+            haUrl: haUrl.text,
+            haToken: haToken.text,
+            haPrefix: haPrefix.text
+        }, request)
     }
 
     // Test Connection reads the car the settings name; Find Cars lists the cars.

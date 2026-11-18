@@ -30,3 +30,20 @@ test("host takes the host and port from a URL", () => {
     assert.equal(R.host("https://api.tessie.com/x?y"), "api.tessie.com");
     assert.equal(R.host("plain"), "plain");
 });
+
+test("restOptions picks each source's address, token and car from the settings", () => {
+    const values = { teslamateApiUrl: "tm.lan:8080", teslamateApiToken: "tm", teslamateApiCarId: 2,
+                     tessieToken: "ts", tessieVin: "VIN", haUrl: "ha.lan:8123", haToken: "ha", haPrefix: "blue" };
+    const api = { key: "teslamateApi" };
+    assert.deepEqual(R.restOptions(api, values, "data"),
+        { source: api, url: "tm.lan:8080", token: "tm", car: 2, request: "data" });
+    const tessie = { key: "tessie" };
+    assert.deepEqual(R.restOptions(tessie, values, "cars"),
+        { source: tessie, url: "", token: "ts", car: "VIN", request: "cars" });
+    const ha = { key: "homeAssistant" };
+    assert.deepEqual(R.restOptions(ha, values, "test"),
+        { source: ha, url: "ha.lan:8123", token: "ha", car: "blue", request: "test" });
+    // Another kind of source has nothing to ask.
+    const mqtt = { key: "mqtt" };
+    assert.deepEqual(R.restOptions(mqtt, values, "data"), { source: mqtt, url: "", token: "", car: "", request: "data" });
+});
