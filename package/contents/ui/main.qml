@@ -436,20 +436,42 @@ PlasmoidItem {
         onFinished: (result, err) => root.applyApiResult(result, err)
         // Renewing invalidates the old tokens, so the new ones are saved at once, without
         // counting as a change of settings that discards the data.
-        onTokensRenewed: (access, refresh, expiresAt) => root.saveTokens(access, refresh, expiresAt)
+        onTokensRenewed: (access, refresh, expiresAt, replaced) => root.saveTokens(access, refresh, expiresAt, replaced)
     }
 
-    // Saves renewed Fleet API tokens: in the wallet, in place, or in the settings without
-    // one. Renewing invalidates the old tokens, so if the wallet refuses the new ones, all
-    // the tokens go in the settings rather than be lost.
-    function saveTokens(access, refresh, expiresAt) {
-        tokens = Object.assign({}, tokens, { apiAccessToken: access, apiRefreshToken: refresh })
+    // Saves renewed Fleet API tokens where the refresh token they replace is kept: in the
+    // wallet, or in the settings without one. Tokens renewed for settings that changed
+    // meanwhile aren't saved over the new settings' own.
+    function saveTokens(access, refresh, expiresAt, replaced) {
         const id = cfg.tokensKeyringId
         if (!id) {
+            if (!Logic.withRenewedTokens({ apiRefreshToken: cfg.apiRefreshToken }, access, refresh, replaced)) return
+            if (tokens) tokens = Logic.withRenewedTokens(tokens, access, refresh, replaced) || tokens
             writeSecretSettings({ apiAccessToken: access, apiRefreshToken: refresh, apiTokenExpiry: expiresAt })
             return
         }
-        const saved = tokens
+        if (tokens) {
+            const merged = Logic.withRenewedTokens(tokens, access, refresh, replaced)
+            if (!merged) return
+            tokens = merged
+            storeTokens(id, merged, expiresAt)
+            return
+        }
+        // The settings just changed and the wallet hasn't been read since. The renewed
+        // tokens go over what the wallet holds, never in alone: its one entry has every
+        // service's tokens.
+        keyring.lookup(id, result => {
+            if (id !== cfg.tokensKeyringId || result.status !== "ok") return
+            const held = Logic.unpackSecrets(result.value, Logic.tokenSettings())
+            const merged = Logic.withRenewedTokens(held, access, refresh, replaced)
+            if (merged) storeTokens(id, merged, expiresAt)
+        })
+    }
+
+    // Puts saved, all the tokens, in the wallet under id. Renewing invalidates the old
+    // tokens, so if the wallet refuses the new ones, all the tokens go in the settings
+    // rather than be lost.
+    function storeTokens(id, saved, expiresAt) {
         writeSecretSettings({ apiTokenExpiry: expiresAt })
         keyring.store(id, tokensLabel, Logic.packSecrets(saved, Logic.tokenSettings()), "", result => {
             if (result.status === "ok" || id !== cfg.tokensKeyringId) return

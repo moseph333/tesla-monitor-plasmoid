@@ -755,10 +755,32 @@ test("notifyStep starts over after a gap longer than staleMs", () => {
 });
 
 test("notifyStep doesn't start over after an idle gap shorter than staleMs", () => {
-    // 3 × a 3600 s idle interval, as main.qml works it out.
-    const staleMs = Math.max(900000, 3000 * Math.max(15, 3600));
+    // 3 × a 3600 s idle interval, as Notifier.qml works it out.
+    const { staleMs } = L.notifyTimes({ active: 15, idle: 3600 });
     const r = run([[0, closed], [1, doorOpen], [31, doorOpen]], { staleMs });
     assert.deepEqual(r.events[2].map(e => e.type), ["leftOpen"]);
+});
+
+test("notifyTimes follows the source's poll rates", () => {
+    // TeslaMate's defaults, and its longest idle interval.
+    assert.deepEqual(L.notifyTimes({ active: 15, idle: 120 }), { staleMs: 15 * MIN, claimMs: 120 * MIN });
+    assert.deepEqual(L.notifyTimes({ active: 15, idle: 3600 }), { staleMs: 180 * MIN, claimMs: 120 * MIN });
+    // An online service's defaults, and its longest idle interval, 4 hours.
+    assert.deepEqual(L.notifyTimes({ active: 300, idle: 900 }), { staleMs: 45 * MIN, claimMs: 120 * MIN });
+    assert.deepEqual(L.notifyTimes({ active: 300, idle: 14400 }), { staleMs: 720 * MIN, claimMs: 480 * MIN });
+    // The normal rate counts when it is the slower one.
+    assert.deepEqual(L.notifyTimes({ active: 3600, idle: 60 }), { staleMs: 180 * MIN, claimMs: 120 * MIN });
+});
+
+test("notifyStep notifies what a sleeping car wakes up with at an online service's idle rate", () => {
+    // Idle polls 15 minutes apart, each arriving a little late, are not an outage.
+    const asleep = { ...closed, state: "asleep", update_available: "false" };
+    const awake = { ...closed, update_available: "true", update_version: "2026.44.1", tpms_soft_warning_rr: "true" };
+    const { staleMs } = L.notifyTimes({ active: 300, idle: 900 });
+    const r = run([[0, asleep], [15.01, asleep], [30.02, awake]], { staleMs });
+    assert.deepEqual(r.events[2].map(e => e.type), ["tires", "update"]);
+    // With the 15 minutes TeslaMate's rates give, every one of those polls started over.
+    assert.deepEqual(run([[0, asleep], [15.01, asleep], [30.02, awake]]).all, []);
 });
 
 test("notifyStep leaves the previous state unchanged", () => {
@@ -1025,17 +1047,49 @@ test("claimEvent claims an event without items once", () => {
     assert.equal(L.claimEvent(e, claim), e);
     assert.equal(L.claimEvent({ type: "unlocked" }, claim), null);
     assert.deepEqual(asked, [["chargeComplete", 120 * MIN], ["unlocked", 120 * MIN]]);
+    // A claim lasts as long as it is told to.
+    asked.length = 0;
+    L.claimEvent(e, claim, 480 * MIN);
+    L.claimEvent({ type: "tires", items: ["fl"] }, claim, 480 * MIN);
+    assert.deepEqual(asked, [["chargeComplete", 480 * MIN], ["tires|fl", 480 * MIN]]);
 });
 
-// One poll of one copy of the widget, as main.qml's processNotifications() and
-// sendNotification() run it: notifyStep, then the claims it releases in the shared hub
-// under `source`, then what claimEvent leaves this copy to send.
+test("carKey tells the cars of every source apart, and knows the same car again", () => {
+    const mqtt = { key: "mqtt" };
+    const base = { brokerHost: "Broker.lan", brokerPort: 1883, topicPrefix: "teslamate/cars/1" };
+    assert.equal(L.carKey(mqtt, base), "broker.lan:1883|teslamate/cars/1");
+    assert.equal(L.carKey(mqtt, { ...base, brokerHost: "mqtt://broker.lan:1883" }), L.carKey(mqtt, base));
+    assert.notEqual(L.carKey(mqtt, { ...base, topicPrefix: "teslamate/cars/2" }), L.carKey(mqtt, base));
+    // The broker settings stay at their defaults with the other sources, so they can't
+    // name the car there.
+    const fleet = { key: "fleet" };
+    assert.equal(L.carKey(fleet, { ...base, apiVin: "5YJ3E1EA7KF000001" }), "vin|5YJ3E1EA7KF000001");
+    assert.notEqual(L.carKey(fleet, { ...base, apiVin: "5YJ3E1EA7KF000001" }),
+        L.carKey(fleet, { ...base, apiVin: "7SAYGDEE9PF000002" }));
+    // One car through two online services is still one car, however the VIN was typed.
+    assert.equal(L.carKey({ key: "teslemetry" }, { teslemetryVin: " 5yj3e1ea7kf000001" }), "vin|5YJ3E1EA7KF000001");
+    assert.equal(L.carKey({ key: "tessie" }, { tessieVin: "5YJ3E1EA7KF000001" }), "vin|5YJ3E1EA7KF000001");
+    const api = { key: "teslamateApi" };
+    assert.equal(L.carKey(api, { teslamateApiUrl: "TeslaMate.lan:8080/", teslamateApiCarId: 2 }),
+        "teslamateApi|http://teslamate.lan:8080|2");
+    assert.notEqual(L.carKey(api, { teslamateApiUrl: "teslamate.lan:8080", teslamateApiCarId: 1 }),
+        L.carKey(api, { teslamateApiUrl: "teslamate.lan:8080", teslamateApiCarId: 2 }));
+    const ha = { key: "homeAssistant" };
+    assert.equal(L.carKey(ha, { haUrl: "https://ha.lan:8123", haPrefix: " Blue_Thunder " }),
+        "homeAssistant|https://ha.lan:8123|blue_thunder");
+    assert.notEqual(L.carKey(ha, { haUrl: "https://ha.lan:8123", haPrefix: "red_one" }),
+        L.carKey(ha, { haUrl: "https://ha.lan:8123", haPrefix: "blue_thunder" }));
+});
+
+// One poll of one copy of the widget, as Notifier.qml's process() and send() run it:
+// notifyStep, then the claims it releases in the shared hub under `source`, then what
+// claimEvent leaves this copy to send, with claims lasting opts.claimMs if given.
 function poll(source, state, car, ms, opts) {
     const r = L.notifyStep(state, car, ms, opts);
     for (const key of r.released) Hub.release(source + "|" + key);
     const sent = [];
     for (const e of r.events) {
-        const mine = L.claimEvent(e, (key, windowMs) => Hub.claim(source + "|" + key, ms, windowMs));
+        const mine = L.claimEvent(e, (key, windowMs) => Hub.claim(source + "|" + key, ms, windowMs), opts.claimMs);
         if (mine) sent.push(mine);
     }
     return { state: r.state, sent };
@@ -1096,6 +1150,14 @@ test("claimEvent sends an update or a low tire once when copies poll minutes apa
     const staleMs = 3000 * 3600;
     assert.deepEqual(copies("sleep-update", [0, 1800], s => s < 3000 ? asleep : v1, 9000,
         { idle: [3600, 3600], staleMs }), [[3600, 0, "update", []]]);
+    // Two copies on an online service wait its longest, 4 hours, and see the car awake 3
+    // hours apart: the claim has to outlast the two hours that are enough for TeslaMate.
+    const hour = 3600;
+    const slow = { refresh: [300, 300], idle: [4 * hour, 4 * hour], ...L.notifyTimes({ active: 300, idle: 4 * hour }) };
+    const wakes = s => s < 4.5 * hour ? asleep : v1;
+    assert.deepEqual(copies("slow-claim", [0, hour], wakes, 9 * hour, slow), [[5 * hour, 1, "update", []]]);
+    assert.deepEqual(copies("short-claim", [0, hour], wakes, 9 * hour, { ...slow, claimMs: 2 * hour * 1000 }),
+        [[5 * hour, 1, "update", []], [8 * hour, 0, "update", []]]);
 });
 
 test("claimEvent sends unlocked once when copies wake up at different times", () => {
@@ -1447,6 +1509,19 @@ test("keyringResult sorts secret-tool's exits", () => {
     assert.deepEqual(L.keyringResult(1, "", "secret-tool: The name org.freedesktop.secrets was not provided\n"),
         { status: "error", value: "", detail: "The name org.freedesktop.secrets was not provided" });
     assert.deepEqual(L.keyringResult(2, "", ""), { status: "error", value: "", detail: "2" });
+});
+
+test("withRenewedTokens replaces the Fleet API tokens only where the old refresh token is", () => {
+    const held = { apiAccessToken: "a1", apiRefreshToken: " r1\n", tessieToken: "t", haToken: "h" };
+    assert.deepEqual(L.withRenewedTokens(held, "a2", "r2", "r1"),
+        { apiAccessToken: "a2", apiRefreshToken: "r2", tessieToken: "t", haToken: "h" });
+    assert.equal(held.apiAccessToken, "a1");
+    // Other tokens were entered while these were renewed, or none are known: nothing to
+    // lay the new ones over, least of all an empty set that would then be stored alone.
+    assert.equal(L.withRenewedTokens({ ...held, apiRefreshToken: "other" }, "a2", "r2", "r1"), null);
+    assert.equal(L.withRenewedTokens({ tessieToken: "t" }, "a2", "r2", "r1"), null);
+    assert.equal(L.withRenewedTokens(null, "a2", "r2", "r1"), null);
+    assert.equal(L.withRenewedTokens({ apiRefreshToken: "" }, "a2", "r2", ""), null);
 });
 
 test("packSecrets keeps the non-empty secrets, in the order given, the same way every time", () => {

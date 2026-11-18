@@ -18,15 +18,13 @@ QtObject {
     property var options: ({})
     // The tokens in use: the settings' own, or newer ones renewed since.
     property var tokens: ({ access: "", refresh: "", expiresAt: 0 })
-    // Ends the open HTTP request as if it got no reply.
-    property var abortPending: null
 
     // result is {kind: "data" | "summary", values} or {kind: "vehicles", vehicles}, or null
     // on failure.
     signal finished(var result, string errorText)
-    // New tokens, for the settings. Sent even if the request that renewed them was
-    // cancelled: the old refresh token no longer works.
-    signal tokensRenewed(string access, string refresh, real expiresAt)
+    // New tokens, for the settings, and the refresh token they replace. Sent even if the
+    // request that renewed them was cancelled: the old refresh token no longer works.
+    signal tokensRenewed(string access, string refresh, real expiresAt, string replaced)
 
     // options = {service, region, customUrl, accessToken, refreshToken, clientId, authUrl,
     //            tokenExpiry, vin, request, withLocation} (see Api.fleetOptions()), where request is "data", "check", "summary"
@@ -41,7 +39,7 @@ QtObject {
         tokens = { access: access, refresh: String(o.refreshToken || "").trim(), expiresAt: Number(o.tokenExpiry) || 0 }
         // Another copy may already have traded these tokens for new ones.
         const shared = tokens.refresh ? TokenHub.latest(tokens.refresh) : null
-        if (shared) adopt(shared)
+        if (shared) adopt(shared, tokens.refresh)
         lastSerial = lastSerial + 1
         serial = lastSerial
         const id = serial
@@ -55,7 +53,8 @@ QtObject {
     }
 
     // Drops the running request's result, so data from old settings can't arrive after they
-    // change. A token renewal under way still completes and is saved.
+    // change. Its HTTP request stays open, since a token renewal under way has to complete
+    // and be saved, so it may still be open when the next run() starts.
     function cancel() {
         serial = 0
     }
@@ -64,9 +63,10 @@ QtObject {
         return tokens.refresh !== "" && String(options.clientId || "").trim() !== ""
     }
 
-    function adopt(next) {
+    // Carries on with tokens that replaced the refresh token `replaced`.
+    function adopt(next, replaced) {
         tokens = next
-        fetch.tokensRenewed(next.access, next.refresh, next.expiresAt)
+        fetch.tokensRenewed(next.access, next.refresh, next.expiresAt, replaced)
     }
 
     function done(id, result, error) {
@@ -147,7 +147,7 @@ QtObject {
         }
         const shared = TokenHub.latest(old)
         if (shared) {
-            adopt(shared)
+            adopt(shared, old)
             then()
             return
         }
@@ -167,8 +167,14 @@ QtObject {
                 }
             }
             TokenHub.finish(old, next)
+            // Cancelled meanwhile: the new tokens are still saved, but another request with
+            // other settings may be running by now, which they aren't for.
+            if (id !== serial) {
+                if (next) fetch.tokensRenewed(next.access, next.refresh, next.expiresAt, old)
+                return
+            }
             if (next) {
-                adopt(next)
+                adopt(next, old)
                 then()
             } else {
                 done(id, null, { kind: "refresh", detail: status === 0 ? "" : Api.apiError(status, body).detail })
@@ -177,31 +183,32 @@ QtObject {
     }
 
     // One HTTP request. callback(status, body) runs once: with status 0 if there was no reply
-    // within the timeout.
+    // within the timeout. Each request has a timer of its own: a cancelled run's request
+    // that ends late must not stop the timer of the request that followed it.
     function request(method, url, body, bearer, callback) {
         const xhr = new XMLHttpRequest()
+        const timer = timeout.createObject(fetch)
         let finished = false
         const finish = (status, text) => {
             if (finished) return
             finished = true
-            abortPending = null
-            timeout.stop()
+            timer.destroy()
             callback(status, text)
         }
-        abortPending = () => {
+        timer.triggered.connect(() => {
             finish(0, "")
             try {
                 xhr.abort()
             } catch (e) {
             }
-        }
+        })
         xhr.onreadystatechange = () => {
             if (xhr.readyState === XMLHttpRequest.DONE) finish(xhr.status, String(xhr.responseText || ""))
         }
         xhr.open(method, url)
         xhr.setRequestHeader("Accept", "application/json")
         if (bearer) xhr.setRequestHeader("Authorization", "Bearer " + bearer)
-        timeout.restart()
+        timer.start()
         if (body === null) {
             xhr.send()
         } else {
@@ -210,9 +217,10 @@ QtObject {
         }
     }
 
-    property Timer timeout: Timer {
-        interval: 20000
-        onTriggered: if (fetch.abortPending) fetch.abortPending()
+    readonly property Component timeout: Component {
+        Timer {
+            interval: 20000
+        }
     }
 
     function host(url) {

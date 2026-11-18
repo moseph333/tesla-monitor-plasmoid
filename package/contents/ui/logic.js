@@ -543,6 +543,17 @@ function notifyStep(prev, car, nowMs, opts) {
     };
 }
 
+// The times notifications go by, as {staleMs, claimMs}, from the source's poll rates in
+// seconds ({active, idle}, as sources.js refreshSeconds() gives them):
+//   staleMs  the gap between snapshots that notifyStep() takes for a suspend or an outage:
+//            three polls at the slower rate, at least 15 minutes
+//   claimMs  how long claimEvent() keeps an event claimed, so a copy that polls later
+//            still finds it: two polls at the slower rate, at least two hours
+function notifyTimes(rates) {
+    const slower = Math.max(Number(rates.active) || 0, Number(rates.idle) || 0) * SECOND;
+    return { staleMs: Math.max(15 * MINUTE, 3 * slower), claimMs: Math.max(2 * HOUR, 2 * slower) };
+}
+
 // The identity of an event, so copies of the widget showing the same car can tell they
 // saw the same one. Charge events are keyed by type alone: copies see a charge end at
 // different times, and the car's `since` can change in between.
@@ -568,14 +579,35 @@ function itemKey(id) {
     return eventKey({ type: "leftOpen", items: [{ id: id }] });
 }
 
+// Identifies the car a widget shows, for notifyhub.js: copies showing the same car share
+// claims, and widgets showing different cars don't. source is a sources.js entry and cfg
+// the widget's configuration. TeslaMate's car is its broker and topic, an online service's
+// its VIN (so the same car through two of them is one car), and any other's the server's
+// address with the server's own name for the car.
+function carKey(source, cfg) {
+    const vin = text => "vin|" + String(text || "").replace(/\s+/g, "").toUpperCase();
+    const at = (url, car) => source.key + "|" + normalizeUrl(url).toLowerCase().replace(/\/+$/, "") + "|"
+        + String(car === undefined || car === null ? "" : car).trim().toLowerCase();
+    switch (source.key) {
+    case "fleet": return vin(cfg.apiVin);
+    case "teslemetry": return vin(cfg.teslemetryVin);
+    case "tessie": return vin(cfg.tessieVin);
+    case "teslamateApi": return at(cfg.teslamateApiUrl, cfg.teslamateApiCarId);
+    case "homeAssistant": return at(cfg.haUrl, cfg.haPrefix);
+    default: {
+        const broker = parseBrokerHost(cfg.brokerHost);
+        return broker.host.toLowerCase() + ":" + (broker.port || cfg.brokerPort) + "|" + topicPrefix(cfg.topicPrefix);
+    }
+    }
+}
+
 // The part of an event this copy of the widget should send, or null if other copies
 // already sent all of it. claim(key, windowMs) is notifyhub.js's claim() for this car.
 //
 // Each left-open item and each low tire is claimed separately, because copies poll at
 // different times and may group them differently. A claim lasts until notifyStep()
-// releases it, or two hours: twice the longest poll interval the settings allow.
-function claimEvent(event, claim) {
-    const windowMs = 2 * HOUR;
+// releases it, or windowMs (notifyTimes()'s claimMs; two hours if not given).
+function claimEvent(event, claim, windowMs = 2 * HOUR) {
     if (!event.items) return claim(eventKey(event), windowMs) ? event : null;
     const items = event.items.filter(item => claim(eventKey({ type: event.type, items: [item] }), windowMs));
     if (items.length === 0) return null;
@@ -816,6 +848,15 @@ function unpackSecrets(text, keys) {
         values[key] = json[key] || "";
     }
     return values;
+}
+
+// held, the token settings' values, with renewed Fleet API tokens in place of the ones
+// they replace, or null if held doesn't have the refresh token they were traded for: the
+// settings changed while the tokens were renewed, and the new ones aren't theirs.
+function withRenewedTokens(held, access, refresh, replaced) {
+    const old = String(replaced || "").trim();
+    if (!held || !old || String(held.apiRefreshToken || "").trim() !== old) return null;
+    return Object.assign({}, held, { apiAccessToken: access, apiRefreshToken: refresh });
 }
 
 // Runs a mosquitto_sub command with the password from the wallet, off every command line:
