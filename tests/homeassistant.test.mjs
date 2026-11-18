@@ -158,7 +158,8 @@ test("fromStates reads the state from the status, shift and charging", () => {
     assert.equal(at({ "sensor.blue_thunder_shift_state": "d" }).state, "driving");
     assert.equal(at({ "sensor.blue_thunder_shift_state": "d" }).shift_state, "D");
     assert.equal(at({ "sensor.blue_thunder_charging": "complete" }).state, "online");
-    assert.equal(at({ "sensor.blue_thunder_charging": "complete" }).since, "2026-11-16T08:00:00.000Z");
+    // The status changed when the car woke, which says nothing about when it parked.
+    assert.equal(at({ "sensor.blue_thunder_charging": "complete" }).since, undefined);
     assert.equal(at({ "sensor.blue_thunder_charging": "no_power" }).charging_state, "NoPower");
     assert.equal(at({ "sensor.blue_thunder_charging": "disconnected" }).plugged_in, "false");
     assert.equal(at({}).since, undefined);
