@@ -1,15 +1,7 @@
 // Unit tests for rest.js. Run with `make test`.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-
-// The same loader as logic.test.mjs: drop the QML pragma and return the functions.
-function load(file) {
-    const src = readFileSync(new URL("../package/contents/ui/" + file, import.meta.url), "utf8")
-        .replace(/^\.pragma library\s*$/m, "");
-    const names = [...src.matchAll(/^function (\w+)\s*\(/gm)].map(m => m[1]);
-    return new Function(src + "\nreturn {" + names.join(",") + "};")();
-}
+import { load } from "./load.mjs";
 
 const R = load("rest.js");
 
@@ -37,4 +29,21 @@ test("host takes the host and port from a URL", () => {
     assert.equal(R.host("http://teslamate.local:8080"), "teslamate.local:8080");
     assert.equal(R.host("https://api.tessie.com/x?y"), "api.tessie.com");
     assert.equal(R.host("plain"), "plain");
+});
+
+test("restOptions picks each source's address, token and car from the settings", () => {
+    const values = { teslamateApiUrl: "tm.lan:8080", teslamateApiToken: "tm", teslamateApiCarId: 2,
+                     tessieToken: "ts", tessieVin: "VIN", haUrl: "ha.lan:8123", haToken: "ha", haPrefix: "blue" };
+    const api = { key: "teslamateApi" };
+    assert.deepEqual(R.restOptions(api, values, "data"),
+        { source: api, url: "tm.lan:8080", token: "tm", car: 2, request: "data" });
+    const tessie = { key: "tessie" };
+    assert.deepEqual(R.restOptions(tessie, values, "cars"),
+        { source: tessie, url: "", token: "ts", car: "VIN", request: "cars" });
+    const ha = { key: "homeAssistant" };
+    assert.deepEqual(R.restOptions(ha, values, "test"),
+        { source: ha, url: "ha.lan:8123", token: "ha", car: "blue", request: "test" });
+    // Another kind of source has nothing to ask.
+    const mqtt = { key: "mqtt" };
+    assert.deepEqual(R.restOptions(mqtt, values, "data"), { source: mqtt, url: "", token: "", car: "", request: "data" });
 });

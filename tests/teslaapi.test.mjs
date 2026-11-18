@@ -2,14 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-
-// The same loader as logic.test.mjs: drop the QML pragma and return the functions.
-function load(file) {
-    const src = readFileSync(new URL("../package/contents/ui/" + file, import.meta.url), "utf8")
-        .replace(/^\.pragma library\s*$/m, "");
-    const names = [...src.matchAll(/^function (\w+)\s*\(/gm)].map(m => m[1]);
-    return new Function(src + "\nreturn {" + names.join(",") + "};")();
-}
+import { load } from "./load.mjs";
 
 function fixture(name) {
     return JSON.parse(readFileSync(new URL("fixtures/" + name, import.meta.url), "utf8"));
@@ -68,6 +61,15 @@ test("authUrl defaults to Tesla's token server", () => {
     assert.equal(Api.authUrl(""), "https://fleet-auth.prd.vn.cloud.tesla.com");
     assert.equal(Api.authUrl(" http://localhost:9/ "), "http://localhost:9");
     assert.equal(Api.authUrl("auth.example.com/"), "https://auth.example.com");
+});
+
+test("authUrl defaults to China's token server for the China region", () => {
+    assert.equal(Api.authUrl("", 2), "https://auth.tesla.cn");
+    assert.equal(Api.baseUrl(2, ""), "https://fleet-api.prd.cn.vn.cloud.tesla.cn");
+    // The other regions and a custom URL share one, and the setting still decides.
+    for (const region of [0, 1, 3, undefined])
+        assert.equal(Api.authUrl("", region), "https://fleet-auth.prd.vn.cloud.tesla.com");
+    assert.equal(Api.authUrl("auth.example.com", 2), "https://auth.example.com");
 });
 
 test("isSecureUrl allows https, and plain http only to this machine", () => {
@@ -196,11 +198,11 @@ test("a DC fast charge keeps the charger's kind and the charge rate in km/h", ()
         Object.assign(r.charge_state, {
             charging_state: "Charging", charger_power: 150, charger_voltage: 2,
             charger_actual_current: 0, fast_charger_present: true,
-            fast_charger_type: "Supercharger", fast_charger_brand: "Tesla", charge_rate: 500
+            fast_charger_type: "Tesla", fast_charger_brand: "Tesla", charge_rate: 500
         });
     }));
     assert.equal(car.fast_charger_present, "true");
-    assert.equal(car.fast_charger_type, "Supercharger");
+    assert.equal(car.fast_charger_type, "Tesla");
     assert.equal(car.fast_charger_brand, "Tesla");
     close(car.charge_rate_kmh, 500 * 1.609344);
     assert.equal(L.chargerKind(car), "supercharger");

@@ -64,7 +64,7 @@ def scenario(name, car):
         charge.update(charging_state="Charging", charger_power=148, charger_voltage=2,
                       charger_actual_current=0, charger_phases=None, time_to_full_charge=0.42,
                       charge_port_door_open=True, battery_level=45, charge_energy_added=21.3,
-                      charge_rate=610, fast_charger_present=True, fast_charger_type="Supercharger",
+                      charge_rate=610, fast_charger_present=True, fast_charger_type="Tesla",
                       fast_charger_brand="Tesla")
     elif name == "cold":
         # A cold battery holds charge back, and the car is heating it.

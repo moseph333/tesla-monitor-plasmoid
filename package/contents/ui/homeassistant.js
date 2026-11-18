@@ -141,7 +141,8 @@ function fastCharger(type) {
     const t = String(type || "").toLowerCase();
     if (!t) return null;
     if (t === "<invalid>" || t.startsWith("ac")) return false;
-    return /supercharger|combo|ccs|chademo/.test(t) ? true : null;
+    // A Supercharger's type is "Tesla", and other DC chargers' the plug's name.
+    return /^tesla|supercharger|combo|ccs|chademo/.test(t) ? true : null;
 }
 
 // A zone as TeslaMate's geofence: Home Assistant says "home" for its home zone and the

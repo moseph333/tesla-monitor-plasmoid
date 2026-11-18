@@ -113,7 +113,7 @@ QtObject {
     // status itself by returning true. An expired token is renewed once and the request
     // repeated.
     function get(id, path, ok, special, retried) {
-        request("GET", options.base + path, null, tokens.access, (status, body) => {
+        http.send("GET", options.base + path, null, tokens.access, (status, body) => {
             if (id !== serial) return
             if (status === 401 && !retried && canRenew()) {
                 renew(id, () => get(id, path, ok, special, true))
@@ -139,7 +139,7 @@ QtObject {
     // the request was cancelled meanwhile.
     function renew(id, then) {
         const old = tokens.refresh
-        const tokenUrl = Api.authUrl(options.authUrl)
+        const tokenUrl = Api.authUrl(options.authUrl, options.region)
         // Never send the refresh token and client ID unencrypted.
         if (!Api.isSecureUrl(tokenUrl)) {
             failLater(id, { kind: "insecure", detail: tokenUrl })
@@ -156,7 +156,7 @@ QtObject {
             then()
             return
         }
-        request("POST", tokenUrl + "/oauth2/v3/token",
+        http.send("POST", tokenUrl + "/oauth2/v3/token",
                 Api.refreshTokenBody(options.clientId, old), "", (status, body) => {
             let next = null
             if (status === 200) {
@@ -182,46 +182,7 @@ QtObject {
         })
     }
 
-    // One HTTP request. callback(status, body) runs once: with status 0 if there was no reply
-    // within the timeout. Each request has a timer of its own: a cancelled run's request
-    // that ends late must not stop the timer of the request that followed it.
-    function request(method, url, body, bearer, callback) {
-        const xhr = new XMLHttpRequest()
-        const timer = timeout.createObject(fetch)
-        let finished = false
-        const finish = (status, text) => {
-            if (finished) return
-            finished = true
-            timer.destroy()
-            callback(status, text)
-        }
-        timer.triggered.connect(() => {
-            finish(0, "")
-            try {
-                xhr.abort()
-            } catch (e) {
-            }
-        })
-        xhr.onreadystatechange = () => {
-            if (xhr.readyState === XMLHttpRequest.DONE) finish(xhr.status, String(xhr.responseText || ""))
-        }
-        xhr.open(method, url)
-        xhr.setRequestHeader("Accept", "application/json")
-        if (bearer) xhr.setRequestHeader("Authorization", "Bearer " + bearer)
-        timer.start()
-        if (body === null) {
-            xhr.send()
-        } else {
-            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded")
-            xhr.send(body)
-        }
-    }
-
-    readonly property Component timeout: Component {
-        Timer {
-            interval: 20000
-        }
-    }
+    readonly property Http http: Http {}
 
     function host(url) {
         const text = url === undefined ? String(options.base || "") : String(url)

@@ -6,6 +6,8 @@ All notable changes to Tesla Monitor are listed here. The format follows
 
 ## [Unreleased]
 
+## [1.13.1] - 2026-11-18
+
 ### Changed
 
 - The widget's description in Plasma's widget browser names every data source, not only TeslaMate over MQTT and the Tesla Fleet API.
@@ -21,6 +23,8 @@ All notable changes to Tesla Monitor are listed here. The format follows
 - With the Tesla Fleet API and Teslemetry, the time next to "Parked" keeps counting for a car that stays awake, such as one with Sentry Mode on. It started again each time the widget stopped asking for data to let the car sleep, and again when it looked once more, so it never got past about 21 minutes. "Falling asleep" now shows how long the car has been parked, too.
 - With Home Assistant, the time next to "Parked" counts from when the widget saw the car park or stop charging. It counted from when the car woke up, so a car parked a minute ago after a two-hour outing said "Parked · 2h". A car that is already parked when the widget starts shows no time until it has done something else.
 - A broker address pasted into **Host** with a `/`, `?` or `#` in its password, such as `mqtts://user:p/ss@host:8883`, is read correctly. The username was taken for the host, and the real host, port and password were dropped.
+- With Home Assistant, a Supercharger is recognised. The car calls its type "Tesla", which the widget didn't know, so the card showed the session as AC charging, with the meaningless current and voltage a DC charger reports.
+- With the Region set to China, the widget renews the Fleet API's tokens on China's own server, `auth.tesla.cn`, unless **Token server** names another, and `tools/tesla-login.py --region cn` signs in and gets its tokens there. Both used the server of the other regions, which doesn't know China's accounts.
 
 ## [1.13.0] - 2026-11-16
 
@@ -221,7 +225,8 @@ All notable changes to Tesla Monitor are listed here. The format follows
 
 - First public version of the widget.
 
-[Unreleased]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.13.0...HEAD
+[Unreleased]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.13.1...HEAD
+[1.13.1]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.13.0...v1.13.1
 [1.13.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.12.0...v1.13.0
 [1.12.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.11.1...v1.12.0
 [1.11.1]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.11.0...v1.11.1

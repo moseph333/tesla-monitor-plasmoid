@@ -6,6 +6,7 @@ import "logic.js" as Logic
 import "models.js" as Models
 import "teslaapi.js" as Api
 import "sources.js" as Sources
+import "rest.js" as Rest
 
 PlasmoidItem {
     id: root
@@ -266,17 +267,7 @@ PlasmoidItem {
 
     // The settings for RestFetch.run(), asking for request.
     function restOptions(request) {
-        const settings = settingsView()
-        switch (source.key) {
-        case "teslamateApi":
-            return { source: source, url: cfg.teslamateApiUrl, token: settings.teslamateApiToken,
-                     car: cfg.teslamateApiCarId, request: request }
-        case "tessie":
-            return { source: source, url: "", token: settings.tessieToken, car: cfg.tessieVin, request: request }
-        case "homeAssistant":
-            return { source: source, url: cfg.haUrl, token: settings.haToken, car: cfg.haPrefix, request: request }
-        }
-        return { source: source, url: "", token: "", car: "", request: request }
+        return Rest.restOptions(source, settingsView(), request)
     }
 
     // Api.pollPlan()'s state between polls, and whether the running request is a summary

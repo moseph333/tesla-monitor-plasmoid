@@ -7,7 +7,6 @@
 //   kind        "mqtt" (MqttFetch), "fleet" (TeslaApiFetch) or "rest" (RestFetch)
 //   cloud       billed or rate-limited online service: polled in minutes, never under 1
 //   sleepAware  reaching the car keeps it awake, so polls follow teslaapi.js pollPlan()
-//   geofences   reports a named place as TeslaMate's geofence, which "Unlocked is OK at" needs
 
 const MQTT = 0;
 const FLEET = 1;
@@ -17,21 +16,19 @@ const TESSIE = 4;
 const HOME_ASSISTANT = 5;
 
 const SOURCES = [
-    { id: MQTT, key: "mqtt", kind: "mqtt", name: "TeslaMate", cloud: false, sleepAware: false, geofences: true },
-    { id: FLEET, key: "fleet", kind: "fleet", name: "Tesla Fleet API", cloud: true, sleepAware: true,
-      geofences: false },
-    { id: TESLAMATE_API, key: "teslamateApi", kind: "rest", name: "TeslaMate API", cloud: false, sleepAware: false,
-      geofences: true },
+    { id: MQTT, key: "mqtt", kind: "mqtt", name: "TeslaMate", cloud: false, sleepAware: false },
+    { id: FLEET, key: "fleet", kind: "fleet", name: "Tesla Fleet API", cloud: true, sleepAware: true },
+    { id: TESLAMATE_API, key: "teslamateApi", kind: "rest", name: "TeslaMate API", cloud: false,
+      sleepAware: false },
     // Whether Teslemetry's cache ever reaches a sleeping car isn't documented, so it is
     // polled as carefully as the Fleet API.
-    { id: TESLEMETRY, key: "teslemetry", kind: "fleet", name: "Teslemetry", cloud: true, sleepAware: true,
-      geofences: false },
+    { id: TESLEMETRY, key: "teslemetry", kind: "fleet", name: "Teslemetry", cloud: true, sleepAware: true },
     // Answers from its own copy of the car's state, so polling doesn't keep the car awake.
     // Its saved locations are geofences.
-    { id: TESSIE, key: "tessie", kind: "rest", name: "Tessie", cloud: true, sleepAware: false, geofences: true },
+    { id: TESSIE, key: "tessie", kind: "rest", name: "Tessie", cloud: true, sleepAware: false },
     // Reads what Home Assistant's own Tesla integration already fetched; zones are geofences.
     { id: HOME_ASSISTANT, key: "homeAssistant", kind: "rest", name: "Home Assistant", cloud: false,
-      sleepAware: false, geofences: true }
+      sleepAware: false }
 ];
 
 // The source for a dataSource value. An unknown value reads as TeslaMate over MQTT, the

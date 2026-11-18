@@ -2,14 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-
-// The same loader as logic.test.mjs: drop the QML pragma and return the functions.
-function load(file) {
-    const src = readFileSync(new URL("../package/contents/ui/" + file, import.meta.url), "utf8")
-        .replace(/^\.pragma library\s*$/m, "");
-    const names = [...src.matchAll(/^function (\w+)\s*\(/gm)].map(m => m[1]);
-    return new Function(src + "\nreturn {" + names.join(",") + "};")();
-}
+import { load } from "./load.mjs";
 
 function fixture(name) {
     return JSON.parse(readFileSync(new URL("fixtures/" + name, import.meta.url), "utf8"));
@@ -175,10 +168,10 @@ test("fromStates reads Teslemetry's sentry mode sensor", () => {
 
 test("fromStates reads a fast charger's type and the charge rate", () => {
     const v = H.fromStates(states({
-        "sensor.blue_thunder_fast_charger_type": "Supercharger",
+        "sensor.blue_thunder_fast_charger_type": "Tesla",
         "sensor.blue_thunder_charge_rate": { state: "300", attributes: { unit_of_measurement: "mph" } }
     }), "blue_thunder", NOW);
-    assert.equal(v.fast_charger_type, "Supercharger");
+    assert.equal(v.fast_charger_type, "Tesla");
     assert.equal(v.fast_charger_present, "true");
     close(v.charge_rate_kmh, 300 * 1.609344);
     assert.equal(L.chargerKind(v), "supercharger");
@@ -189,6 +182,8 @@ test("fromStates reads a fast charger's type and the charge rate", () => {
 });
 
 test("fastCharger tells DC from AC by the type, and doesn't guess", () => {
+    assert.equal(H.fastCharger("Tesla"), true);
+    assert.equal(H.fastCharger("TeslaCombo"), true);
     assert.equal(H.fastCharger("Supercharger"), true);
     assert.equal(H.fastCharger("Combo"), true);
     assert.equal(H.fastCharger("CHAdeMO"), true);
