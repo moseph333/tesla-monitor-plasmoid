@@ -2,14 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-
-// The same loader as logic.test.mjs: drop the QML pragma and return the functions.
-function load(file) {
-    const src = readFileSync(new URL("../package/contents/ui/" + file, import.meta.url), "utf8")
-        .replace(/^\.pragma library\s*$/m, "");
-    const names = [...src.matchAll(/^function (\w+)\s*\(/gm)].map(m => m[1]);
-    return new Function(src + "\nreturn {" + names.join(",") + "};")();
-}
+import { load } from "./load.mjs";
 
 function fixture(name) {
     return JSON.parse(readFileSync(new URL("fixtures/" + name, import.meta.url), "utf8"));

@@ -5,15 +5,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-
-// The scripts are plain functions behind a QML pragma, so the pragma is dropped and the
-// source runs in this realm, which keeps deepEqual's prototype checks meaningful.
-function load(file) {
-    const src = readFileSync(new URL("../package/contents/ui/" + file, import.meta.url), "utf8")
-        .replace(/^\.pragma library\s*$/m, "");
-    const names = [...src.matchAll(/^function (\w+)\s*\(/gm)].map(m => m[1]);
-    return new Function(src + "\nreturn {" + names.join(",") + "};")();
-}
+import { load } from "./load.mjs";
 
 const L = load("logic.js");
 const Hub = load("notifyhub.js");
