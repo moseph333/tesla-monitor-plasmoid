@@ -24,9 +24,9 @@ QtObject {
     // result is {kind: "data" | "summary", values} or {kind: "vehicles", vehicles}, or null
     // on failure.
     signal finished(var result, string errorText)
-    // New tokens, for the settings. Sent even if the request that renewed them was
-    // cancelled: the old refresh token no longer works.
-    signal tokensRenewed(string access, string refresh, real expiresAt)
+    // New tokens, for the settings, and the refresh token they replace. Sent even if the
+    // request that renewed them was cancelled: the old refresh token no longer works.
+    signal tokensRenewed(string access, string refresh, real expiresAt, string replaced)
 
     // options = {service, region, customUrl, accessToken, refreshToken, clientId, authUrl,
     //            tokenExpiry, vin, request, withLocation} (see Api.fleetOptions()), where request is "data", "check", "summary"
@@ -41,7 +41,7 @@ QtObject {
         tokens = { access: access, refresh: String(o.refreshToken || "").trim(), expiresAt: Number(o.tokenExpiry) || 0 }
         // Another copy may already have traded these tokens for new ones.
         const shared = tokens.refresh ? TokenHub.latest(tokens.refresh) : null
-        if (shared) adopt(shared)
+        if (shared) adopt(shared, tokens.refresh)
         lastSerial = lastSerial + 1
         serial = lastSerial
         const id = serial
@@ -64,9 +64,10 @@ QtObject {
         return tokens.refresh !== "" && String(options.clientId || "").trim() !== ""
     }
 
-    function adopt(next) {
+    // Carries on with tokens that replaced the refresh token `replaced`.
+    function adopt(next, replaced) {
         tokens = next
-        fetch.tokensRenewed(next.access, next.refresh, next.expiresAt)
+        fetch.tokensRenewed(next.access, next.refresh, next.expiresAt, replaced)
     }
 
     function done(id, result, error) {
@@ -147,7 +148,7 @@ QtObject {
         }
         const shared = TokenHub.latest(old)
         if (shared) {
-            adopt(shared)
+            adopt(shared, old)
             then()
             return
         }
@@ -168,7 +169,7 @@ QtObject {
             }
             TokenHub.finish(old, next)
             if (next) {
-                adopt(next)
+                adopt(next, old)
                 then()
             } else {
                 done(id, null, { kind: "refresh", detail: status === 0 ? "" : Api.apiError(status, body).detail })

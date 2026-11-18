@@ -850,6 +850,15 @@ function unpackSecrets(text, keys) {
     return values;
 }
 
+// held, the token settings' values, with renewed Fleet API tokens in place of the ones
+// they replace, or null if held doesn't have the refresh token they were traded for: the
+// settings changed while the tokens were renewed, and the new ones aren't theirs.
+function withRenewedTokens(held, access, refresh, replaced) {
+    const old = String(replaced || "").trim();
+    if (!held || !old || String(held.apiRefreshToken || "").trim() !== old) return null;
+    return Object.assign({}, held, { apiAccessToken: access, apiRefreshToken: refresh });
+}
+
 // Runs a mosquitto_sub command with the password from the wallet, off every command line:
 // the shell reads it into a variable, and printf pipes it into mosquitto_sub's default
 // options file ($XDG_CONFIG_HOME/mosquitto_sub, read since mosquitto 1.4), which is a link

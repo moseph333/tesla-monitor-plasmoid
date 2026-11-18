@@ -1511,6 +1511,19 @@ test("keyringResult sorts secret-tool's exits", () => {
     assert.deepEqual(L.keyringResult(2, "", ""), { status: "error", value: "", detail: "2" });
 });
 
+test("withRenewedTokens replaces the Fleet API tokens only where the old refresh token is", () => {
+    const held = { apiAccessToken: "a1", apiRefreshToken: " r1\n", tessieToken: "t", haToken: "h" };
+    assert.deepEqual(L.withRenewedTokens(held, "a2", "r2", "r1"),
+        { apiAccessToken: "a2", apiRefreshToken: "r2", tessieToken: "t", haToken: "h" });
+    assert.equal(held.apiAccessToken, "a1");
+    // Other tokens were entered while these were renewed, or none are known: nothing to
+    // lay the new ones over, least of all an empty set that would then be stored alone.
+    assert.equal(L.withRenewedTokens({ ...held, apiRefreshToken: "other" }, "a2", "r2", "r1"), null);
+    assert.equal(L.withRenewedTokens({ tessieToken: "t" }, "a2", "r2", "r1"), null);
+    assert.equal(L.withRenewedTokens(null, "a2", "r2", "r1"), null);
+    assert.equal(L.withRenewedTokens({ apiRefreshToken: "" }, "a2", "r2", ""), null);
+});
+
 test("packSecrets keeps the non-empty secrets, in the order given, the same way every time", () => {
     const keys = ["a", "b", "c"];
     assert.equal(L.packSecrets({ c: "3", a: " 1\n" }, keys), '{"a":"1","c":"3"}');
