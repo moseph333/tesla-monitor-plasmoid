@@ -16,6 +16,8 @@ All notable changes to Tesla Monitor are listed here. The format follows
 - With the Tesla Fleet API, Teslemetry and Tessie, notifications are sent for what a sleeping car wakes up with, such as a low tire or a software update. The 15 minutes between polls of a sleeping car counted as a break in the data, after which the widget only records what it finds, and with polls 15 minutes or more apart no notification was ever sent. Copies of the widget that poll more than two hours apart also no longer send the same notification twice.
 - With a token server or proxy that renews the Fleet API's access token without replacing the refresh token, the widget keeps renewing. It reused the first renewed access token after that one expired, and said the Tesla API rejected the access token until Plasma restarted.
 - Applying a change to the connection settings while the widget renews the Fleet API's tokens no longer deletes the Teslemetry, Tessie, TeslaMate API and Home Assistant tokens from the wallet. The renewed tokens also no longer replace Fleet API tokens entered in that moment.
+- With the Tesla Fleet API and Teslemetry, the widget no longer stops updating until the settings change again when a request gets no answer right after the connection settings were applied. The request the change had dropped could switch off the next one's 20-second limit, and the widget then waited for an answer for good.
+- Tokens renewed for a request that a change of settings dropped are no longer sent with the request that follows it, which may go to another service.
 
 ## [1.13.0] - 2026-11-16
 
