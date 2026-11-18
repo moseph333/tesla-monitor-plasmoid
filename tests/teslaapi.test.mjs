@@ -538,3 +538,18 @@ test("tokenhub follows a chain of renewals and lets one copy renew at a time", (
     assert.equal(Hub.begin("x", 10), true);
     assert.equal(Hub.begin("x", 31000), true);
 });
+
+test("tokenhub doesn't hand out the tokens of a renewal that kept the refresh token", () => {
+    const Hub = load("tokenhub.js");
+    // A server that doesn't rotate refresh tokens: the access token it gave would be
+    // adopted on every poll, and renewed no more once it expired.
+    assert.equal(Hub.begin("same", 0), true);
+    Hub.finish("same", { access: "a2", refresh: "same", expiresAt: 1 });
+    assert.equal(Hub.latest("same"), null);
+    assert.equal(Hub.begin("same", 1000), true);
+    // A refresh token handed out again is the newest again.
+    Hub.finish("r1", { access: "a2", refresh: "r2", expiresAt: 1 });
+    Hub.finish("r2", { access: "a3", refresh: "r1", expiresAt: 2 });
+    assert.equal(Hub.latest("r1"), null);
+    assert.deepEqual(Hub.latest("r2"), { access: "a3", refresh: "r1", expiresAt: 2 });
+});

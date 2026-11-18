@@ -14,7 +14,7 @@ const renewing = {};
 function latest(refresh) {
     let found = null;
     let key = refresh;
-    // A cycle can't happen with real tokens; the limit only guards against one.
+    // finish() keeps cycles out; the limit only guards against one.
     for (let i = 0; i < 50 && key && renewed.hasOwnProperty(key); i++) {
         found = renewed[key];
         key = found.refresh;
@@ -34,5 +34,11 @@ function begin(refresh, nowMs) {
 // Records a renewal, or ends a failed one when tokens is null.
 function finish(oldRefresh, tokens) {
     delete renewing[oldRefresh];
-    if (tokens) renewed[oldRefresh] = tokens;
+    if (!tokens) return;
+    // The refresh token just handed out is the newest, whatever was recorded for it before.
+    delete renewed[tokens.refresh];
+    // A server that doesn't rotate refresh tokens gives the same one back. That isn't
+    // recorded: latest() would hand out this access token for good, expired or not, and
+    // nothing was invalidated that another copy needs replaced.
+    if (tokens.refresh !== oldRefresh) renewed[oldRefresh] = tokens;
 }
