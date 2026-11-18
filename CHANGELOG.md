@@ -6,6 +6,8 @@ All notable changes to Tesla Monitor are listed here. The format follows
 
 ## [Unreleased]
 
+## [1.13.1] - 2026-11-18
+
 ### Changed
 
 - The widget's description in Plasma's widget browser names every data source, not only TeslaMate over MQTT and the Tesla Fleet API.
@@ -223,7 +225,8 @@ All notable changes to Tesla Monitor are listed here. The format follows
 
 - First public version of the widget.
 
-[Unreleased]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.13.0...HEAD
+[Unreleased]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.13.1...HEAD
+[1.13.1]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.13.0...v1.13.1
 [1.13.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.12.0...v1.13.0
 [1.12.0]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.11.1...v1.12.0
 [1.11.1]: https://github.com/moseph333/tesla-monitor-plasmoid/compare/v1.11.0...v1.11.1
