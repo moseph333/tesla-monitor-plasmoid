@@ -139,7 +139,7 @@ QtObject {
     // the request was cancelled meanwhile.
     function renew(id, then) {
         const old = tokens.refresh
-        const tokenUrl = Api.authUrl(options.authUrl)
+        const tokenUrl = Api.authUrl(options.authUrl, options.region)
         // Never send the refresh token and client ID unencrypted.
         if (!Api.isSecureUrl(tokenUrl)) {
             failLater(id, { kind: "insecure", detail: tokenUrl })

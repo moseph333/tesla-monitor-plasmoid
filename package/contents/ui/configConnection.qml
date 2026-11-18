@@ -766,7 +766,7 @@ KCM.SimpleKCM {
             id: apiAuthUrl
             visible: page.source.key === "fleet" && apiRefreshToken.text.trim() !== ""
             Kirigami.FormData.label: i18n("Token server:")
-            placeholderText: "https://fleet-auth.prd.vn.cloud.tesla.com"
+            placeholderText: Api.authUrl("", apiRegion.currentIndex)
             inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoAutoUppercase
             Layout.preferredWidth: Kirigami.Units.gridUnit * 16
             onTextChanged: page.formEdited()

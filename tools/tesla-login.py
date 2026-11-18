@@ -39,6 +39,8 @@ REGIONS = {
 }
 AUTH_URL = "https://auth.tesla.com"
 TOKEN_URL = "https://fleet-auth.prd.vn.cloud.tesla.com/oauth2/v3/token"
+# China's accounts sign in, and get and renew their tokens, on a server of their own.
+REGION_AUTH = {"cn": ("https://auth.tesla.cn", "https://auth.tesla.cn/oauth2/v3/token")}
 # offline_access is what gives a refresh token, so the widget can renew the access token.
 SCOPE = "openid offline_access vehicle_device_data"
 DEFAULT_REDIRECT = "http://localhost:8585/callback"
@@ -332,6 +334,12 @@ def api_url_of(args):
     return (args.api_url or REGIONS[args.region][1]).rstrip("/")
 
 
+def auth_urls_of(args):
+    """The sign-in page's base and the token endpoint: the region's, unless given."""
+    auth_url, token_url = REGION_AUTH.get(args.region, (AUTH_URL, TOKEN_URL))
+    return args.auth_url or auth_url, args.token_url or token_url
+
+
 def run_register(args, client_id):
     api_url = api_url_of(args)
     domain = args.domain.strip().lower()
@@ -349,7 +357,7 @@ def run_register(args, client_id):
                 % (key_url, "HTTP %d" % status if status else reply))
     secret = client_secret()
     say("Getting a partner token…")
-    partner = request_ok("POST", args.token_url, form={
+    partner = request_ok("POST", auth_urls_of(args)[1], form={
         "grant_type": "client_credentials", "client_id": client_id, "client_secret": secret,
         "audience": api_url, "scope": "openid vehicle_device_data"})
     partner_token = partner.get("access_token") if isinstance(partner, dict) else None
@@ -369,11 +377,12 @@ def run_login(args, client_id):
         check_redirect(args.redirect_uri)
     secret = client_secret()
     state = secrets.token_urlsafe(24)
-    url = authorize_url(args.auth_url, client_id, args.redirect_uri, state, secrets.token_urlsafe(16))
+    auth_url, token_url = auth_urls_of(args)
+    url = authorize_url(auth_url, client_id, args.redirect_uri, state, secrets.token_urlsafe(16))
     code = (manual_code(url, state) if args.manual
             else wait_for_callback(args.redirect_uri, state, args.timeout, url, not args.no_browser))
     say("Getting tokens…")
-    reply = request_ok("POST", args.token_url, form={
+    reply = request_ok("POST", token_url, form={
         "grant_type": "authorization_code", "client_id": client_id, "client_secret": secret,
         "code": code, "audience": api_url, "redirect_uri": args.redirect_uri})
     tokens = tokens_from(reply, time.time())
@@ -398,8 +407,8 @@ def parse_args(argv):
                              "and Africa, cn: China")
     # For the fake server in tools/, and for services with the same API.
     common.add_argument("--api-url", help=argparse.SUPPRESS)
-    common.add_argument("--auth-url", default=AUTH_URL, help=argparse.SUPPRESS)
-    common.add_argument("--token-url", default=TOKEN_URL, help=argparse.SUPPRESS)
+    common.add_argument("--auth-url", help=argparse.SUPPRESS)
+    common.add_argument("--token-url", help=argparse.SUPPRESS)
 
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0],
                                      epilog="Run a command with --help for its options.")

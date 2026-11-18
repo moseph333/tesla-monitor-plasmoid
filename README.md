@@ -123,7 +123,7 @@ For the Tesla Fleet API:
 | ------- | ----- |
 | Region | Where your Tesla account's data lives: North America and Asia-Pacific, Europe, Middle East and Africa, or China. **Custom URL** is for a service that offers the Fleet API's URLs, and must use HTTPS unless it's on this computer |
 | Access token | A Fleet API access token with the `vehicle_device_data` scope |
-| Refresh token, Client ID | Optional. With both, the widget renews the access token when it expires and saves the new tokens in the wallet. **Token server** is Tesla's unless you change it, and must use HTTPS unless it's on this computer |
+| Refresh token, Client ID | Optional. With both, the widget renews the access token when it expires and saves the new tokens in the wallet. **Token server** is Tesla's for the region unless you change it, and must use HTTPS unless it's on this computer |
 | VIN | The car to show. **Find Cars** fills it in |
 | Every (under Refresh) | 5 minutes by default, and never less than 1 |
 | While the car sleeps | 15 minutes by default. Also used while the widget lets an awake car fall asleep |

@@ -16,6 +16,9 @@ const REGIONS = [
     "https://fleet-api.prd.cn.vn.cloud.tesla.cn"
 ];
 const AUTH_URL = "https://fleet-auth.prd.vn.cloud.tesla.com";
+// China's accounts have a token server of their own.
+const CHINA_REGION = 2;
+const CHINA_AUTH_URL = "https://auth.tesla.cn";
 // Teslemetry serves the Fleet API's URLs, from its cache where it can, with a long-lived
 // token of its own that never needs renewing.
 const TESLEMETRY_URL = "https://api.teslemetry.com";
@@ -50,11 +53,11 @@ function fleetConfigured(o) {
     return baseUrl(o.region, o.customUrl) !== "" && o.accessToken.trim() !== "" && cleanVin(o.vin) !== "";
 }
 
-// The token endpoint's base, from the setting or Tesla's default. https:// is added if it
-// has no scheme.
-function authUrl(text) {
+// The token endpoint's base, from the setting or Tesla's default for the Region setting.
+// https:// is added if it has no scheme.
+function authUrl(text, region) {
     let url = String(text || "").trim().replace(/\/+$/, "");
-    if (!url) return AUTH_URL;
+    if (!url) return Math.round(Number(region)) === CHINA_REGION ? CHINA_AUTH_URL : AUTH_URL;
     if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) url = "https://" + url;
     return url;
 }

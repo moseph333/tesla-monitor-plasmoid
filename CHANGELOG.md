@@ -22,6 +22,7 @@ All notable changes to Tesla Monitor are listed here. The format follows
 - With Home Assistant, the time next to "Parked" counts from when the widget saw the car park or stop charging. It counted from when the car woke up, so a car parked a minute ago after a two-hour outing said "Parked · 2h". A car that is already parked when the widget starts shows no time until it has done something else.
 - A broker address pasted into **Host** with a `/`, `?` or `#` in its password, such as `mqtts://user:p/ss@host:8883`, is read correctly. The username was taken for the host, and the real host, port and password were dropped.
 - With Home Assistant, a Supercharger is recognised. The car calls its type "Tesla", which the widget didn't know, so the card showed the session as AC charging, with the meaningless current and voltage a DC charger reports.
+- With the Region set to China, the widget renews the Fleet API's tokens on China's own server, `auth.tesla.cn`, unless **Token server** names another, and `tools/tesla-login.py --region cn` signs in and gets its tokens there. Both used the server of the other regions, which doesn't know China's accounts.
 
 ## [1.13.0] - 2026-11-16
 

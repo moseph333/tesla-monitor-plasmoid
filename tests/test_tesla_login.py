@@ -127,6 +127,18 @@ class PureTests(unittest.TestCase):
         for key in ["na", "eu", "cn"]:
             self.assertIn('"%s"' % login.REGIONS[key][1], source)
 
+    def test_auth_urls_follow_the_region(self):
+        urls = lambda *argv: login.auth_urls_of(login.parse_args(["login", "--client-id", "c", *argv]))
+        world = ("https://auth.tesla.com", "https://fleet-auth.prd.vn.cloud.tesla.com/oauth2/v3/token")
+        self.assertEqual(urls(), world)
+        self.assertEqual(urls("--region", "eu"), world)
+        self.assertEqual(urls("--region", "cn"), ("https://auth.tesla.cn", "https://auth.tesla.cn/oauth2/v3/token"))
+        self.assertEqual(urls("--region", "cn", "--auth-url", "http://a", "--token-url", "http://t"),
+                         ("http://a", "http://t"))
+        # The widget renews China's tokens on the same server.
+        source = (ROOT / "package" / "contents" / "ui" / "teslaapi.js").read_text()
+        self.assertIn('"%s"' % login.REGION_AUTH["cn"][0], source)
+
     def test_format_result(self):
         tokens = {"access": "AAA", "refresh": "RRR", "expires_at": 0}
         text = login.format_result("eu", login.REGIONS["eu"][1], "cid", tokens, [{"vin": "V1", "name": "Car"}])

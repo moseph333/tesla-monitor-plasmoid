@@ -70,6 +70,15 @@ test("authUrl defaults to Tesla's token server", () => {
     assert.equal(Api.authUrl("auth.example.com/"), "https://auth.example.com");
 });
 
+test("authUrl defaults to China's token server for the China region", () => {
+    assert.equal(Api.authUrl("", 2), "https://auth.tesla.cn");
+    assert.equal(Api.baseUrl(2, ""), "https://fleet-api.prd.cn.vn.cloud.tesla.cn");
+    // The other regions and a custom URL share one, and the setting still decides.
+    for (const region of [0, 1, 3, undefined])
+        assert.equal(Api.authUrl("", region), "https://fleet-auth.prd.vn.cloud.tesla.com");
+    assert.equal(Api.authUrl("auth.example.com", 2), "https://auth.example.com");
+});
+
 test("isSecureUrl allows https, and plain http only to this machine", () => {
     for (const url of ["https://api.example.com", "HTTPS://x", "http://localhost:8765", "http://LOCALHOST",
                        "http://localhost./x", "http://127.0.0.1:1", "http://127.1.2.3", "http://[::1]:8080/x"])
