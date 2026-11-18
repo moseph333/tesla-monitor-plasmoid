@@ -19,7 +19,7 @@ QtObject {
     readonly property bool busy: serial !== 0
     // What the last run() was given, with the resolved base URL, for messages.
     property var options: ({})
-    // Ends the open HTTP request as if it got no reply.
+    // Ends the last HTTP request as if it got no reply, if it is still open.
     property var abortPending: null
 
     // result is {kind: "data" | "summary", values} or {kind: "cars", cars}, or null on
@@ -125,39 +125,13 @@ QtObject {
         fetch.finished(result, error ? message(error) : "")
     }
 
-    // One GET. callback(status, body) runs once: with status 0 if there was no reply within
-    // the timeout.
+    // One GET, which cancel() can end. callback(status, body) runs once: with status 0 if
+    // there was no reply within the timeout.
     function request(url, bearer, callback) {
-        const xhr = new XMLHttpRequest()
-        let finished = false
-        const finish = (status, text) => {
-            if (finished) return
-            finished = true
-            abortPending = null
-            timeout.stop()
-            callback(status, text)
-        }
-        abortPending = () => {
-            finish(0, "")
-            try {
-                xhr.abort()
-            } catch (e) {
-            }
-        }
-        xhr.onreadystatechange = () => {
-            if (xhr.readyState === XMLHttpRequest.DONE) finish(xhr.status, String(xhr.responseText || ""))
-        }
-        xhr.open("GET", url)
-        xhr.setRequestHeader("Accept", "application/json")
-        if (bearer) xhr.setRequestHeader("Authorization", "Bearer " + bearer)
-        timeout.restart()
-        xhr.send()
+        abortPending = http.send("GET", url, null, bearer, callback)
     }
 
-    property Timer timeout: Timer {
-        interval: 20000
-        onTriggered: if (fetch.abortPending) fetch.abortPending()
-    }
+    readonly property Http http: Http {}
 
     // The message for an error, or "" if there was none. The detail is the server's own
     // words, so it is cleaned up before it is shown.
