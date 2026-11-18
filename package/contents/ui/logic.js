@@ -685,9 +685,15 @@ function parseBrokerHost(text) {
         else if (["mqtt", "tcp", "ws"].includes(name)) broker.tls = false;
         rest = rest.slice(scheme[0].length);
     }
-    rest = rest.split(/[\/?#]/)[0];
-    // Split at the last @, since a password may contain one.
-    const at = rest.lastIndexOf("@");
+    // The host ends at the first /, ? or #, and user:password@ at the last @ before that,
+    // since a password may contain an @. A password may contain one of those three as
+    // well: if what comes before the first of them is user:text rather than a host or
+    // host:port, and an @ follows, the credentials go on to the last @.
+    const cut = rest.search(/[\/?#]/);
+    const head = cut < 0 ? rest : rest.slice(0, cut);
+    let at = head.lastIndexOf("@");
+    if (at < 0 && cut >= 0 && rest.indexOf("@", cut) >= 0 && /^[^:\[]*:(?!\d+$)/.test(head))
+        at = rest.lastIndexOf("@");
     if (at >= 0) {
         const credentials = rest.slice(0, at);
         const colon = credentials.indexOf(":");
@@ -695,6 +701,7 @@ function parseBrokerHost(text) {
         broker.password = colon < 0 ? "" : credentials.slice(colon + 1);
         rest = rest.slice(at + 1);
     }
+    rest = rest.split(/[\/?#]/)[0];
     let port = "";
     const bracketed = /^\[([^\]]*)\](?::(.*))?$/.exec(rest);
     if (bracketed) {

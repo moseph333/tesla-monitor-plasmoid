@@ -1344,6 +1344,26 @@ test("parseBrokerHost splits credentials at the last @", () => {
         { host: "", port: null, tls: null, user: "user", password: "" });
 });
 
+test("parseBrokerHost reads a password with a slash, question mark or hash in it", () => {
+    assert.deepEqual(L.parseBrokerHost("mqtts://user:p/ss@host:8883"),
+        { host: "host", port: 8883, tls: true, user: "user", password: "p/ss" });
+    assert.deepEqual(L.parseBrokerHost("mqtt://user:p#ss@broker.lan"),
+        { host: "broker.lan", port: null, tls: false, user: "user", password: "p#ss" });
+    assert.deepEqual(L.parseBrokerHost("user:a?b@c/d@h:1884/path"),
+        { host: "h", port: 1884, tls: null, user: "user", password: "a?b@c/d" });
+    assert.deepEqual(L.parseBrokerHost("user:/@h"),
+        { host: "h", port: null, tls: null, user: "user", password: "/" });
+    // A path with an @ after a host, or a host and port, is still a path.
+    assert.deepEqual(L.parseBrokerHost("ws://host:8083/mqtt@x"),
+        { host: "host", port: 8083, tls: false, user: "", password: "" });
+    assert.deepEqual(L.parseBrokerHost("host/p@th"),
+        { host: "host", port: null, tls: null, user: "", password: "" });
+    assert.deepEqual(L.parseBrokerHost("[fd00::1]:1883/p@th"),
+        { host: "fd00::1", port: 1883, tls: null, user: "", password: "" });
+    assert.deepEqual(L.parseBrokerHost("u:pw@host:8883/p@th"),
+        { host: "host", port: 8883, tls: null, user: "u", password: "pw" });
+});
+
 test("parseBrokerHost handles IPv6 with and without brackets", () => {
     assert.deepEqual(L.parseBrokerHost("[fd00::1]:1883"),
         { host: "fd00::1", port: 1883, tls: null, user: "", password: "" });
