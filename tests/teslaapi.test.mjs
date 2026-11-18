@@ -388,6 +388,18 @@ test("trackSince only counts a change this widget saw", () => {
     assert.equal(Api.trackSince({ state: "asleep" }, { state: "asleep" }, t), "");
 });
 
+test("trackSince keeps counting while the widget lets a parked car fall asleep", () => {
+    // A car that stays awake, with Sentry Mode on, goes online, suspended, online for as
+    // long as it is parked.
+    const t = Date.parse("2026-11-16T10:00:00Z");
+    assert.equal(Api.trackSince({ state: "online", since: "S" }, { state: "suspended" }, t), "S");
+    assert.equal(Api.trackSince({ state: "suspended", since: "S" }, { state: "online" }, t), "S");
+    assert.equal(Api.trackSince({ state: "suspended", since: "S" }, { state: "suspended" }, t), "S");
+    // Falling asleep or driving off is still a change.
+    assert.equal(Api.trackSince({ state: "suspended", since: "S" }, { state: "asleep" }, t), "2026-11-16T10:00:00.000Z");
+    assert.equal(Api.trackSince({ state: "suspended", since: "S" }, { state: "driving" }, t), "2026-11-16T10:00:00.000Z");
+});
+
 test("isBusy counts what keeps the car awake anyway", () => {
     const idle = Api.fromVehicleData(parked());
     assert.equal(Api.isBusy(idle), false);

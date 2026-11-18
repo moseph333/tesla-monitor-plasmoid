@@ -311,11 +311,14 @@ function mergeSummary(last, summary, suspended) {
 }
 
 // When the car's state began, as ISO, for TeslaMate's `since`. Only a change seen by this
-// widget counts, so the first values have none rather than a wrong one.
+// widget counts, so the first values have none rather than a wrong one. "suspended" is
+// the widget's own doing (see pollPlan()), not the car's: a parked car goes in and out of
+// it and stays parked, so it counts as "online" here.
 function trackSince(prev, next, nowMs) {
+    const stretch = state => state === "suspended" ? "online" : state;
     const was = prev && prev.state ? prev.state : "";
     if (!was || !next.state) return "";
-    if (was === next.state) return prev.since || "";
+    if (stretch(was) === stretch(next.state)) return prev.since || "";
     return new Date(nowMs).toISOString();
 }
 
