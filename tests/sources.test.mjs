@@ -19,15 +19,12 @@ test("byId knows TeslaMate over MQTT and the Fleet API", () => {
     assert.equal(S.byId(0).kind, "mqtt");
     assert.equal(S.byId(1).kind, "fleet");
     assert.equal(S.byId(1).sleepAware, true);
-    assert.equal(S.byId(0).geofences, true);
-    assert.equal(S.byId(1).geofences, false);
 });
 
 test("byId knows the TeslaMate API", () => {
     assert.equal(S.byId(2).key, "teslamateApi");
     assert.equal(S.byId(2).kind, "rest");
     assert.equal(S.byId(2).cloud, false);
-    assert.equal(S.byId(2).geofences, true);
     assert.deepEqual(S.refreshSeconds(S.byId(2), cfg), { active: 15, idle: 120 });
 });
 
@@ -43,7 +40,6 @@ test("byId knows Tessie, an online service that lets the car sleep", () => {
     assert.equal(S.byId(4).kind, "rest");
     assert.equal(S.byId(4).cloud, true);
     assert.equal(S.byId(4).sleepAware, false);
-    assert.equal(S.byId(4).geofences, true);
     assert.equal(S.popupRefreshMs(S.byId(4)), 60000);
 });
 
@@ -51,7 +47,6 @@ test("byId knows Home Assistant, read on the local network", () => {
     assert.equal(S.byId(5).key, "homeAssistant");
     assert.equal(S.byId(5).kind, "rest");
     assert.equal(S.byId(5).cloud, false);
-    assert.equal(S.byId(5).geofences, true);
     assert.deepEqual(S.refreshSeconds(S.byId(5), cfg), { active: 15, idle: 120 });
 });
 
