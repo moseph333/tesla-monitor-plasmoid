@@ -568,6 +568,28 @@ function itemKey(id) {
     return eventKey({ type: "leftOpen", items: [{ id: id }] });
 }
 
+// Identifies the car a widget shows, for notifyhub.js: copies showing the same car share
+// claims, and widgets showing different cars don't. source is a sources.js entry and cfg
+// the widget's configuration. TeslaMate's car is its broker and topic, an online service's
+// its VIN (so the same car through two of them is one car), and any other's the server's
+// address with the server's own name for the car.
+function carKey(source, cfg) {
+    const vin = text => "vin|" + String(text || "").replace(/\s+/g, "").toUpperCase();
+    const at = (url, car) => source.key + "|" + normalizeUrl(url).toLowerCase().replace(/\/+$/, "") + "|"
+        + String(car === undefined || car === null ? "" : car).trim().toLowerCase();
+    switch (source.key) {
+    case "fleet": return vin(cfg.apiVin);
+    case "teslemetry": return vin(cfg.teslemetryVin);
+    case "tessie": return vin(cfg.tessieVin);
+    case "teslamateApi": return at(cfg.teslamateApiUrl, cfg.teslamateApiCarId);
+    case "homeAssistant": return at(cfg.haUrl, cfg.haPrefix);
+    default: {
+        const broker = parseBrokerHost(cfg.brokerHost);
+        return broker.host.toLowerCase() + ":" + (broker.port || cfg.brokerPort) + "|" + topicPrefix(cfg.topicPrefix);
+    }
+    }
+}
+
 // The part of an event this copy of the widget should send, or null if other copies
 // already sent all of it. claim(key, windowMs) is notifyhub.js's claim() for this car.
 //

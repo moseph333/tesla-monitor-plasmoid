@@ -18,10 +18,7 @@ QtObject {
     // Logic.notifyStep()'s state after the last poll, or null to start over.
     property var state: null
     // Identifies the car to notifyhub.js, so copies showing the same car share claims.
-    readonly property string source: {
-        const broker = Logic.parseBrokerHost(cfg.brokerHost)
-        return broker.host.toLowerCase() + ":" + (broker.port || cfg.brokerPort) + "|" + widget.prefix
-    }
+    readonly property string carKey: Logic.carKey(widget.source, cfg)
 
     // For a new broker or car: what it already shows isn't news.
     function startOver() {
@@ -40,7 +37,7 @@ QtObject {
         })
         state = step.state
         // What is fine again releases its claim for every copy.
-        for (const key of step.released) Hub.release(source + "|" + key)
+        for (const key of step.released) Hub.release(carKey + "|" + key)
         for (const event of step.events) send(event)
     }
 
@@ -58,7 +55,7 @@ QtObject {
         // Every copy showing this car sees the event on its own poll. Only the first to
         // claim each part sends it.
         const at = Date.now()
-        const mine = Logic.claimEvent(event, (key, windowMs) => Hub.claim(source + "|" + key, at, windowMs))
+        const mine = Logic.claimEvent(event, (key, windowMs) => Hub.claim(carKey + "|" + key, at, windowMs))
         if (!mine) return
         const words = content(mine, widget.carName)
         if (!words) return

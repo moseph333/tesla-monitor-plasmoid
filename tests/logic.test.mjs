@@ -1027,6 +1027,33 @@ test("claimEvent claims an event without items once", () => {
     assert.deepEqual(asked, [["chargeComplete", 120 * MIN], ["unlocked", 120 * MIN]]);
 });
 
+test("carKey tells the cars of every source apart, and knows the same car again", () => {
+    const mqtt = { key: "mqtt" };
+    const base = { brokerHost: "Broker.lan", brokerPort: 1883, topicPrefix: "teslamate/cars/1" };
+    assert.equal(L.carKey(mqtt, base), "broker.lan:1883|teslamate/cars/1");
+    assert.equal(L.carKey(mqtt, { ...base, brokerHost: "mqtt://broker.lan:1883" }), L.carKey(mqtt, base));
+    assert.notEqual(L.carKey(mqtt, { ...base, topicPrefix: "teslamate/cars/2" }), L.carKey(mqtt, base));
+    // The broker settings stay at their defaults with the other sources, so they can't
+    // name the car there.
+    const fleet = { key: "fleet" };
+    assert.equal(L.carKey(fleet, { ...base, apiVin: "5YJ3E1EA7KF000001" }), "vin|5YJ3E1EA7KF000001");
+    assert.notEqual(L.carKey(fleet, { ...base, apiVin: "5YJ3E1EA7KF000001" }),
+        L.carKey(fleet, { ...base, apiVin: "7SAYGDEE9PF000002" }));
+    // One car through two online services is still one car, however the VIN was typed.
+    assert.equal(L.carKey({ key: "teslemetry" }, { teslemetryVin: " 5yj3e1ea7kf000001" }), "vin|5YJ3E1EA7KF000001");
+    assert.equal(L.carKey({ key: "tessie" }, { tessieVin: "5YJ3E1EA7KF000001" }), "vin|5YJ3E1EA7KF000001");
+    const api = { key: "teslamateApi" };
+    assert.equal(L.carKey(api, { teslamateApiUrl: "TeslaMate.lan:8080/", teslamateApiCarId: 2 }),
+        "teslamateApi|http://teslamate.lan:8080|2");
+    assert.notEqual(L.carKey(api, { teslamateApiUrl: "teslamate.lan:8080", teslamateApiCarId: 1 }),
+        L.carKey(api, { teslamateApiUrl: "teslamate.lan:8080", teslamateApiCarId: 2 }));
+    const ha = { key: "homeAssistant" };
+    assert.equal(L.carKey(ha, { haUrl: "https://ha.lan:8123", haPrefix: " Blue_Thunder " }),
+        "homeAssistant|https://ha.lan:8123|blue_thunder");
+    assert.notEqual(L.carKey(ha, { haUrl: "https://ha.lan:8123", haPrefix: "red_one" }),
+        L.carKey(ha, { haUrl: "https://ha.lan:8123", haPrefix: "blue_thunder" }));
+});
+
 // One poll of one copy of the widget, as main.qml's processNotifications() and
 // sendNotification() run it: notifyStep, then the claims it releases in the shared hub
 // under `source`, then what claimEvent leaves this copy to send.

@@ -10,6 +10,10 @@ All notable changes to Tesla Monitor are listed here. The format follows
 
 - The widget's description in Plasma's widget browser names every data source, not only TeslaMate over MQTT and the Tesla Fleet API.
 
+### Fixed
+
+- Two widgets showing different cars through the Tesla Fleet API, Teslemetry, Tessie, Home Assistant or the TeslaMate API no longer count as copies of one car, where a notification for one car kept the same notification for the other from being sent.
+
 ## [1.13.0] - 2026-11-16
 
 ### Added
