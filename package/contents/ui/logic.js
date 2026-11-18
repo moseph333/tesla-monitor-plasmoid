@@ -543,6 +543,17 @@ function notifyStep(prev, car, nowMs, opts) {
     };
 }
 
+// The times notifications go by, as {staleMs, claimMs}, from the source's poll rates in
+// seconds ({active, idle}, as sources.js refreshSeconds() gives them):
+//   staleMs  the gap between snapshots that notifyStep() takes for a suspend or an outage:
+//            three polls at the slower rate, at least 15 minutes
+//   claimMs  how long claimEvent() keeps an event claimed, so a copy that polls later
+//            still finds it: two polls at the slower rate, at least two hours
+function notifyTimes(rates) {
+    const slower = Math.max(Number(rates.active) || 0, Number(rates.idle) || 0) * SECOND;
+    return { staleMs: Math.max(15 * MINUTE, 3 * slower), claimMs: Math.max(2 * HOUR, 2 * slower) };
+}
+
 // The identity of an event, so copies of the widget showing the same car can tell they
 // saw the same one. Charge events are keyed by type alone: copies see a charge end at
 // different times, and the car's `since` can change in between.
@@ -595,9 +606,8 @@ function carKey(source, cfg) {
 //
 // Each left-open item and each low tire is claimed separately, because copies poll at
 // different times and may group them differently. A claim lasts until notifyStep()
-// releases it, or two hours: twice the longest poll interval the settings allow.
-function claimEvent(event, claim) {
-    const windowMs = 2 * HOUR;
+// releases it, or windowMs (notifyTimes()'s claimMs; two hours if not given).
+function claimEvent(event, claim, windowMs = 2 * HOUR) {
     if (!event.items) return claim(eventKey(event), windowMs) ? event : null;
     const items = event.items.filter(item => claim(eventKey({ type: event.type, items: [item] }), windowMs));
     if (items.length === 0) return null;

@@ -13,6 +13,7 @@ All notable changes to Tesla Monitor are listed here. The format follows
 ### Fixed
 
 - Two widgets showing different cars through the Tesla Fleet API, Teslemetry, Tessie, Home Assistant or the TeslaMate API no longer count as copies of one car, where a notification for one car kept the same notification for the other from being sent.
+- With the Tesla Fleet API, Teslemetry and Tessie, notifications are sent for what a sleeping car wakes up with, such as a low tire or a software update. The 15 minutes between polls of a sleeping car counted as a break in the data, after which the widget only records what it finds, and with polls 15 minutes or more apart no notification was ever sent. Copies of the widget that poll more than two hours apart also no longer send the same notification twice.
 
 ## [1.13.0] - 2026-11-16
 

@@ -20,6 +20,11 @@ QtObject {
     // Identifies the car to notifyhub.js, so copies showing the same car share claims.
     readonly property string carKey: Logic.carKey(widget.source, cfg)
 
+    // How long a gap counts as an outage and how long a claim lasts, which depend on how
+    // often the source is polled: an online service's idle polls are 15 minutes apart by
+    // default, and up to 4 hours.
+    readonly property var times: Logic.notifyTimes(widget.rates)
+
     // For a new broker or car: what it already shows isn't news.
     function startOver() {
         state = null
@@ -30,9 +35,7 @@ QtObject {
     function process() {
         const step = Logic.notifyStep(state, widget.car, Date.now(), {
             leftOpenMs: cfg.leftOpenMinutes * 60 * 1000,
-            // Three polls at the slower rate, at least 15 minutes: only a suspend or a
-            // broker outage should count as a gap.
-            staleMs: Math.max(15 * 60 * 1000, 3 * 1000 * Math.max(cfg.refreshSeconds, cfg.idleRefreshSeconds)),
+            staleMs: times.staleMs,
             okGeofences: widget.okGeofences
         })
         state = step.state
@@ -55,7 +58,7 @@ QtObject {
         // Every copy showing this car sees the event on its own poll. Only the first to
         // claim each part sends it.
         const at = Date.now()
-        const mine = Logic.claimEvent(event, (key, windowMs) => Hub.claim(carKey + "|" + key, at, windowMs))
+        const mine = Logic.claimEvent(event, (key, windowMs) => Hub.claim(carKey + "|" + key, at, windowMs), times.claimMs)
         if (!mine) return
         const words = content(mine, widget.carName)
         if (!words) return
