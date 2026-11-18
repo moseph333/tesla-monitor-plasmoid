@@ -18,6 +18,9 @@ All notable changes to Tesla Monitor are listed here. The format follows
 - Applying a change to the connection settings while the widget renews the Fleet API's tokens no longer deletes the Teslemetry, Tessie, TeslaMate API and Home Assistant tokens from the wallet. The renewed tokens also no longer replace Fleet API tokens entered in that moment.
 - With the Tesla Fleet API and Teslemetry, the widget no longer stops updating until the settings change again when a request gets no answer right after the connection settings were applied. The request the change had dropped could switch off the next one's 20-second limit, and the widget then waited for an answer for good.
 - Tokens renewed for a request that a change of settings dropped are no longer sent with the request that follows it, which may go to another service.
+- With the Tesla Fleet API and Teslemetry, the time next to "Parked" keeps counting for a car that stays awake, such as one with Sentry Mode on. It started again each time the widget stopped asking for data to let the car sleep, and again when it looked once more, so it never got past about 21 minutes. "Falling asleep" now shows how long the car has been parked, too.
+- With Home Assistant, the time next to "Parked" counts from when the widget saw the car park or stop charging. It counted from when the car woke up, so a car parked a minute ago after a two-hour outing said "Parked · 2h". A car that is already parked when the widget starts shows no time until it has done something else.
+- A broker address pasted into **Host** with a `/`, `?` or `#` in its password, such as `mqtts://user:p/ss@host:8883`, is read correctly. The username was taken for the host, and the real host, port and password were dropped.
 
 ## [1.13.0] - 2026-11-16
 

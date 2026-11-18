@@ -302,10 +302,10 @@ function fromStates(list, prefix, nowMs) {
         else if (out.charging_state === "Charging" || out.charging_state === "Starting") out.state = "charging";
         else if (status === true) out.state = "online";
     }
-    // When the car woke or fell asleep, if that's what it's doing.
+    // When the car fell asleep. When it woke isn't when an awake car parked: it may have
+    // driven or charged since, so the widget times that itself (see main.qml).
     const changed = e["binary_sensor.status"] ? Date.parse(e["binary_sensor.status"].last_changed) : NaN;
-    if (!isNaN(changed) && (out.state === "asleep" || out.state === "online"))
-        out.since = new Date(changed).toISOString();
+    if (!isNaN(changed) && out.state === "asleep") out.since = new Date(changed).toISOString();
     return out;
 }
 
