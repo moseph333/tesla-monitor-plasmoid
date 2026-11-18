@@ -196,11 +196,11 @@ test("a DC fast charge keeps the charger's kind and the charge rate in km/h", ()
         Object.assign(r.charge_state, {
             charging_state: "Charging", charger_power: 150, charger_voltage: 2,
             charger_actual_current: 0, fast_charger_present: true,
-            fast_charger_type: "Supercharger", fast_charger_brand: "Tesla", charge_rate: 500
+            fast_charger_type: "Tesla", fast_charger_brand: "Tesla", charge_rate: 500
         });
     }));
     assert.equal(car.fast_charger_present, "true");
-    assert.equal(car.fast_charger_type, "Supercharger");
+    assert.equal(car.fast_charger_type, "Tesla");
     assert.equal(car.fast_charger_brand, "Tesla");
     close(car.charge_rate_kmh, 500 * 1.609344);
     assert.equal(L.chargerKind(car), "supercharger");

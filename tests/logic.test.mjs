@@ -368,6 +368,9 @@ test("showPhases hides one phase and incomplete or zero values", () => {
 
 test("chargerKind tells a Supercharger from another DC charger, and needs one present", () => {
     assert.equal(L.chargerKind({ fast_charger_present: "true", fast_charger_brand: "Tesla" }), "supercharger");
+    // Home Assistant gives the type alone, which is "Tesla" at a Supercharger.
+    assert.equal(L.chargerKind({ fast_charger_present: "true", fast_charger_type: "Tesla" }), "supercharger");
+    assert.equal(L.chargerKind({ fast_charger_present: "true", fast_charger_type: "TeslaCombo" }), "supercharger");
     assert.equal(L.chargerKind({ fast_charger_present: "true", fast_charger_type: "Supercharger" }), "supercharger");
     assert.equal(L.chargerKind({ fast_charger_present: "true", fast_charger_type: "Combo" }), "dc");
     assert.equal(L.chargerKind({ fast_charger_present: "true" }), "dc");

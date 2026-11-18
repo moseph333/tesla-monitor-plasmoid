@@ -254,12 +254,13 @@ function showPhases(car) {
 }
 
 // What the car is charging from, for sources that say (TeslaMate doesn't): "supercharger",
-// "dc" for another DC fast charger, or "" for AC or unknown.
+// "dc" for another DC fast charger, or "" for AC or unknown. At a Supercharger the car
+// reports the brand "Tesla" and a type that starts with it; Home Assistant has the type only.
 function chargerKind(car) {
     if (!bool(car, "fast_charger_present")) return "";
     const type = String(car.fast_charger_type || "").toLowerCase();
     const brand = String(car.fast_charger_brand || "").toLowerCase();
-    return brand.includes("tesla") || type.includes("supercharger") ? "supercharger" : "dc";
+    return brand.includes("tesla") || type.startsWith("tesla") || type.includes("supercharger") ? "supercharger" : "dc";
 }
 
 // The active route from TeslaMate's active_route JSON (1.29+), as {destination, minutes,
